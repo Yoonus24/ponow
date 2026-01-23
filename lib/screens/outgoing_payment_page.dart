@@ -11,8 +11,7 @@ import 'package:provider/provider.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/common_bottom_nav.dart';
 import '../providers/outgoing_payment_provider.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 
 class OutgoingPaymentPage extends StatefulWidget {
   const OutgoingPaymentPage({super.key});
@@ -42,10 +41,19 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   GRN? grn;
   ApInvoice? apInvoice;
   DateTime? _serverNow;
+  late final Dio _dio;
 
   @override
   void initState() {
     super.initState();
+
+    _dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+      ),
+    );
+
     _horizontalScrollController = ScrollController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -116,18 +124,19 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
 
   Future<void> _fetchServerDateTime() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://yenerp.com/liveapi/datetime'),
-      );
+      final response = await _dio.get('https://yenerp.com/liveapi/datetime');
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         final dateStr = data['datetime'];
 
         if (dateStr != null && dateStr is String) {
           _serverNow = DateTime.parse(dateStr);
         }
       }
+    } on DioException catch (e) {
+      // 🌐 Internet illa → silent fail (UI already handles date logic)
+      debugPrint('Server datetime fetch failed: ${e.type}');
     } catch (e) {
       debugPrint('Server datetime fetch failed: $e');
     }

@@ -1279,67 +1279,117 @@ class _AddItemDialogState extends State<AddItemDialog> {
     try {
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-      // Prepare all items data
-      final List<Map<String, dynamic>> itemsData = notifier.poItems.map((item) {
-        return {
-          'itemId': item.itemId,
-          'itemName': item.itemName,
-          'pendingTotalQuantity':
-              item.pendingTotalQuantity ?? item.quantity ?? 0,
-          'poQuantity': item.poQuantity ?? item.quantity ?? 0,
-          'newPrice': item.newPrice ?? 0,
-          'befTaxDiscount': item.befTaxDiscount ?? 0,
-          'afTaxDiscount': item.afTaxDiscount ?? 0,
-          'befTaxDiscountAmount': item.befTaxDiscountAmount ?? 0,
-          'afTaxDiscountAmount': item.afTaxDiscountAmount ?? 0,
-          'befTaxDiscountType': item.befTaxDiscountType ?? 'percentage',
-          'afTaxDiscountType': item.afTaxDiscountType ?? 'percentage',
-          'taxPercentage': item.taxPercentage ?? 0,
-          'taxType': item.taxType ?? 'cgst_sgst',
-        };
-      }).toList();
+      double totalSubTotal = 0.0;
+      double totalTaxAmount = 0.0;
 
-      // Call backend to calculate totals for all items
-      // (You might need to create a new endpoint for bulk calculations)
-      // For now, we'll sum up individual calculations
-      double totalPendingOrderAmount = 0;
-      double totalPendingTaxAmount = 0;
-      double totalPendingDiscountAmount = 0;
+      double totalBefTaxDiscount = 0.0;
+      double totalAfTaxDiscount = 0.0;
+
+      double totalFinalAmount = 0.0;
 
       for (final item in notifier.poItems) {
         final result = await poProvider.calculateItemTotalsBackend(
           pendingTotalQuantity: item.pendingTotalQuantity ?? item.quantity ?? 0,
           poQuantity: item.poQuantity ?? item.quantity ?? 0,
           newPrice: item.newPrice ?? 0,
-          befTaxDiscount: item.befTaxDiscount,
-          afTaxDiscount: item.afTaxDiscount,
-          befTaxDiscountAmount: item.befTaxDiscountAmount,
-          afTaxDiscountAmount: item.afTaxDiscountAmount,
+
+          befTaxDiscount: item.befTaxDiscount ?? 0,
+          afTaxDiscount: item.afTaxDiscount ?? 0,
+
+          befTaxDiscountAmount: item.befTaxDiscountAmount ?? 0,
+          afTaxDiscountAmount: item.afTaxDiscountAmount ?? 0,
+
           befTaxDiscountType: item.befTaxDiscountType ?? 'percentage',
           afTaxDiscountType: item.afTaxDiscountType ?? 'percentage',
+
           taxPercentage: item.taxPercentage ?? 0,
           taxType: item.taxType ?? 'cgst_sgst',
         );
 
-        totalPendingOrderAmount += result['pendingFinalPrice'] ?? 0;
-        totalPendingTaxAmount += result['pendingTaxAmount'] ?? 0;
-        totalPendingDiscountAmount += result['pendingDiscountAmount'] ?? 0;
+        final double baseAmount =
+            (item.pendingTotalQuantity ?? item.quantity ?? 0) *
+            (item.newPrice ?? 0);
+
+        final double taxAmount = result['pendingTaxAmount'] ?? 0.0;
+        final double finalPrice = result['pendingFinalPrice'] ?? 0.0;
+
+        final double befTaxDiscAmt =
+            result['pendingBefTaxDiscountAmount'] ?? 0.0;
+        final double afTaxDiscAmt = result['pendingAfTaxDiscountAmount'] ?? 0.0;
+
+        // -------------------------------
+        // 🔥 UPDATE ITEM VALUES
+        // -------------------------------
+        item.totalPrice = baseAmount;
+        item.pendingTotalPrice = baseAmount;
+
+        item.taxAmount = taxAmount;
+        item.pendingTaxAmount = taxAmount;
+
+        item.finalPrice = finalPrice;
+        item.pendingFinalPrice = finalPrice;
+
+        item.pendingDiscountAmount = (result['pendingDiscountAmount'] ?? 0.0);
+
+        item.pendingCgst = result['pendingCgst'] ?? 0.0;
+        item.pendingSgst = result['pendingSgst'] ?? 0.0;
+        item.pendingIgst = result['pendingIgst'] ?? 0.0;
+
+        // -------------------------------
+        // 🔢 ACCUMULATE TOTALS
+        // -------------------------------
+        totalSubTotal += baseAmount;
+        totalTaxAmount += taxAmount;
+
+        totalBefTaxDiscount += befTaxDiscAmt;
+        totalAfTaxDiscount += afTaxDiscAmt;
+
+        totalFinalAmount += finalPrice;
       }
 
-      // Update notifier with backend calculated values
-      notifier.pendingOrderAmount = totalPendingOrderAmount;
-      notifier.pendingTaxAmount = totalPendingTaxAmount;
-      notifier.pendingDiscountAmount = totalPendingDiscountAmount;
-      notifier.totalOrderAmount = totalPendingOrderAmount;
+      // -------------------------------
+      // ✅ FIXED SUMMARY LOGIC
+      // -------------------------------
 
-      // Apply round-off if any
+      // 🔥 BOTH BEF + AF TAX ARE ITEM-WISE DISCOUNTS
+      notifier.itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
+
+      // 🔥 OVERALL DISCOUNT IS ONLY FROM OVERALL API
+      if (!notifier.isOverallDiscountActive) {
+        notifier.overallDiscountAmount = 0.0;
+      }
+
+      notifier.subTotal = totalSubTotal;
+      notifier.pendingTaxAmount = totalTaxAmount;
+
+      // -------------------------------
+      // 🔄 FINAL TOTAL WITH ROUND OFF
+      // -------------------------------
       final double roundOff =
           double.tryParse(notifier.roundOffController.text) ?? 0.0;
-      notifier.totalOrderAmount += roundOff;
+
+      notifier.calculatedFinalAmount = totalFinalAmount + roundOff;
+
+      notifier.totalOrderAmount = notifier.calculatedFinalAmount;
+
+      notifier.pendingOrderAmount = notifier.calculatedFinalAmount;
+
+      notifier.pendingDiscountAmount =
+          notifier.itemWiseDiscount + (notifier.overallDiscountAmount ?? 0.0);
 
       notifier.notifyListeners();
+
+      // -------------------------------
+      // 🧪 DEBUG (OPTIONAL)
+      // -------------------------------
+      print('📊 PO TOTALS CALCULATED');
+      print('Subtotal: $totalSubTotal');
+      print('Tax: $totalTaxAmount');
+      print('Item-wise Discount: ${notifier.itemWiseDiscount}');
+      print('Overall Discount: ${notifier.overallDiscountAmount}');
+      print('Final Amount: ${notifier.totalOrderAmount}');
     } catch (e) {
-      print('Error calculating PO totals from backend: $e');
+      print('❌ Error calculating PO totals from backend: $e');
     }
   }
 

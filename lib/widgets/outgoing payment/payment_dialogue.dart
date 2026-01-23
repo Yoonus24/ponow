@@ -138,48 +138,82 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
     BuildContext context,
   ) {
+    final bool isFullPayment = provider.selectedPaymentType == 'full';
+
     return GestureDetector(
-      onTap: () {
-        showNumericCalculator(
-          context: context,
-          controller: provider.amountController,
-          varianceName: 'Enter Amount',
-          onValueSelected: () {
-            print('Amount selected: ${provider.amountController.text}');
-          },
-          fieldType: '',
-        );
-        print('Opened numeric calculator for amount');
-      },
+      onTap: isFullPayment
+          ? null // 🔒 Full payment → no calculator
+          : () {
+              showNumericCalculator(
+                context: context,
+                controller: provider.amountController,
+                varianceName: 'Enter Amount',
+                onValueSelected: () {
+                  final double entered =
+                      double.tryParse(provider.amountController.text) ?? 0.0;
+
+                  // 🔥 HARD STOP: Partial payment cannot exceed total
+                  if (provider.selectedPaymentType == 'partial' &&
+                      entered > totalPayableAmount) {
+                    provider.amountController.text = totalPayableAmount
+                        .toStringAsFixed(2);
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Amount cannot exceed '
+                          '${totalPayableAmount.toStringAsFixed(2)}',
+                        ),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                fieldType: '',
+              );
+            },
       child: AbsorbPointer(
+        absorbing: true,
         child: TextFormField(
           controller: provider.amountController,
+          enabled: !isFullPayment,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
             labelText: 'Amount',
+            hintText: isFullPayment ? 'Full payment amount' : 'Enter amount',
+            filled: true,
+            fillColor: isFullPayment ? Colors.grey.shade100 : Colors.white,
+            suffixIcon: isFullPayment
+                ? const Icon(Icons.lock, size: 18)
+                : const Icon(Icons.calculate, size: 18),
             border: OutlineInputBorder(
               borderSide: BorderSide(color: Colors.grey[400]!),
             ),
             enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.black54),
+              borderSide: BorderSide(
+                color: isFullPayment ? Colors.grey : Colors.black54,
+              ),
             ),
             focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blueAccent, width: 2.0),
+              borderSide: BorderSide(color: Colors.blueAccent, width: 2),
             ),
-            hintText: 'Enter amount',
-            hintStyle: const TextStyle(color: Colors.black54),
-            filled: true,
-            fillColor: Colors.white,
-            labelStyle: const TextStyle(color: Colors.black87),
-            floatingLabelStyle: const TextStyle(color: Colors.blueAccent),
           ),
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Please enter an amount';
-            final amount = double.tryParse(value);
+            if (value == null || value.isEmpty) {
+              return 'Please enter an amount';
+            }
+
+            final double? amount = double.tryParse(value);
             if (amount == null || amount <= 0) {
               return 'Please enter a valid amount';
             }
-            print('Validated amount: $value');
+
+            if (provider.selectedPaymentType == 'partial' &&
+                amount > totalPayableAmount) {
+              return 'Amount cannot exceed '
+                  '${totalPayableAmount.toStringAsFixed(2)}';
+            }
+
             return null;
           },
         ),
@@ -257,7 +291,6 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
   ) {
     return [
-      // 🔄 BANK LIST / ERROR / AUTOCOMPLETE
       provider.isLoadingBanks
           ? const Center(child: CircularProgressIndicator())
           : provider.bankError != null
@@ -303,7 +336,7 @@ class PaymentDialog extends StatelessWidget {
                     return TextFormField(
                       controller: controller,
                       focusNode: focusNode,
-                      keyboardType: TextInputType.text, // ✅ normal keyboard
+                      keyboardType: TextInputType.text,
                       decoration: InputDecoration(
                         labelText: 'Bank Name',
                         suffixIcon: const Icon(Icons.search),
@@ -338,7 +371,7 @@ class PaymentDialog extends StatelessWidget {
                       alignment: Alignment.topLeft,
                       child: Material(
                         elevation: 4,
-                        color: Colors.white, // ✅ DROPDOWN BACKGROUND WHITE
+                        color: Colors.white,
                         child: SizedBox(
                           height: 200,
                           width: MediaQuery.of(context).size.width * 0.8,
@@ -348,7 +381,7 @@ class PaymentDialog extends StatelessWidget {
                             itemBuilder: (context, index) {
                               final option = options.elementAt(index);
                               return ListTile(
-                                tileColor: Colors.white, // ✅ EACH ITEM WHITE
+                                tileColor: Colors.white,
                                 title: Text(
                                   option,
                                   style: const TextStyle(color: Colors.black),
@@ -365,7 +398,6 @@ class PaymentDialog extends StatelessWidget {
 
       const SizedBox(height: 16),
 
-      // 💳 BANK PAYMENT METHOD
       DropdownButtonFormField<String>(
         initialValue: provider.selectedBankPaymentMethod,
         decoration: InputDecoration(
@@ -397,9 +429,7 @@ class PaymentDialog extends StatelessWidget {
 
       const SizedBox(height: 16),
 
-      // 🧾 TRANSACTION FIELD (UPI vs OTHERS)
       provider.selectedBankPaymentMethod == 'upi'
-          // ✅ UPI → NORMAL KEYBOARD
           ? TextFormField(
               controller: provider.transactionController,
               keyboardType: TextInputType.text,
@@ -421,7 +451,6 @@ class PaymentDialog extends StatelessWidget {
                   ? 'Please enter UPI reference'
                   : null,
             )
-          // ✅ NEFT / RTGS / IMPS → NUMERIC CALCULATOR
           : GestureDetector(
               onTap: () {
                 showNumericCalculator(
@@ -486,7 +515,6 @@ class PaymentDialog extends StatelessWidget {
   ) {
     final bool isUPI = provider.selectedBankPaymentMethod == 'upi';
 
-    // ✅ UPI → NORMAL MOBILE KEYBOARD
     if (isUPI) {
       return TextFormField(
         controller: provider.transactionController,
@@ -511,7 +539,6 @@ class PaymentDialog extends StatelessWidget {
       );
     }
 
-    // ✅ NEFT / RTGS / IMPS → NUMERIC CALCULATOR
     return GestureDetector(
       onTap: () {
         showNumericCalculator(
@@ -552,8 +579,8 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
   ) {
     return SizedBox(
-      width: double.infinity, // ✅ Use full width without LayoutBuilder
-      height: 48, // ✅ Consistent tap height
+      width: double.infinity,
+      height: 48,
       child: ElevatedButton(
         onPressed: provider.isSubmitting
             ? null
@@ -564,7 +591,7 @@ class PaymentDialog extends StatelessWidget {
                   context: context,
                   barrierDismissible: false,
                   builder: (context) => AlertDialog(
-                    backgroundColor: Colors.white, // ✅ Dialog white
+                    backgroundColor: Colors.white,
                     title: const Text(
                       'Confirm Payment',
                       textAlign: TextAlign.center,
@@ -582,7 +609,6 @@ class PaymentDialog extends StatelessWidget {
                     actions: [
                       Row(
                         children: [
-                          // ❌ CANCEL (Blue Accent Outline)
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(false),

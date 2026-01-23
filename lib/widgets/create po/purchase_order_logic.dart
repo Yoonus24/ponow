@@ -125,7 +125,7 @@ class PurchaseOrderLogic {
       notifier.fetchItems(''),
     ]);
 
-    // 🔥 THIS IS THE KEY LINE
+    notifier.expectedDeliveryDateController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       applyAddressesIfReady();
     });
@@ -511,20 +511,20 @@ class PurchaseOrderLogic {
     }
 
     final discountValue = double.tryParse(discountText);
-    if (discountValue == null || discountValue < 0) {
+    if (discountValue == null || discountValue <= 0) {
       _showRequiredFieldSnackBar('Invalid discount value');
       return;
     }
 
     try {
-      // 🔒 VALIDATE ITEM IDs (THIS FIXES "Item ID missing")
+      // 🔒 VALIDATE ITEM IDs
       for (final item in notifier.poItems) {
         if (item.itemId == null || item.itemId!.isEmpty) {
           throw Exception('Item ID missing');
         }
       }
 
-      // 🔥 BUILD PAYLOAD (ROOT FIX FOR 422 ERROR)
+      // 🔥 BUILD PAYLOAD
       final itemList = notifier.poItems.map((item) {
         return {
           "itemId": item.itemId,
@@ -534,12 +534,12 @@ class PurchaseOrderLogic {
               item.pendingTotalQuantity ?? item.quantity ?? 0.0,
           "poQuantity": item.poQuantity ?? item.quantity ?? 0.0,
 
-          // BEFORE TAX DISCOUNT
+          // BEFORE TAX
           "befTaxDiscount": item.befTaxDiscount ?? 0.0,
-          "befTaxDiscountType": item.befTaxDiscountType ?? "amount",
+          "befTaxDiscountType": item.befTaxDiscountType ?? "percentage",
           "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
 
-          // 🔥 OVERALL DISCOUNT → BACKEND WILL CALCULATE
+          // AFTER TAX (overall discount will be applied by backend)
           "afTaxDiscount": 0.0,
           "afTaxDiscountType": "amount",
           "afTaxDiscountAmount": 0.0,
@@ -565,47 +565,63 @@ class PurchaseOrderLogic {
         throw Exception(response["error"] ?? "Discount failed");
       }
 
-      // ✅ APPLY BACKEND RESULT TO UI
+      // --------------------------------------------------
+      // 🔥 VERY IMPORTANT FIX (THIS WAS MISSING)
+      // --------------------------------------------------
+      notifier.isOverallDiscountActive = true;
+      notifier.discountMode.value = overallDiscountMode.value;
+
+      // --------------------------------------------------
+      // ✅ APPLY BACKEND VALUES TO ITEMS
+      // --------------------------------------------------
       final List items = response["items"] ?? [];
       final summary = response["summary"] ?? {};
 
-      double safeToDouble(dynamic v) {
+      double toDouble(dynamic v) {
         if (v == null) return 0.0;
         if (v is num) return v.toDouble();
-        if (v is String) return double.tryParse(v) ?? 0.0;
-        return 0.0;
+        return double.tryParse(v.toString()) ?? 0.0;
       }
 
       for (int i = 0; i < items.length; i++) {
         final apiItem = items[i];
         final uiItem = notifier.poItems[i];
 
-        uiItem.afTaxDiscount = safeToDouble(apiItem["afTaxDiscountPercentage"]);
-        uiItem.afTaxDiscountAmount = safeToDouble(
+        uiItem.afTaxDiscount = toDouble(apiItem["afTaxDiscount"]);
+        uiItem.afTaxDiscountAmount = toDouble(
           apiItem["pendingAfTaxDiscountAmount"],
         );
-        uiItem.finalPrice = safeToDouble(apiItem["pendingFinalPrice"]);
+
+        uiItem.finalPrice = toDouble(apiItem["pendingFinalPrice"]);
         uiItem.pendingFinalPrice = uiItem.finalPrice;
-        uiItem.totalPrice = safeToDouble(apiItem["pendingTotalPrice"]);
+
+        uiItem.totalPrice = toDouble(apiItem["pendingTotalPrice"]);
         uiItem.pendingTotalPrice = uiItem.totalPrice;
-        uiItem.taxAmount = safeToDouble(apiItem["pendingTaxAmount"]);
+
+        uiItem.taxAmount = toDouble(apiItem["pendingTaxAmount"]);
         uiItem.pendingTaxAmount = uiItem.taxAmount;
-        uiItem.discountAmount = safeToDouble(apiItem["pendingDiscountAmount"]);
-        uiItem.pendingDiscountAmount = uiItem.discountAmount;
-        uiItem.pendingCgst = safeToDouble(apiItem["pendingCgst"]);
-        uiItem.pendingSgst = safeToDouble(apiItem["pendingSgst"]);
-        uiItem.pendingIgst = safeToDouble(apiItem["pendingIgst"]);
+
+        uiItem.pendingDiscountAmount = toDouble(
+          apiItem["pendingDiscountAmount"],
+        );
+
+        uiItem.pendingCgst = toDouble(apiItem["pendingCgst"]);
+        uiItem.pendingSgst = toDouble(apiItem["pendingSgst"]);
+        uiItem.pendingIgst = toDouble(apiItem["pendingIgst"]);
       }
 
-      // ✅ TOTALS FROM BACKEND
-      notifier.pendingTaxAmount = safeToDouble(summary["totalTaxAmount"]);
-      notifier.totalOrderAmount = safeToDouble(summary["totalFinalAmount"]);
-      notifier.overallDiscountAmount = safeToDouble(
+      // --------------------------------------------------
+      // ✅ TOTALS FROM BACKEND SUMMARY
+      // --------------------------------------------------
+      notifier.pendingTaxAmount = toDouble(summary["totalTaxAmount"]);
+      notifier.totalOrderAmount = toDouble(summary["totalFinalAmount"]);
+      notifier.overallDiscountAmount = toDouble(
         summary["overallDiscountTotalAmount"],
       );
 
-      notifier.discountMode.value = overallDiscountMode.value;
-
+      // --------------------------------------------------
+      // 🔁 FINAL RECALC
+      // --------------------------------------------------
       notifier.calculateTotals();
       updateTotalOrderAmount();
       triggerUIRefresh();

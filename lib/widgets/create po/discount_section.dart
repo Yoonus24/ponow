@@ -198,7 +198,7 @@ class _DiscountSectionState extends State<DiscountSection> {
         item['afTaxDiscount'] = 0.0;
         item['afTaxDiscountAmount'] = 0.0;
         item['pendingAfTaxDiscountAmount'] = 0.0;
-        // item['itemOverallDiscountAmount'] = 0.0; 
+        // item['itemOverallDiscountAmount'] = 0.0;
         item['pendingDiscountAmount'] = 0.0;
       } else if (item is Item) {
         // ✅ ONLY EXISTING PROPERTIES
@@ -207,7 +207,7 @@ class _DiscountSectionState extends State<DiscountSection> {
         item.afTaxDiscount = 0.0;
         item.afTaxDiscountAmount = 0.0;
         item.pendingAfTaxDiscountAmount = 0.0;
-        // item.itemOverallDiscountAmount = 0.0; 
+        // item.itemOverallDiscountAmount = 0.0;
         item.pendingDiscountAmount = 0.0;
       }
     } catch (_) {}
@@ -221,7 +221,7 @@ class _DiscountSectionState extends State<DiscountSection> {
         object.afTaxDiscount = 0.0;
         object.afTaxDiscountAmount = 0.0;
         object.pendingAfTaxDiscountAmount = 0.0;
-        // object.itemOverallDiscountAmount = 0.0; 
+        // object.itemOverallDiscountAmount = 0.0;
         object.pendingDiscountAmount = 0.0;
       } else if (object is Map<String, dynamic>) {
         object['befTaxDiscount'] = 0.0;
@@ -452,32 +452,30 @@ class _DiscountSectionState extends State<DiscountSection> {
     final mode = widget.discountMode.value;
     final discountText = widget.overallDiscountController.text.trim();
     final discountValue = double.tryParse(discountText) ?? 0.0;
+
+    // ❌ Overall disabled
     if (mode == DiscountMode.none) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Enable overall discount to apply'),
-          backgroundColor: Colors.blue,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 85, left: 16, right: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      _showSnack('Enable overall discount to apply', Colors.blue);
       return;
     }
+
+    // ❌ Empty / invalid
     if (discountValue <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter a valid discount value'),
-          backgroundColor: Colors.blue,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 85, left: 16, right: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      _showSnack('Please enter a valid discount value', Colors.blue);
+      return;
+    }
+
+    // ❌ No items
+    if (widget.poItems.isEmpty) {
+      _showSnack('Please add at least one item to apply discount', Colors.red);
+      return;
+    }
+
+    // 🟡 ALREADY APPLIED CHECK
+    final alreadyApplied = (widget.notifier.overallDiscountAmount ?? 0) > 0;
+
+    if (alreadyApplied) {
+      _showSnack('Discount already applied', Colors.orange);
       return;
     }
 
@@ -485,34 +483,27 @@ class _DiscountSectionState extends State<DiscountSection> {
 
     try {
       await widget.onApplyDiscount();
-      // widget.notifier.calculateTotals();
+
       widget.onCalculationsUpdate();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Discount applied successfully'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 85, left: 16, right: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+
+      _showSnack('Discount applied successfully', Colors.green);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to apply discount: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(bottom: 95, left: 16, right: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
+      _showSnack('Failed to apply discount', Colors.red);
     } finally {
       _isApplying = false;
     }
+  }
+
+  void _showSnack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(bottom: 85, left: 16, right: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -819,7 +810,7 @@ class _DiscountSectionState extends State<DiscountSection> {
                           child: Text(
                             error,
                             style: const TextStyle(
-                              fontSize: 10, 
+                              fontSize: 10,
                               color: Colors.red,
                             ),
                           ),

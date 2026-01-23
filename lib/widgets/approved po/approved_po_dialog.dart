@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -43,6 +42,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Future<void> _showConvertToGRNConfirmation() async {
+    if (_logic.isSaving.value) return;
     final bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -847,20 +847,17 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: ElevatedButton(
-              onPressed: _logic.isSaving.value
-                  ? null
-                  : _showConvertToGRNConfirmation,
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _logic.isSaving,
-                builder: (_, saving, __) {
-                  return saving
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _logic.isSaving,
+              builder: (context, saving, _) {
+                return ElevatedButton(
+                  onPressed: saving ? null : _showConvertToGRNConfirmation,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: saving
                       ? const SizedBox(
                           height: 18,
                           width: 18,
@@ -872,14 +869,14 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                       : const Text(
                           'Convert to GRN',
                           style: TextStyle(
-                            fontSize: 11, // 👈 small, clean
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                        );
-                },
-              ),
+                        ),
+                );
+              },
             ),
           ),
         ],

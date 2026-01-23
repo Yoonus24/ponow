@@ -5,7 +5,6 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -18,7 +17,29 @@ import 'package:purchaseorders2/providers/grn_provider.dart';
 
 class POProvider extends ChangeNotifier {
   static const String cloudBaseUrl = 'https://yenerp.com';
-  static const String localBaseUrl = 'https://yenerp.com/nextjstestapi';
+  static const String localBaseUrl = 'http://192.168.29.252:8000/nextjstestapi';
+
+  final Dio _dio =
+      Dio(
+          BaseOptions(
+            baseUrl: 'http://192.168.29.252:8000/nextjstestapi',
+            connectTimeout: const Duration(seconds: 60),
+            receiveTimeout: const Duration(seconds: 30),
+            sendTimeout: const Duration(seconds: 30),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          ),
+        )
+        ..interceptors.add(
+          LogInterceptor(
+            request: true,
+            requestBody: true,
+            responseBody: true,
+            error: true,
+          ),
+        );
 
   // STATE VARIABLES
   List<PO> _pos = [];
@@ -141,14 +162,13 @@ class POProvider extends ChangeNotifier {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse(
-          '$localBaseUrl/purchaseorders/search-suggestions',
-        ).replace(queryParameters: {'q': query}),
+      final response = await _dio.get(
+        '/purchaseorders/search-suggestions',
+        queryParameters: {'q': query},
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = response.data;
         _searchSuggestions = List<String>.from(data['suggestions'] ?? []);
         notifyListeners();
       }
@@ -392,10 +412,7 @@ class POProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      final queryParams = <String, String>{
-        'skip': skip.toString(),
-        'limit': limit.toString(),
-      };
+      final queryParams = <String, dynamic>{'skip': skip, 'limit': limit};
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
         queryParams['search'] = searchQuery;
@@ -439,15 +456,14 @@ class POProvider extends ChangeNotifier {
         queryParams['includeInactive'] = includeInactive.toString();
       }
 
-      final uri = Uri.parse(
-        '$localBaseUrl/purchaseorders/getAll',
-      ).replace(queryParameters: queryParams);
-
-      print('Fetching POs with filters: ${uri.queryParameters}');
-      final response = await http.get(uri);
+      print('Fetching POs with filters: $queryParams');
+      final response = await _dio.get(
+        '/purchaseorders/getAll',
+        queryParameters: queryParams,
+      );
 
       if (response.statusCode == 200) {
-        final List data = jsonDecode(response.body);
+        final List data = response.data;
         final List<PO> fetchedPOs = data.map((e) => PO.fromJson(e)).toList();
 
         // ---------------- CREDIT LIMIT FIX ----------------
@@ -497,7 +513,7 @@ class POProvider extends ChangeNotifier {
 
         notifyListeners();
       } else {
-        _error = 'Failed: ${response.statusCode} - ${response.body}';
+        _error = 'Failed: ${response.statusCode} - ${response.data}';
       }
     } catch (e) {
       _error = e.toString();
@@ -643,17 +659,8 @@ class POProvider extends ChangeNotifier {
     _setError(null);
     notifyListeners();
 
-    final dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
-        responseType: ResponseType.json,
-      ),
-    );
-
     try {
-      final response = await dio.get('$localBaseUrl/purchaseorders/getAll');
+      final response = await _dio.get('/purchaseorders/getAll');
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -719,15 +726,7 @@ class POProvider extends ChangeNotifier {
     _isVendorLoading = true;
 
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
-      );
-
-      final response = await dio.get(
+      final response = await _dio.get(
         '/vendors/exact-name/',
         queryParameters: {
           'vendor_name': vendorName,
@@ -791,18 +790,10 @@ class POProvider extends ChangeNotifier {
       _isFetching = true;
       _isVendorLoading = true;
 
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 15),
-          responseType: ResponseType.json,
-        ),
-      );
-
       final url =
-          '$localBaseUrl/vendors/vendor-names/?vendor_name=${Uri.encodeComponent(vendorName)}&skip=$skip&limit=$limit';
+          '/vendors/vendor-names/?vendor_name=${Uri.encodeComponent(vendorName)}&skip=$skip&limit=$limit';
 
-      final response = await dio.get(url);
+      final response = await _dio.get(url);
 
       if (response.statusCode == 200) {
         final data = response.data;
@@ -859,16 +850,8 @@ class POProvider extends ChangeNotifier {
     _setLoadingState(true);
     _error = null;
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: localBaseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-      ),
-    );
-
     try {
-      final response = await dio.get('/vendors/');
+      final response = await _dio.get('/vendors/');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _vendors = data.map<Vendor>((json) => Vendor.fromJson(json)).toList();
@@ -887,12 +870,11 @@ class POProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      final response = await http.get(
-        Uri.parse('$cloudBaseUrl/purchaseapi/poshippingaddress/'),
-      );
+      final dio = Dio(BaseOptions(baseUrl: cloudBaseUrl));
+      final response = await dio.get('/purchaseapi/poshippingaddress/');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data;
         _shippingAddresses = data
             .map<ShippingAddress>((json) => ShippingAddress.fromJson(json))
             .toList();
@@ -911,12 +893,11 @@ class POProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      final response = await http.get(
-        Uri.parse('$cloudBaseUrl/purchaseapi/pobusiness/'),
-      );
+      final dio = Dio(BaseOptions(baseUrl: cloudBaseUrl));
+      final response = await dio.get('/purchaseapi/pobusiness/');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data;
         _billingAddress = data
             .map<BillingAddress>((json) => BillingAddress.fromJson(json))
             .toList();
@@ -932,14 +913,14 @@ class POProvider extends ChangeNotifier {
 
   // SEARCH ITEMS
   Future<void> searchPurchaseItems(String query) async {
-    final url = Uri.parse(
-      '$localBaseUrl/rawMaterials/search?itemName=${Uri.encodeComponent(query)}',
-    );
-
     try {
-      final response = await http.get(url);
+      final response = await _dio.get(
+        '/rawMaterials/search',
+        queryParameters: {'itemName': query},
+      );
+
       if (response.statusCode == 200) {
-        final decoded = json.decode(response.body);
+        final decoded = response.data;
         final List<dynamic> data = decoded['items'];
         _purchaseItems = data
             .map((item) => PurchaseItem.fromJson(item))
@@ -952,7 +933,7 @@ class POProvider extends ChangeNotifier {
         throw Exception('Failed to load purchase items');
       }
     } catch (e) {
-      throw Exception('Failed to load purchase items');
+      throw Exception('Failed to load purchase items: $e');
     }
   }
 
@@ -972,15 +953,7 @@ class POProvider extends ChangeNotifier {
   // STATUS: APPROVE / REVERT
   Future<void> approvePo(String purchaseOrderId, String status, PO po) async {
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          headers: {'Content-Type': 'application/json'},
-        ),
-      );
-
-      final response = await dio.patch(
+      final response = await _dio.patch(
         '/purchaseorders/$purchaseOrderId',
         data: {'poStatus': status},
       );
@@ -1050,15 +1023,7 @@ class POProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          headers: {'Content-Type': 'application/json'},
-        ),
-      );
-
-      final response = await dio.patch(
+      final response = await _dio.patch(
         '/purchaseorders/$purchaseOrderId',
         data: {'poStatus': 'Pending'},
       );
@@ -1088,14 +1053,6 @@ class POProvider extends ChangeNotifier {
   // GRN CONVERSION
   Future<void> convertGrnPo(String poId, PO po) async {
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl, // ✅ IMPORTANT
-          connectTimeout: const Duration(seconds: 30),
-          headers: {'Content-Type': 'application/json'},
-        ),
-      );
-
       final pendingItems = po.items
           .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
           .toList();
@@ -1121,7 +1078,7 @@ class POProvider extends ChangeNotifier {
       debugPrint("➡️ PATCH $localBaseUrl$url");
       debugPrint("➡️ Payload: ${jsonEncode(payload)}");
 
-      final response = await dio.patch(url, data: payload);
+      final response = await _dio.patch(url, data: payload);
 
       debugPrint("⬅️ Status: ${response.statusCode}");
       debugPrint("⬅️ Data: ${response.data}");
@@ -1159,14 +1116,6 @@ class POProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          headers: {'Content-Type': 'application/json'},
-        ),
-      );
-
       print('=== Converting PO to GRN ===');
       print('GRN ID: $grnId');
       print('PO ID: $poId');
@@ -1186,7 +1135,7 @@ class POProvider extends ChangeNotifier {
       print(jsonEncode(updateBody));
 
       // Update the GRN record with round-off
-      final response = await dio.patch('/grns/$grnId', data: updateBody);
+      final response = await _dio.patch('/grns/$grnId', data: updateBody);
 
       if (response.statusCode == 200) {
         // Success
@@ -1227,16 +1176,7 @@ class POProvider extends ChangeNotifier {
     required double discountAmount,
     required String discountType, // "before" | "after"
   }) async {
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: localBaseUrl,
-        headers: {"Content-Type": "application/json"},
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-      ),
-    );
-
-    final response = await dio.post(
+    final response = await _dio.post(
       '/purchaseorders/items/grn/calculate-overall-discount', // ✅ CORRECT
       data: {
         "applyOverallDiscount": true,
@@ -1284,13 +1224,6 @@ class POProvider extends ChangeNotifier {
         };
       }
 
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: localBaseUrl,
-          headers: {"Content-Type": "application/json"},
-        ),
-      );
-
       // ✅ BUILD CORRECT QUERY PARAMETERS
       final queryParameters = {
         'pendingTotalQuantity': pendingTotalQuantity,
@@ -1323,7 +1256,7 @@ class POProvider extends ChangeNotifier {
       print('🔍 Sending to backend API:');
       print('   Query Params: $queryParameters');
 
-      final response = await dio.get(
+      final response = await _dio.get(
         '/purchaseorders/items/totals',
         queryParameters: queryParameters,
       );
@@ -1420,10 +1353,6 @@ class POProvider extends ChangeNotifier {
     required double overallDiscount,
     required double overallDiscountAmount,
   }) async {
-    final uri = Uri.parse(
-      '$localBaseUrl/purchaseorders/items/calculate-overall-discount',
-    );
-
     // ✅ Build payload with all required fields
     final payload = {
       "applyOverallDiscount": applyOverallDiscount,
@@ -1436,23 +1365,21 @@ class POProvider extends ChangeNotifier {
       "taxType": "cgst_sgst",
     };
 
-    print('🔄 API Request to: ${uri.toString()}');
+    print(
+      '🔄 API Request to: /purchaseorders/items/calculate-overall-discount',
+    );
     print('📦 Payload: ${jsonEncode(payload)}');
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonEncode(payload),
+      final response = await _dio.post(
+        '/purchaseorders/items/calculate-overall-discount',
+        data: payload,
       );
 
       print('📥 API Response Status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> decoded = jsonDecode(response.body);
+        final Map<String, dynamic> decoded = response.data;
         print('✅ Discount calculation successful!');
         print('🔍 Full API Response:');
         print(jsonEncode(decoded));
@@ -1476,13 +1403,11 @@ class POProvider extends ChangeNotifier {
 
         return decoded;
       } else {
-        final errorBody = jsonDecode(response.body);
-        print('❌ API Error ${response.statusCode}: ${response.reasonPhrase}');
+        final errorBody = response.data;
+        print('❌ API Error ${response.statusCode}');
         print('❌ Error details: $errorBody');
 
-        throw Exception(
-          "HTTP ${response.statusCode}: ${response.reasonPhrase}",
-        );
+        throw Exception("HTTP ${response.statusCode}");
       }
     } catch (e) {
       print('❌ API Call Error: $e');
@@ -1633,10 +1558,10 @@ class POProvider extends ChangeNotifier {
         "roundOffAdjustment": po.roundOffAdjustment ?? 0.0,
         "roundOffValue": po.roundOffAdjustment ?? 0.0,
       };
-      final response = await http.patch(
-        Uri.parse('$localBaseUrl/purchaseorders/${po.purchaseOrderId}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(updateData),
+
+      final response = await _dio.patch(
+        '/purchaseorders/${po.purchaseOrderId}',
+        data: updateData,
       );
 
       if (response.statusCode == 200) {
@@ -1655,7 +1580,7 @@ class POProvider extends ChangeNotifier {
         notifyListeners(); // 🔥 REQUIRED
       } else {
         throw Exception(
-          "Failed to update PO: ${response.statusCode} - ${response.body}",
+          "Failed to update PO: ${response.statusCode} - ${response.data}",
         );
       }
     } catch (error) {
@@ -1743,21 +1668,20 @@ class POProvider extends ChangeNotifier {
       debugPrint('URL => $localBaseUrl/purchaseorders/receivedupdates/$poId');
       debugPrint('Body => ${jsonEncode(body)}');
 
-      final response = await http.patch(
-        Uri.parse('$localBaseUrl/purchaseorders/receivedupdates/$poId'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(body),
+      final response = await _dio.patch(
+        '/purchaseorders/receivedupdates/$poId',
+        data: body,
       );
 
       debugPrint('⬅️ Status: ${response.statusCode}');
-      debugPrint('⬅️ Body: ${response.body}');
+      debugPrint('⬅️ Body: ${response.data}');
 
       if (response.statusCode != 200) {
-        final errorResponse = jsonDecode(response.body);
+        final errorResponse = response.data;
         throw Exception(errorResponse["detail"] ?? "PO update failed");
       }
 
-      final responseData = jsonDecode(response.body);
+      final responseData = response.data;
 
       // ✅ Update local state
       final index = _pos.indexWhere((p) => p.purchaseOrderId == poId);
@@ -1798,14 +1722,13 @@ class POProvider extends ChangeNotifier {
     };
 
     try {
-      final response = await http.patch(
-        Uri.parse("$localBaseUrl/purchaseorders/$poId/items"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
+      final response = await _dio.patch(
+        "/purchaseorders/$poId/items",
+        data: payload,
       );
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final decoded = response.data;
         final serverItem = decoded["items"][0];
 
         // Update only server-calculated fields
@@ -1822,7 +1745,7 @@ class POProvider extends ChangeNotifier {
 
         notifyListeners();
       } else {
-        debugPrint("❌ Backend error: ${response.body}");
+        debugPrint("❌ Backend error: ${response.data}");
       }
     } catch (e) {
       debugPrint("❌ Error updating item: $e");
@@ -1835,10 +1758,8 @@ class POProvider extends ChangeNotifier {
     required String currentPurchaseOrderId,
     required String currentVendorName,
   }) async {
-    final dio = Dio(BaseOptions(baseUrl: localBaseUrl));
-
     try {
-      final response = await dio.get('/purchaseorders/getByInvoiceNo');
+      final response = await _dio.get('/purchaseorders/getByInvoiceNo');
       if (response.statusCode == 200) {
         final List<dynamic> purchaseOrders = response.data;
         final searchInvoiceNo = invoiceNo.toLowerCase().trim();
@@ -1882,20 +1803,17 @@ class POProvider extends ChangeNotifier {
   }
 
   // HTTP HELPERS
-  Future<http.Response> postWithRedirectHandling(
-    Uri url,
+  Future<Response> postWithRedirectHandling(
+    String url,
     Map<String, dynamic> body,
   ) async {
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(body),
-      );
-      if (response.statusCode >= 300 && response.statusCode < 400) {
+      final response = await _dio.post(url, data: body);
+
+      if (response.statusCode! >= 300 && response.statusCode! < 400) {
         final location = response.headers['location'];
         if (location != null) {
-          return await http.get(Uri.parse(location));
+          return await _dio.get(location.first);
         }
       }
       return response;
@@ -2080,7 +1998,7 @@ class POProvider extends ChangeNotifier {
       // API CALL
       // --------------------------------------------------
       final response = await postWithRedirectHandling(
-        Uri.parse('$localBaseUrl/purchaseorders/'),
+        '/purchaseorders/',
         poJson,
       );
 
@@ -2088,7 +2006,7 @@ class POProvider extends ChangeNotifier {
         await fetchPOsWithFilters(status: null, clearExisting: true);
       } else {
         throw Exception(
-          "Failed to post PO: ${response.statusCode} - ${response.body}",
+          "Failed to post PO: ${response.statusCode} - ${response.data}",
         );
       }
     } catch (e) {

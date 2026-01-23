@@ -292,24 +292,32 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
       width: width,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: ValueListenableBuilder(
+        child: ValueListenableBuilder<String>(
           valueListenable: _sortColumnNotifier,
-          builder: (context, sortColumnValue, child) {
-            return ValueListenableBuilder(
+          builder: (context, currentSortColumn, _) {
+            return ValueListenableBuilder<bool>(
               valueListenable: _sortAscendingNotifier,
-              builder: (context, sortAscendingValue, child) {
+              builder: (context, isAscending, __) {
+                final bool isActive =
+                    sortColumn != null && currentSortColumn == sortColumn;
+
                 return GestureDetector(
-                  onTap: sortColumn != null
-                      ? () {
-                          if (sortColumnValue == sortColumn) {
-                            _sortAscendingNotifier.value = !sortAscendingValue;
+                  onTap: sortColumn == null
+                      ? null
+                      : () {
+                          if (_sortColumnNotifier.value == sortColumn) {
+                            // 🔁 toggle asc / desc
+                            _sortAscendingNotifier.value =
+                                !_sortAscendingNotifier.value;
                           } else {
+                            // 🆕 new column sort
                             _sortColumnNotifier.value = sortColumn;
                             _sortAscendingNotifier.value = true;
                           }
-                          _loadData();
-                        }
-                      : null,
+
+                          // 🔥 THIS IS THE MISSING PIECE
+                          setState(() {});
+                        },
                   child: Tooltip(
                     message: text,
                     child: Row(
@@ -330,14 +338,15 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         ),
                         if (sortColumn != null)
                           Padding(
-                            padding: const EdgeInsets.only(left: 2),
+                            padding: const EdgeInsets.only(left: 4),
                             child: Icon(
-                              sortColumnValue == sortColumn &&
-                                      !sortAscendingValue
-                                  ? Icons.arrow_downward
-                                  : Icons.arrow_upward,
-                              color: Colors.white,
+                              isActive
+                                  ? (isAscending
+                                        ? Icons.arrow_upward
+                                        : Icons.arrow_downward)
+                                  : Icons.unfold_more,
                               size: 12,
+                              color: Colors.white,
                             ),
                           ),
                       ],
@@ -1356,8 +1365,45 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                   final grnList = provider.grnList;
                   final apInvoices = provider.apInvoices;
-                  final filtered =
-                      provider.payments; // Already filtered by backend
+                  // ================= LOCAL SORT LOGIC =================
+
+                  // Always work on a copy – never mutate provider list
+                  final List<Outgoing> filtered = List.from(provider.payments);
+
+                  // Read current sort state
+                  final String sortColumn = _sortColumnNotifier.value;
+                  final bool ascending = _sortAscendingNotifier.value;
+
+                  // Apply local sort
+                  filtered.sort((a, b) {
+                    int result = 0;
+
+                    switch (sortColumn) {
+                      case 'dueDays':
+                        final int aVal = a.intimationDays ?? 0;
+                        final int bVal = b.intimationDays ?? 0;
+                        result = aVal.compareTo(bVal);
+                        break;
+
+                      case 'paymentTerms':
+                        final String aVal = a.paymentTerms ?? '';
+                        final String bVal = b.paymentTerms ?? '';
+                        result = aVal.compareTo(bVal);
+                        break;
+
+                      case 'invoiceDate':
+                        final DateTime aVal = a.invoiceDate ?? DateTime(1970);
+                        final DateTime bVal = b.invoiceDate ?? DateTime(1970);
+                        result = aVal.compareTo(bVal);
+                        break;
+
+                      default:
+                        result = 0;
+                    }
+
+                    // Ascending / Descending toggle
+                    return ascending ? result : -result;
+                  });
 
                   debugPrint(
                     '🏗️ Building UI with ${filtered.length} filtered payments (from backend)',
@@ -1416,7 +1462,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     85,
                     95,
                     85,
-                    120,
+                    150,
                   ];
                   final totalWidth = columnWidths.reduce((a, b) => a + b);
 

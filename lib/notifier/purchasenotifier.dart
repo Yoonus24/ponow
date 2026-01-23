@@ -230,17 +230,19 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   ) {
     if (_disposed) return;
 
-    print('🔧 APPLYING OVERALL DISCOUNT - Mutual Exclusive');
-    print('   Discount Value: $discountValue, Mode: $mode');
+    print('🔧 APPLYING OVERALL DISCOUNT');
+
+    // ✅ FLAG
+    isOverallDiscountActive = true;
 
     discountMode.value = mode;
     _overallDiscountValue = discountValue;
     overallDiscountController.text = discountValue.toStringAsFixed(2);
 
-    if (mode != DiscountMode.none) {
-      for (var item in poItems) {
-        item.afTaxDiscount = 0.0;
-      }
+    // ❌ Clear item-level AF discounts
+    for (var item in poItems) {
+      item.afTaxDiscount = 0.0;
+      item.afTaxDiscountAmount = 0.0;
     }
 
     _safeCalculateTotals();
@@ -758,7 +760,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   void calculateTotals() {
-    // Check disposed first
     if (_disposed) {
       print('⚠️ calculateTotals: Notifier is disposed, skipping');
       return;
@@ -768,52 +769,64 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       print('🧮 calculateTotals() called');
 
       double subTotal = 0.0;
+      double totalTax = 0.0;
+
       double totalBefTaxDiscount = 0.0;
       double totalAfTaxDiscount = 0.0;
-      double totalTax = 0.0;
+
       double totalFinal = 0.0;
 
-      // Safe iteration with null check
       for (final item in poItems) {
-        if (item == null) {
-          print('⚠️ Null item found in poItems, skipping');
-          continue;
-        }
-
         print('   Item: ${item.itemName}');
         print('     totalPrice: ${item.totalPrice}');
         print('     finalPrice: ${item.finalPrice}');
-        print('     afTaxDiscount: ${item.afTaxDiscount}%');
-        print('     afTaxDiscountAmount: ₹${item.afTaxDiscountAmount}');
+        print('     befTaxDiscountAmount: ${item.befTaxDiscountAmount}');
+        print('     afTaxDiscountAmount: ${item.afTaxDiscountAmount}');
 
         subTotal += item.totalPrice ?? 0.0;
+        totalTax += item.taxAmount ?? 0.0;
+
         totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
         totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
-        totalTax += item.taxAmount ?? 0.0;
+
         totalFinal += item.finalPrice ?? 0.0;
       }
 
-      // ✅ Assign totals
+      // ------------------------------------------------
+      // 🔥 CORE FIX: CLASSIFY AF DISCOUNT CORRECTLY
+      // ------------------------------------------------
+      if (isOverallDiscountActive) {
+        // Backend pushed overall discount into afTaxDiscountAmount
+        _itemWiseDiscount = totalBefTaxDiscount;
+        _overallDiscountAmount = totalAfTaxDiscount;
+      } else {
+        // Normal item-wise discounts
+        _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
+        _overallDiscountAmount = 0.0;
+      }
+
       _subTotal = subTotal;
-      _itemWiseDiscount = totalBefTaxDiscount;
-      _overallDiscountAmount = totalAfTaxDiscount;
       pendingTaxAmount = totalTax;
-      _calculatedFinalAmount = totalFinal;
-      totalOrderAmount = totalFinal;
+
+      final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
+
+      _calculatedFinalAmount = totalFinal + roundOff;
+
+      totalOrderAmount = _calculatedFinalAmount;
+      pendingOrderAmount = _calculatedFinalAmount;
+
+      pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
 
       print('📊 Totals calculated:');
-      print('   _subTotal: $_subTotal');
-      print('   _calculatedFinalAmount: $_calculatedFinalAmount');
-      print('   totalOrderAmount: $totalOrderAmount');
-      print(
-        '   _overallDiscountAmount: $_overallDiscountAmount (Total afTaxDiscountAmount)',
-      );
+      print('   Subtotal: $_subTotal');
+      print('   Item-wise Discount: $_itemWiseDiscount');
+      print('   Overall Discount: $_overallDiscountAmount');
+      print('   Final Amount: $totalOrderAmount');
 
-      // Use safe notify
       safeNotify();
     } catch (e, stackTrace) {
       print('❌ Error in calculateTotals: $e');
-      print('Stack trace: $stackTrace');
+      print(stackTrace);
     }
   }
 
