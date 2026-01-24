@@ -760,184 +760,176 @@ class PurchaseOrderLogic {
   void _initializeWithPOData(PO po) {
     if (isDisposed()) return;
 
-    print('🟢 Loading edit PO: ${po.purchaseOrderId}');
-
-    // -------------------------------
-    // 1️⃣ SET EDITING PO
-    // -------------------------------
     notifier.setEditingPO(po);
 
-    // -------------------------------
-    // 2️⃣ VENDOR DETAILS
-    // -------------------------------
-    notifier.selectedVendor = po.vendorName;
-    vendorController.text = po.vendorName ?? '';
+    // ---------------------------
+    // Vendor (NAME based only)
+    // ---------------------------
+    VendorAll vendor;
 
-    notifier.vendorContactController.text = po.vendorContact ?? '';
-    notifier.paymentTermsController.text = po.paymentTerms ?? '';
-    notifier.creditLimitController.text = (po.creditLimit ?? 0).toString();
+    try {
+      vendor = notifier.vendorAllList.firstWhere(
+        (v) => v.vendorName == po.vendorName,
+      );
+    } catch (_) {
+      vendor = VendorAll(
+        vendorName: po.vendorName ?? '',
+        contactpersonPhone: po.vendorContact ?? '',
+        paymentTerms: po.paymentTerms ?? '',
+        contactpersonEmail: po.contactpersonEmail ?? '',
+        address: po.billingAddress ?? '',
+        country: po.country ?? '',
+        state: po.state ?? '',
+        city: po.city ?? '',
+        postalCode: po.postalCode ?? 0,
+        gstNumber: po.gstNumber ?? '',
+        creditLimit: po.creditLimit ?? 0,
+        vendorId: '',
+      );
+    }
 
-    notifier.selectedVendorDetails = VendorAll(
-      vendorName: po.vendorName ?? '',
-      contactpersonPhone: po.vendorContact ?? '',
-      vendorId: '',
-      paymentTerms: po.paymentTerms ?? '',
-      contactpersonEmail: po.contactpersonEmail ?? '',
-      address: po.address ?? '',
-      country: po.country ?? '',
-      state: po.state ?? '',
-      city: po.city ?? '',
-      postalCode: po.postalCode ?? 0,
-      gstNumber: po.gstNumber ?? '',
-      creditLimit: po.creditLimit ?? 0,
-    );
+    notifier.setSelectedVendor(vendor.vendorName);
+    notifier.selectedVendorDetails = vendor;
+    vendorController.text = vendor.vendorName;
 
-    // -------------------------------
-    // 3️⃣ DATES
-    // -------------------------------
+    notifier.vendorContactController.text = vendor.contactpersonPhone;
+    notifier.paymentTermsController.text = vendor.paymentTerms;
+    notifier.creditLimitController.text = vendor.creditLimit.toString();
+
+    // ---------------------------
+    // Dates
+    // ---------------------------
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
     notifier.expectedDeliveryDateController.text = formatDate(
       po.expectedDeliveryDate ?? '',
     );
 
-    // -------------------------------
-    // 4️⃣ ADDRESSES
-    // -------------------------------
+    // ---------------------------
+    // Addresses
+    // ---------------------------
     notifier.billingController.text = po.billingAddress ?? '';
     notifier.shippingController.text = po.shippingAddress ?? '';
 
-    // -------------------------------
-    // 5️⃣ ITEMS (🔥 MOST IMPORTANT PART)
-    // -------------------------------
+    // ---------------------------
+    // Items
+    // ---------------------------
     notifier.poItems.clear();
 
     for (final item in po.items) {
-      final quantity = item.quantity ?? 0.0;
+      final qty = item.quantity ?? 0.0;
       final price = item.newPrice ?? item.existingPrice ?? 0.0;
+      final base = qty * price;
 
-      final totalPrice = quantity * price;
+      final befDisc = item.befTaxDiscountAmount ?? 0.0;
+      final afDisc = item.afTaxDiscountAmount ?? 0.0;
+      final tax = item.taxAmount ?? 0.0;
 
-      final newItem = Item(
-        itemId: item.itemId,
-        itemName: item.itemName,
-        purchasecategoryName: item.purchasecategoryName,
-        purchasesubcategoryName: item.purchasesubcategoryName,
-        uom: item.uom,
+      double finalPrice = item.finalPrice ?? 0.0;
+      if (finalPrice == 0.0 && base > 0) {
+        finalPrice = base + tax - befDisc - afDisc;
+        if (finalPrice < 0) finalPrice = 0.0;
+      }
 
-        count: item.count ?? 1.0,
-        eachQuantity: item.eachQuantity ?? quantity,
-        quantity: quantity,
-
-        existingPrice: item.existingPrice ?? price,
-        newPrice: price,
-
-        taxPercentage: item.taxPercentage ?? 0.0,
-        taxType: item.taxType ?? 'cgst_sgst',
-
-        // 🔥 BASE PRICES
-        totalPrice: totalPrice,
-        finalPrice: totalPrice,
-
-        // 🔥 PENDING VALUES (WITHOUT THIS → TOTAL = 0)
-        pendingTotalQuantity: quantity,
-        pendingTotalPrice: totalPrice,
-        pendingFinalPrice: totalPrice,
-        pendingOrderAmount: totalPrice,
-        pendingTaxAmount: item.pendingTaxAmount ?? item.taxAmount ?? 0.0,
-
-        // 🔥 DISCOUNTS
-        befTaxDiscount: item.befTaxDiscount ?? 0.0,
-        afTaxDiscount: item.afTaxDiscount ?? 0.0,
-        befTaxDiscountAmount: item.befTaxDiscountAmount ?? 0.0,
-        afTaxDiscountAmount: item.afTaxDiscountAmount ?? 0.0,
-        pendingDiscountAmount: item.pendingDiscountAmount ?? 0.0,
-
-        // 🔥 TAX SPLIT
-        pendingCgst: item.pendingCgst ?? 0.0,
-        pendingSgst: item.pendingSgst ?? 0.0,
-        pendingIgst: item.pendingIgst ?? 0.0,
-
-        status: item.status,
-        barcode: item.barcode,
-        expiryDate: item.expiryDate ?? '',
+      notifier.poItems.add(
+        Item(
+          itemId: item.itemId,
+          itemName: item.itemName,
+          uom: item.uom,
+          quantity: qty,
+          count: item.count ?? 1.0,
+          eachQuantity: item.eachQuantity ?? qty,
+          existingPrice: item.existingPrice ?? price,
+          newPrice: price,
+          taxPercentage: item.taxPercentage ?? 0.0,
+          taxType: item.taxType ?? 'cgst_sgst',
+          befTaxDiscount: item.befTaxDiscount ?? 0.0,
+          afTaxDiscount: item.afTaxDiscount ?? 0.0,
+          befTaxDiscountAmount: befDisc,
+          afTaxDiscountAmount: afDisc,
+          taxAmount: tax,
+          totalPrice: base,
+          finalPrice: finalPrice,
+          pendingTotalPrice: base,
+          pendingFinalPrice: finalPrice,
+          pendingTaxAmount: tax,
+          pendingDiscountAmount: befDisc + afDisc,
+          pendingCgst: item.pendingCgst ?? 0.0,
+          pendingSgst: item.pendingSgst ?? 0.0,
+          pendingIgst: item.pendingIgst ?? 0.0,
+          expiryDate: '',
+        ),
       );
-
-      notifier.poItems.add(newItem);
     }
 
-    // -------------------------------
-    // 6️⃣ ROUND OFF (ONLY BACKEND VALUE)
-    // -------------------------------
-    notifier.roundOffController.text = (po.roundOffAdjustment ?? 0.0)
-        .toStringAsFixed(2);
-
-    // -------------------------------
-    // 7️⃣ TAX TYPE
-    // -------------------------------
-    if (po.items.isNotEmpty) {
-      final taxType = po.items.first.taxType ?? 'cgst_sgst';
-      selectedTaxType.value = taxType == 'igst' ? 2 : 1;
-    } else {
-      selectedTaxType.value = 1;
-    }
-
-    // -------------------------------
-    // 8️⃣ DISCOUNT SECTION
-    // -------------------------------
+    // ---------------------------
+    // Discount restore
+    // ---------------------------
     _initializeDiscountSectionWithPOData(po);
 
-    // -------------------------------
-    // 9️⃣ FINAL RECALC (🔥 REQUIRED)
-    // -------------------------------
+    // ---------------------------
+    // Totals
+    // ---------------------------
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isDisposed()) return;
 
-      notifier.calculateTotals();
+      notifier.recalculateFromLoadedPO();
       updateTotalOrderAmount();
       triggerUIRefresh();
-
-      print('✅ Edit PO fully initialized: ${po.randomId}');
     });
   }
 
   void _initializeDiscountSectionWithPOData(PO po) {
-    if (po.items.isEmpty) return;
+    notifier.isOverallDiscountActive = false;
+    notifier.discountMode.value = DiscountMode.none;
+    overallDiscountMode.value = DiscountMode.none;
 
-    bool hasOverallDiscount = false;
-    double overallDiscountValue = 0.0;
-    String overallDiscountType = 'percentage';
+    notifier.overallDiscountController.text = '0';
+    notifier.overallDiscountAmount = 0.0;
+    notifier.itemWiseDiscount = 0.0;
 
-    final firstItem = po.items.first;
-    final commonAfTaxDiscount = firstItem.afTaxDiscount ?? 0.0;
-    final commonAfTaxDiscountType = firstItem.afTaxDiscountType ?? 'percentage';
+    final hasOverall =
+        po.items.isNotEmpty &&
+        po.items.every(
+          (i) =>
+              (i.befTaxDiscountAmount ?? 0.0) == 0.0 &&
+              (i.afTaxDiscountAmount ?? 0.0) > 0,
+        );
 
-    bool allItemsHaveSameDiscount = po.items.every((item) {
-      return (item.afTaxDiscount ?? 0.0) == commonAfTaxDiscount &&
-          (item.afTaxDiscountType ?? 'percentage') == commonAfTaxDiscountType;
-    });
+    if (hasOverall) {
+      final first = po.items.first;
 
-    // ✅ Only percentage can be treated as overall discount
-    if (allItemsHaveSameDiscount &&
-        commonAfTaxDiscount > 0 &&
-        commonAfTaxDiscountType == 'percentage') {
-      hasOverallDiscount = true;
-      overallDiscountValue = commonAfTaxDiscount;
-      overallDiscountType = commonAfTaxDiscountType;
-    }
-
-    if (hasOverallDiscount) {
-      overallDiscountMode.value = DiscountMode.percentage;
-      notifier.discountMode.value = DiscountMode.percentage;
-
-      notifier.overallDiscountController.text = overallDiscountValue
-          .toStringAsFixed(2);
       notifier.isOverallDiscountActive = true;
+
+      notifier.discountMode.value = first.afTaxDiscountType == 'percentage'
+          ? DiscountMode.percentage
+          : DiscountMode.fixedAmount;
+
+      overallDiscountMode.value = notifier.discountMode.value;
+
+      notifier.overallDiscountController.text = (first.afTaxDiscount ?? 0.0)
+          .toStringAsFixed(2);
+
+      notifier.overallDiscountAmount = po.items.fold(
+        0.0,
+        (s, i) => s + (i.afTaxDiscountAmount ?? 0.0),
+      );
+
+      notifier.itemWiseDiscount = 0.0;
     } else {
-      overallDiscountMode.value = DiscountMode.none;
-      notifier.discountMode.value = DiscountMode.none;
-      notifier.overallDiscountController.text = '0';
       notifier.isOverallDiscountActive = false;
+
+      notifier.itemWiseDiscount = po.items.fold(
+        0.0,
+        (s, i) =>
+            s +
+            (i.befTaxDiscountAmount ?? 0.0) +
+            (i.afTaxDiscountAmount ?? 0.0),
+      );
+
+      notifier.overallDiscountAmount = 0.0;
     }
+
+    notifier.notifyListeners();
   }
 
   void _validateAndFixRoundoff(PO po) {
@@ -1022,100 +1014,163 @@ class PurchaseOrderLogic {
   void applyTemplate(POTemplate t) {
     if (isDisposed()) return;
 
+    // ❌ Do not allow template in edit mode
     if (editingPO != null) return;
-    // ------------------------------------------------------------
-    // 🔒 Prevent vendorController listener from clearing details
-    // ------------------------------------------------------------
-    vendorController.removeListener(_onVendorInputChanged);
 
-    // ------------------------------------------------------------
-    // CLEAR ITEMS ONLY (Do NOT reset controllers!)
-    // ------------------------------------------------------------
+    // -------------------------------
+    // 1️⃣ CLEAR OLD DATA
+    // -------------------------------
     notifier.poItems.clear();
 
-    // ------------------------------------------------------------
-    // ✅ LOAD VENDOR BASIC INFORMATION
-    // ------------------------------------------------------------
-    notifier.selectedVendor = t.vendorName;
-    vendorController.text = t.vendorName;
-
-    notifier.vendorContactController.text = t.vendorContact;
-    notifier.paymentTermsController.text = t.paymentTerms;
-    notifier.creditLimitController.text = t.creditLimit == 0
-        ? ''
-        : t.creditLimit.toString();
-
-    notifier.gstNumberController.text = t.gstNumber;
-
-    // ------------------------------------------------------------
-    // ✅ SET SELECTED VENDOR DETAILS OBJECT
-    // ------------------------------------------------------------
-    notifier.selectedVendorDetails = VendorAll(
-      vendorName: t.vendorName,
-      contactpersonPhone: t.vendorContact,
-      paymentTerms: t.paymentTerms,
-      contactpersonEmail: t.contactpersonEmail,
-      address: t.address,
-      country: t.country,
-      state: t.state,
-      city: t.city,
-      postalCode: t.postalCode,
-      gstNumber: t.gstNumber,
-      creditLimit: t.creditLimit,
-      vendorId: '',
-    );
-
-    // ------------------------------------------------------------
-    // ✅ LOAD ADDRESS FIELDS
-    // ------------------------------------------------------------
-    notifier.addressController.text = t.address;
-    notifier.countryController.text = t.country;
-    notifier.stateController.text = t.state;
-    notifier.cityController.text = t.city;
-    notifier.postalCodeController.text = t.postalCode.toString();
-
-    notifier.billingController.text = t.billingAddress;
-    notifier.shippingController.text = t.shippingAddress;
-
-    // Template does not store IDs → clear them safely
-    notifier.setSelectedbillingaddress(null);
-    notifier.setSelectedshippingaddress(null);
-
-    // ------------------------------------------------------------
-    // ✅ LOAD ITEMS
-    // ------------------------------------------------------------
-    notifier.poItems.addAll(t.items.map((item) => item.copyWith()).toList());
-
-    // ------------------------------------------------------------
-    // ✅ SET TAX TYPE BASED ON FIRST ITEM
-    // ------------------------------------------------------------
-    if (t.items.isNotEmpty) {
-      final taxType = t.items.first.taxType ?? 'cgst_sgst';
-      selectedTaxType.value = taxType == 'igst' ? 2 : 1;
-    } else {
-      selectedTaxType.value = 1;
-    }
-
-    // ------------------------------------------------------------
-    // 🔄 RESET DISCOUNTS (Template cannot apply old discounts cleanly)
-    // ------------------------------------------------------------
-    notifier.overallDiscountController.text = '0';
-    notifier.roundOffController.text = '0';
+    notifier.isOverallDiscountActive = false;
     notifier.discountMode.value = DiscountMode.none;
     overallDiscountMode.value = DiscountMode.none;
 
-    // ------------------------------------------------------------
-    // 🔢 RECALCULATE TOTALS
-    // ------------------------------------------------------------
-    // notifier.calculateTotals();
+    notifier.overallDiscountController.text = '0';
+    notifier.overallDiscountAmount = 0.0;
+    notifier.itemWiseDiscount = 0.0;
+
+    // -------------------------------
+    // 2️⃣ LOAD VENDOR (IMPORTANT)
+    // -------------------------------
+    notifier.setSelectedVendor(t.vendorName);
+    vendorController.text = t.vendorName;
+
+    try {
+      final vendor = notifier.vendorAllList.firstWhere(
+        (v) => v.vendorName == t.vendorName,
+      );
+
+      notifier.selectedVendorDetails = vendor;
+      notifier.vendorContactController.text = vendor.contactpersonPhone;
+      notifier.paymentTermsController.text = vendor.paymentTerms;
+      notifier.creditLimitController.text = vendor.creditLimit.toString();
+    } catch (_) {
+      notifier.selectedVendorDetails = null;
+    }
+
+    // -------------------------------
+    // 3️⃣ LOAD ADDRESSES
+    // -------------------------------
+    notifier.billingController.text = t.billingAddress;
+    notifier.shippingController.text = t.shippingAddress;
+
+    // -------------------------------
+    // 4️⃣ LOAD ITEMS
+    // -------------------------------
+    notifier.poItems.addAll(t.items.map((i) => i.copyWith()).toList());
+
+    // -------------------------------
+    // 5️⃣ INITIALIZE ITEM TOTALS
+    // -------------------------------
+    for (final item in notifier.poItems) {
+      final qty = item.quantity ?? 0.0;
+      final price = item.newPrice ?? 0.0;
+      final base = qty * price;
+
+      final taxPct = item.taxPercentage ?? 0.0;
+      final tax = base * taxPct / 100;
+
+      item.totalPrice = base;
+      item.pendingTotalPrice = base;
+
+      item.taxAmount = tax;
+      item.pendingTaxAmount = tax;
+
+      final befDisc = item.befTaxDiscountAmount ?? 0.0;
+      final afDisc = item.afTaxDiscountAmount ?? 0.0;
+
+      double finalPrice = item.finalPrice ?? 0.0;
+      if (finalPrice == 0 && base > 0) {
+        finalPrice = base + tax - befDisc - afDisc;
+      }
+
+      item.finalPrice = finalPrice;
+      item.pendingFinalPrice = finalPrice;
+      item.pendingDiscountAmount = befDisc + afDisc;
+    }
+
+    // -------------------------------
+    // 6️⃣ DETECT OVERALL DISCOUNT (FIXED)
+    // -------------------------------
+    bool hasOverallDiscount = false;
+
+    if (notifier.poItems.isNotEmpty) {
+      final first = notifier.poItems.first;
+      final firstPercent = first.afTaxDiscount ?? 0.0;
+
+      hasOverallDiscount =
+          firstPercent > 0 &&
+          notifier.poItems.every(
+            (i) => (i.afTaxDiscount ?? 0.0) == firstPercent,
+          ) &&
+          notifier.poItems.every((i) => (i.befTaxDiscountAmount ?? 0.0) == 0.0);
+    }
+
+    if (hasOverallDiscount) {
+      notifier.isOverallDiscountActive = true;
+
+      final type = notifier.poItems.first.afTaxDiscountType ?? 'percentage';
+
+      notifier.discountMode.value = type == 'percentage'
+          ? DiscountMode.percentage
+          : DiscountMode.fixedAmount;
+
+      overallDiscountMode.value = notifier.discountMode.value;
+
+      notifier.overallDiscountController.text = notifier
+          .poItems
+          .first
+          .afTaxDiscount!
+          .toStringAsFixed(2);
+
+      notifier.overallDiscountAmount = notifier.poItems.fold(
+        0.0,
+        (sum, i) => sum + (i.afTaxDiscountAmount ?? 0.0),
+      );
+
+      notifier.itemWiseDiscount = 0.0;
+    } else {
+      notifier.isOverallDiscountActive = false;
+
+      notifier.itemWiseDiscount = notifier.poItems.fold(
+        0.0,
+        (sum, i) =>
+            sum +
+            (i.befTaxDiscountAmount ?? 0.0) +
+            (i.afTaxDiscountAmount ?? 0.0),
+      );
+
+      notifier.overallDiscountAmount = 0.0;
+    }
+
+    // -------------------------------
+    // 7️⃣ FINAL TOTALS
+    // -------------------------------
+    notifier.totalOrderAmount = notifier.poItems.fold(
+      0.0,
+      (sum, i) => sum + (i.finalPrice ?? 0.0),
+    );
+
+    notifier.calculatedFinalAmount = notifier.totalOrderAmount;
+    notifier.pendingOrderAmount = notifier.totalOrderAmount;
+
     updateTotalOrderAmount();
-
-    // ------------------------------------------------------------
-    // 🔄 Trigger UI refresh
-    // ------------------------------------------------------------
     triggerUIRefresh();
+    syncDiscountUIFromItems();
+  }
 
-    vendorController.addListener(_onVendorInputChanged);
+  void syncDiscountUIFromItems() {
+    if (isDisposed()) return;
+
+    if (notifier.isOverallDiscountActive) {
+      notifier.discountMode.value = overallDiscountMode.value;
+    } else {
+      notifier.discountMode.value = DiscountMode.none;
+    }
+
+    notifier.notifyListeners();
+    triggerUIRefresh();
   }
 
   String formatDate(String s) {

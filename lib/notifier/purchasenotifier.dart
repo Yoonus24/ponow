@@ -159,14 +159,33 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   PO? get editingPO => _editingPO;
 
   void setEditingPO(PO? po, {bool notify = true}) {
-    if (_disposed) {
-      print('⚠️ setEditingPO called after dispose — ignored');
-      return;
-    }
+    if (_disposed) return;
 
     _editingPO = po;
 
-    // 🚫 NEVER notify during dispose / unmount
+    // -------------------------------
+    // 🔥 RESTORE OVERALL DISCOUNT FLAG
+    // -------------------------------
+    if (po?.overallDiscount != null && (po!.overallDiscount!.value ?? 0) > 0) {
+      isOverallDiscountActive = true;
+
+      discountMode.value = po.overallDiscount!.mode;
+      _overallDiscountValue = po.overallDiscount!.value ?? 0.0;
+
+      overallDiscountController.text = _overallDiscountValue.toStringAsFixed(2);
+
+      print('✅ Overall discount restored in EDIT mode');
+    } else {
+      isOverallDiscountActive = false;
+      _overallDiscountValue = 0.0;
+      overallDiscountController.text = '0';
+    }
+
+    // -------------------------------
+    // 🔥 FORCE FINAL RECALCULATION
+    // -------------------------------
+    recalculateFromLoadedPO();
+
     if (notify) {
       safeNotify();
     }
@@ -594,6 +613,54 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     _safeCalculateTotals();
   }
 
+  void recalculateFromLoadedPO() {
+    if (_disposed) return;
+
+    print('🔁 Recalculating totals from loaded PO (EDIT MODE)');
+
+    double subTotal = 0.0;
+    double totalTax = 0.0;
+    double totalFinal = 0.0;
+
+    double totalBefTaxDiscount = 0.0;
+    double totalAfTaxDiscount = 0.0;
+
+    for (final item in poItems) {
+      subTotal += item.totalPrice ?? 0.0;
+      totalTax += item.taxAmount ?? 0.0;
+      totalFinal += item.finalPrice ?? 0.0;
+
+      totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
+      totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
+    }
+
+    // 🔥 CLASSIFY DISCOUNT CORRECTLY
+    if (isOverallDiscountActive) {
+      _itemWiseDiscount = totalBefTaxDiscount;
+      _overallDiscountAmount = totalAfTaxDiscount;
+    } else {
+      _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
+      _overallDiscountAmount = 0.0;
+    }
+
+    _subTotal = subTotal;
+    pendingTaxAmount = totalTax;
+
+    final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
+
+    _calculatedFinalAmount = totalFinal + roundOff;
+
+    totalOrderAmount = _calculatedFinalAmount;
+    pendingOrderAmount = _calculatedFinalAmount;
+
+    pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
+
+    print('✅ EDIT MODE TOTALS FIXED');
+    print('   Final Amount: $totalOrderAmount');
+
+    safeNotify();
+  }
+
   void clearSelectedItem() {
     if (_disposed) return;
 
@@ -759,75 +826,58 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
   }
 
-  void calculateTotals() {
+  void calculateTotals({bool fromEditLoad = false}) {
     if (_disposed) {
-      print('⚠️ calculateTotals: Notifier is disposed, skipping');
+      print('calculateTotals skipped: notifier disposed');
       return;
     }
 
-    try {
-      print('🧮 calculateTotals() called');
+    double subTotal = 0.0;
+    double totalTax = 0.0;
+    double totalBefTaxDiscount = 0.0;
+    double totalAfTaxDiscount = 0.0;
+    double totalFinal = 0.0;
 
-      double subTotal = 0.0;
-      double totalTax = 0.0;
+    for (final item in poItems) {
+      final double itemTotal = item.totalPrice ?? item.pendingTotalPrice ?? 0.0;
+      final double itemFinal = item.finalPrice ?? item.pendingFinalPrice ?? 0.0;
 
-      double totalBefTaxDiscount = 0.0;
-      double totalAfTaxDiscount = 0.0;
+      subTotal += itemTotal;
+      totalFinal += itemFinal;
 
-      double totalFinal = 0.0;
-
-      for (final item in poItems) {
-        print('   Item: ${item.itemName}');
-        print('     totalPrice: ${item.totalPrice}');
-        print('     finalPrice: ${item.finalPrice}');
-        print('     befTaxDiscountAmount: ${item.befTaxDiscountAmount}');
-        print('     afTaxDiscountAmount: ${item.afTaxDiscountAmount}');
-
-        subTotal += item.totalPrice ?? 0.0;
-        totalTax += item.taxAmount ?? 0.0;
-
-        totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
-        totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
-
-        totalFinal += item.finalPrice ?? 0.0;
-      }
-
-      // ------------------------------------------------
-      // 🔥 CORE FIX: CLASSIFY AF DISCOUNT CORRECTLY
-      // ------------------------------------------------
-      if (isOverallDiscountActive) {
-        // Backend pushed overall discount into afTaxDiscountAmount
-        _itemWiseDiscount = totalBefTaxDiscount;
-        _overallDiscountAmount = totalAfTaxDiscount;
-      } else {
-        // Normal item-wise discounts
-        _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
-        _overallDiscountAmount = 0.0;
-      }
-
-      _subTotal = subTotal;
-      pendingTaxAmount = totalTax;
-
-      final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
-
-      _calculatedFinalAmount = totalFinal + roundOff;
-
-      totalOrderAmount = _calculatedFinalAmount;
-      pendingOrderAmount = _calculatedFinalAmount;
-
-      pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
-
-      print('📊 Totals calculated:');
-      print('   Subtotal: $_subTotal');
-      print('   Item-wise Discount: $_itemWiseDiscount');
-      print('   Overall Discount: $_overallDiscountAmount');
-      print('   Final Amount: $totalOrderAmount');
-
-      safeNotify();
-    } catch (e, stackTrace) {
-      print('❌ Error in calculateTotals: $e');
-      print(stackTrace);
+      totalTax += item.taxAmount ?? item.pendingTaxAmount ?? 0.0;
+      totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
+      totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
+
+    // ----------------------------------------
+    // DISCOUNT CLASSIFICATION
+    // ----------------------------------------
+    if (isOverallDiscountActive) {
+      _itemWiseDiscount = totalBefTaxDiscount;
+      _overallDiscountAmount = totalAfTaxDiscount;
+    } else {
+      _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
+      _overallDiscountAmount = 0.0;
+    }
+
+    _subTotal = subTotal;
+    pendingTaxAmount = totalTax;
+
+    final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
+
+    _calculatedFinalAmount = totalFinal + roundOff;
+    totalOrderAmount = _calculatedFinalAmount;
+    pendingOrderAmount = _calculatedFinalAmount;
+    pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
+
+    print('EDIT SAFE TOTALS');
+    print('Subtotal: $_subTotal');
+    print('Item Discount: $_itemWiseDiscount');
+    print('Overall Discount: $_overallDiscountAmount');
+    print('Final: $totalOrderAmount');
+
+    safeNotify();
   }
 
   void resetControllers() {
@@ -1173,13 +1223,16 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           orderedDate: formattedOrderDate,
           expectedDeliveryDate: formattedExpectedDate,
           items: finalItems,
+
           totalOrderAmount: calculatedFinalAmount,
           pendingOrderAmount: calculatedFinalAmount,
           pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
           pendingTaxAmount: pendingTaxAmount,
+
           paymentTerms: snapshot["paymentTerms"],
           billingAddress: snapshot["billing"],
           shippingAddress: snapshot["shipping"],
+
           contactpersonEmail: vendorDetails.contactpersonEmail,
           address: vendorDetails.address,
           country: vendorDetails.country,
@@ -1188,7 +1241,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           postalCode: vendorDetails.postalCode,
           gstNumber: vendorDetails.gstNumber,
           creditLimit: vendorDetails.creditLimit,
+
           roundOffAdjustment: roundOffValue,
+
+          // 🔥 THIS IS THE FIX
+          overallDiscount: hasOverallDiscount
+              ? PurchaseOrderDiscount(
+                  value: overallDiscountValue,
+                  mode: discountMode.value,
+                )
+              : null,
+
           poStatus: calculatedFinalAmount > vendorDetails.creditLimit
               ? 'CreditLimit for Approve'
               : 'Pending',

@@ -42,15 +42,14 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Future<void> _showConvertToGRNConfirmation() async {
-    if (_logic.isSaving.value) return;
+    if (!mounted) return;
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: Colors.white,
-
-          // ✅ CURVED DIALOG
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -58,7 +57,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           title: const Text(
             'Confirm Conversion',
             style: TextStyle(
-              fontSize: 18, // GRN header size
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
@@ -66,57 +65,53 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
 
           content: const Text(
             'Are you sure you want to convert this PO to GRN?',
-            style: TextStyle(
-              fontSize: 16, // GRN body size
-              color: Colors.black87,
-              height: 1.4,
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
           ),
 
           actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           actionsAlignment: MainAxisAlignment.end,
 
           actions: [
-            // ❌ CANCEL BUTTON (CURVED)
+            // 🔵 CANCEL — TEXT ONLY (NO OUTLINE)
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 8,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20), // pill shape
+                  horizontal: 20,
+                  vertical: 10,
                 ),
               ),
               child: const Text(
                 'Cancel',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blueAccent,
-                ),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
 
-            // ✅ CONFIRM BUTTON (CURVED)
+            const SizedBox(width: 8),
+
+            // 🔵 CONFIRM — BLUE BG + WHITE TEXT
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 22,
+                  horizontal: 24,
                   vertical: 10,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20), // pill shape
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 elevation: 2,
               ),
               child: const Text(
                 'Confirm',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
@@ -124,9 +119,10 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       },
     );
 
-    // ✅ Proceed only if confirmed
+    if (!mounted) return;
+
     if (confirmed == true) {
-      await _logic.convertToGRN();
+      await _logic.convertToGRN(context);
     }
   }
 

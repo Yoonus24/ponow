@@ -34,7 +34,6 @@ class _POModalState extends State<POModal> {
   late ValueNotifier<List<String>> columnsNotifier;
   late ValueNotifier<Map<String, bool>> columnVisibilityNotifier;
 
-  // ⭐ NEW: Scroll controllers for fixed + scrollable areas
   final ScrollController _leftVerticalController = ScrollController();
   final ScrollController _rightVerticalController = ScrollController();
   final ScrollController _rightHorizontalController = ScrollController();
@@ -51,41 +50,66 @@ class _POModalState extends State<POModal> {
   void initState() {
     super.initState();
 
-    // Initialize controllers from PO items
+    // ===============================
+    // INIT CONTROLLERS FROM PO ITEMS
+    // ===============================
     countControllers = widget.po.items
         .map(
           (item) =>
-              TextEditingController(text: item.pendingCount?.toString() ?? ''),
+              TextEditingController(text: (item.pendingCount ?? 0).toString()),
         )
         .toList();
+
     eachQuantityControllers = widget.po.items
         .map(
           (item) => TextEditingController(
-            text: item.pendingQuantity?.toString() ?? '',
-          ),
-        )
-        .toList();
-    newPriceControllers = widget.po.items
-        .map(
-          (item) =>
-              TextEditingController(text: item.newPrice?.toString() ?? ''),
-        )
-        .toList();
-    befTaxDiscountControllers = widget.po.items
-        .map(
-          (item) => TextEditingController(
-            text: item.pendingBefTaxDiscountAmount?.toString() ?? '',
-          ),
-        )
-        .toList();
-    afTaxDiscountControllers = widget.po.items
-        .map(
-          (item) => TextEditingController(
-            text: item.pendingAfTaxDiscountAmount?.toString() ?? '',
+            text: (item.pendingQuantity ?? 0).toString(),
           ),
         )
         .toList();
 
+    newPriceControllers = widget.po.items
+        .map(
+          (item) => TextEditingController(
+            text: (item.newPrice ?? 0).toStringAsFixed(2),
+          ),
+        )
+        .toList();
+
+    // ===============================
+    // 🔥 DISCOUNT FIX (MAIN PART)
+    // ===============================
+    befTaxDiscountControllers = [];
+    afTaxDiscountControllers = [];
+
+    for (final item in widget.po.items) {
+      final double totalDiscount = item.pendingDiscountAmount ?? 0.0;
+      final double totalPrice = item.pendingTotalPrice ?? 0.0;
+
+      double befAmount = 0.0;
+      double afAmount = 0.0;
+
+      // 👉 Overall discount comes only as pendingDiscountAmount
+      if (totalDiscount > 0 && totalPrice > 0) {
+        afAmount = totalDiscount;
+      }
+
+      // 🔒 Sync back to model (VERY IMPORTANT)
+      item.pendingBefTaxDiscountAmount = befAmount;
+      item.pendingAfTaxDiscountAmount = afAmount;
+
+      befTaxDiscountControllers.add(
+        TextEditingController(text: befAmount.toStringAsFixed(2)),
+      );
+
+      afTaxDiscountControllers.add(
+        TextEditingController(text: afAmount.toStringAsFixed(2)),
+      );
+    }
+
+    // ===============================
+    // COLUMN SETUP
+    // ===============================
     columnsNotifier = ValueNotifier<List<String>>([
       'Item Name',
       'UOM',
@@ -122,15 +146,19 @@ class _POModalState extends State<POModal> {
       'igst': false,
     });
 
-    // ⭐ Sync vertical scroll between left & right lists
+    // ===============================
+    // SYNC SCROLL (LEFT ↔ RIGHT)
+    // ===============================
     _leftVerticalController.addListener(() {
-      if (_rightVerticalController.offset != _leftVerticalController.offset) {
+      if (_rightVerticalController.hasClients &&
+          _rightVerticalController.offset != _leftVerticalController.offset) {
         _rightVerticalController.jumpTo(_leftVerticalController.offset);
       }
     });
 
     _rightVerticalController.addListener(() {
-      if (_leftVerticalController.offset != _rightVerticalController.offset) {
+      if (_leftVerticalController.hasClients &&
+          _leftVerticalController.offset != _rightVerticalController.offset) {
         _leftVerticalController.jumpTo(_rightVerticalController.offset);
       }
     });
@@ -167,27 +195,51 @@ class _POModalState extends State<POModal> {
       context,
       listen: false,
     );
+
     final item = widget.po.items[index];
 
-    final pendingCount = double.tryParse(countControllers[index].text) ?? 0;
-    final eachQuantity =
-        double.tryParse(eachQuantityControllers[index].text) ?? 0;
-    final unitPrice = double.tryParse(newPriceControllers[index].text) ?? 0;
-    final beftaxDiscountPercentage =
-        double.tryParse(befTaxDiscountControllers[index].text) ?? 0;
-    final aftaxDiscountPercentage =
-        double.tryParse(afTaxDiscountControllers[index].text) ?? 0;
-    final taxPercentage = item.taxPercentage ?? 0;
+    // -----------------------------
+    // PARSE INPUTS
+    // -----------------------------
+    final pendingCount = double.tryParse(countControllers[index].text) ?? 0.0;
 
+    final eachQuantity =
+        double.tryParse(eachQuantityControllers[index].text) ?? 0.0;
+
+    final unitPrice = double.tryParse(newPriceControllers[index].text) ?? 0.0;
+
+    final befTaxDiscountPercent =
+        double.tryParse(befTaxDiscountControllers[index].text) ?? 0.0;
+
+    final afTaxDiscountPercent =
+        double.tryParse(afTaxDiscountControllers[index].text) ?? 0.0;
+
+    final taxPercentage = item.taxPercentage ?? 0.0;
+
+    // -----------------------------
+    // CALCULATIONS
+    // -----------------------------
     final totalQuantity = pendingCount * eachQuantity;
     final totalPrice = totalQuantity * unitPrice;
-    final discountAmount = (totalPrice * beftaxDiscountPercentage) / 100;
-    final beftaxamount = totalPrice - discountAmount;
-    final taxAmount = (beftaxamount * taxPercentage) / 100;
-    final afterTaxDiscountAmount =
-        (beftaxamount + taxAmount) * (aftaxDiscountPercentage / 100);
-    final finalPrice = beftaxamount + taxAmount - afterTaxDiscountAmount;
 
+    // BEFORE TAX DISCOUNT (AMOUNT)
+    final befTaxDiscountAmount = (totalPrice * befTaxDiscountPercent) / 100;
+
+    final priceAfterBefDiscount = totalPrice - befTaxDiscountAmount;
+
+    // TAX
+    final taxAmount = (priceAfterBefDiscount * taxPercentage) / 100;
+
+    // AFTER TAX DISCOUNT (AMOUNT)
+    final afTaxDiscountAmount =
+        (priceAfterBefDiscount + taxAmount) * (afTaxDiscountPercent / 100);
+
+    // FINAL PRICE
+    final finalPrice = priceAfterBefDiscount + taxAmount - afTaxDiscountAmount;
+
+    // -----------------------------
+    // TAX SPLIT
+    // -----------------------------
     double cgst = 0.0;
     double sgst = 0.0;
     double igst = 0.0;
@@ -195,36 +247,53 @@ class _POModalState extends State<POModal> {
     if (taxAmount > 0) {
       cgst = taxAmount / 2;
       sgst = taxAmount / 2;
-      igst = 0.0;
     }
 
-    newPriceControllers[index].text = unitPrice.toStringAsFixed(2);
-    befTaxDiscountControllers[index].text = beftaxDiscountPercentage
-        .toStringAsFixed(2);
-    afTaxDiscountControllers[index].text = aftaxDiscountPercentage
-        .toStringAsFixed(2);
-
-    // update model
-    item.itemId = item.itemId;
+    // -----------------------------
+    // UPDATE MODEL (🔥 AMOUNTS ONLY)
+    // -----------------------------
     item.pendingCount = pendingCount;
     item.pendingQuantity = eachQuantity;
     item.pendingTotalQuantity = totalQuantity;
+
     item.newPrice = unitPrice;
-    item.pendingDiscountAmount = discountAmount;
-    item.pendingBefTaxDiscountAmount = beftaxDiscountPercentage;
-    item.pendingAfTaxDiscountAmount = aftaxDiscountPercentage;
-    item.pendingTaxAmount = taxAmount;
+
     item.pendingTotalPrice = totalPrice;
+
+    item.pendingBefTaxDiscountAmount = befTaxDiscountAmount;
+    item.pendingAfTaxDiscountAmount = afTaxDiscountAmount;
+
+    item.pendingDiscountAmount = befTaxDiscountAmount + afTaxDiscountAmount;
+
+    item.pendingTaxAmount = taxAmount;
     item.pendingFinalPrice = finalPrice;
 
     item.pendingCgst = cgst;
     item.pendingSgst = sgst;
     item.pendingIgst = igst;
 
+    // -----------------------------
+    // SYNC CONTROLLERS FROM MODEL
+    // -----------------------------
+    befTaxDiscountControllers[index].text = befTaxDiscountAmount
+        .toStringAsFixed(2);
+
+    afTaxDiscountControllers[index].text = afTaxDiscountAmount.toStringAsFixed(
+      2,
+    );
+
+    newPriceControllers[index].text = unitPrice.toStringAsFixed(2);
+
+    // -----------------------------
+    // UPDATE PO TOTALS
+    // -----------------------------
     widget.po.pendingDiscountAmount = getTotalDiscountAmount();
     widget.po.pendingTaxAmount = getTotalTaxAmount();
     widget.po.pendingOrderAmount = getTotalOrderAmount();
 
+    // -----------------------------
+    // NOTIFY UI
+    // -----------------------------
     poModalProvider.notifyListeners();
   }
 
@@ -429,7 +498,7 @@ class _POModalState extends State<POModal> {
           item.itemName ?? '',
           textAlign: TextAlign.left,
 
-          maxLines: 2, // Changed from 1 to 2
+          maxLines: 3, // Changed from 1 to 2
           softWrap: true, // Changed from false to true
           style: const TextStyle(fontSize: 12),
         );
@@ -822,9 +891,9 @@ class _POModalState extends State<POModal> {
                                                 ),
                                                 child: Text(
                                                   item.itemName ?? '',
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  maxLines: 2,
+                                                  // overflow:
+                                                  //     TextOverflow.ellipsis,
+                                                  // maxLines: 2,
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                   ),

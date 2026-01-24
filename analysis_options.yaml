@@ -12,6 +12,7 @@ analyzer:
     unused_catch_clause: ignore
     invalid_use_of_protected_member: ignore
     invalid_use_of_visible_for_testing_member: ignore
+    unused_field: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:

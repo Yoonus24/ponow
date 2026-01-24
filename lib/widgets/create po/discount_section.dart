@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print, unused_element, unused_local_variable
+
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
@@ -83,16 +85,15 @@ class _DiscountSectionState extends State<DiscountSection> {
   }
 
   void _syncControllersFromNotifier() {
-    final notifier = widget.notifier;
+    final n = widget.notifier;
 
-    // ✅ Overall discount value
-    widget.overallDiscountController.text =
-        (notifier.overallDiscountValue ?? 0.0).toStringAsFixed(2);
-
-    if ((notifier.overallDiscountValue ?? 0) > 0) {
-      widget.discountMode.value = DiscountMode.percentage;
+    if (n.isOverallDiscountActive && n.overallDiscountValue > 0) {
+      widget.discountMode.value = n.discountMode.value;
+      widget.overallDiscountController.text = n.overallDiscountValue
+          .toStringAsFixed(2);
     } else {
       widget.discountMode.value = DiscountMode.none;
+      widget.overallDiscountController.text = '0';
     }
   }
 
@@ -160,6 +161,7 @@ class _DiscountSectionState extends State<DiscountSection> {
     notifier.overallDiscountAmount = 0.0;
     notifier.overallDiscountValue = 0.0;
     notifier.itemWiseDiscount = 0.0;
+    notifier.isOverallDiscountActive = false;
 
     _recalculateTotalsAfterDiscountClear();
 
@@ -453,37 +455,30 @@ class _DiscountSectionState extends State<DiscountSection> {
     final discountText = widget.overallDiscountController.text.trim();
     final discountValue = double.tryParse(discountText) ?? 0.0;
 
-    // ❌ Overall disabled
     if (mode == DiscountMode.none) {
       _showSnack('Enable overall discount to apply', Colors.blue);
       return;
     }
 
-    // ❌ Empty / invalid
     if (discountValue <= 0) {
       _showSnack('Please enter a valid discount value', Colors.blue);
       return;
     }
 
-    // ❌ No items
     if (widget.poItems.isEmpty) {
-      _showSnack('Please add at least one item to apply discount', Colors.red);
+      _showSnack('Please add at least one item', Colors.red);
       return;
     }
 
-    // 🟡 ALREADY APPLIED CHECK
-    final alreadyApplied = (widget.notifier.overallDiscountAmount ?? 0) > 0;
-
-    if (alreadyApplied) {
-      _showSnack('Discount already applied', Colors.orange);
-      return;
-    }
+    // 🔥 THIS LINE IS CRITICAL
+    widget.notifier.isOverallDiscountActive = true;
 
     _isApplying = true;
 
     try {
       await widget.onApplyDiscount();
 
+      widget.notifier.calculateTotals();
       widget.onCalculationsUpdate();
 
       _showSnack('Discount applied successfully', Colors.green);

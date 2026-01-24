@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use, unused_element, library_private_types_in_public_api, curly_braces_in_flow_control_structures
+// ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use, unused_element, library_private_types_in_public_api, curly_braces_in_flow_control_structures, avoid_print, prefer_final_fields
 
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_template.dart';
@@ -13,7 +13,6 @@ import '../widgets/create po/discount_section.dart';
 import '../models/discount_model.dart';
 import '../models/po.dart';
 import '../widgets/create po/add_item_dialog.dart';
-// import '../calculation/purchase_order_calculations.dart';
 import '../widgets/create po/vendor_autocomplete.dart';
 import '../widgets/create po/address_fields.dart';
 import '../widgets/create po/items_table.dart';
@@ -77,8 +76,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
-
-      // 🔥 CLEAR OLD DATA ONLY FOR CREATE PO
       if (widget.editingPO == null) {
         print('🧹 Clearing old notifier data for NEW PO');
 
@@ -107,13 +104,13 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         notifier.discountMode.value = DiscountMode.none;
         _overallDiscountMode.value = DiscountMode.none;
         _itemWiseDiscountMode.value = 'Percentage ( % )';
+        notifier.isOverallDiscountActive = false;
+        notifier.isOverallDisabledFromItem = false;
 
         _vendorAutocompleteController.clear();
 
         notifier.calculateTotals();
       }
-
-      // ✅ NOW SAFE TO INITIALIZE
       logic.initializeData();
     });
   }
@@ -126,14 +123,10 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         context,
         listen: false,
       );
-
       notifier.selectedVendor = null;
       notifier.selectedVendorDetails = null;
       notifier.poItems.clear();
-
-      // ✅ ADD THIS LINE
       notifier.expectedDeliveryDateController.text = '';
-
       notifier.calculateTotals();
       print('✅ Only data cleared (controllers untouched)');
     } catch (e) {
@@ -144,11 +137,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _initializeLogic() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
-
       notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
       poProvider = Provider.of<POProvider>(context, listen: false);
       templateProvider = widget.templateProvider;
-
       logic = PurchaseOrderLogic(
         context: context,
         notifier: notifier,
@@ -172,12 +163,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
     notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
     poProvider = Provider.of<POProvider>(context, listen: false);
-
     templateProvider = widget.templateProvider;
-
     logic = PurchaseOrderLogic(
       context: context,
       notifier: notifier,
@@ -192,25 +180,21 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       formKey: _formKey,
       isDisposed: () => _isDisposed,
     );
-
     notifier.addListener(_updateTotalOrderAmount);
   }
 
   void _updateTotalOrderAmount() {
     if (!mounted || _isDisposed) return;
     if (!_totalOrderAmount.hasListeners) return;
-
     try {
       _totalOrderAmount.value = notifier.totalOrderAmount;
     } catch (_) {
-      // ignore update after dispose
     }
   }
 
   void _triggerUIRefresh() {
     if (!mounted || _isDisposed) return;
     if (!_refreshUI.hasListeners) return;
-
     _refreshUI.value = !_refreshUI.value;
   }
 
@@ -282,7 +266,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     );
   }
 
-  // Template button
   Widget _buildTemplateButton() {
     final isSmall = MediaQuery.of(context).size.width < 450;
     final bool isEditMode = widget.editingPO != null;
@@ -305,8 +288,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 160),
         offset: const Offset(0, 40),
-
-        // Button UI
         icon: Container(
           padding: EdgeInsets.symmetric(
             vertical: isSmall ? 4 : 6,
@@ -399,22 +380,15 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     print('🔄 Safe clear and close');
 
     try {
-      // Clear items list (safe, no controllers)
       notifier.poItems.clear();
-
-      // Clear vendor selection (safe)
       notifier.selectedVendor = null;
       notifier.selectedVendorDetails = null;
-
-      // Clear addresses by setting text (safe if controllers exist)
       try {
         notifier.billingController.text = '';
         notifier.shippingController.text = '';
       } catch (e) {
         print('⚠️ Controllers already disposed, skipping clear');
       }
-
-      // Recalculate
       notifier.calculateTotals();
     } catch (e) {
       print('⚠️ Error in safe clear: $e');
@@ -436,11 +410,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     if (result == true && mounted) {
       logic.resetAllFields();
-
       notifier.poItems.clear();
       notifier.clearSelectedVendor();
       notifier.editingIndex = null;
-
       notifier.orderedDateController.clear();
       notifier.expectedDeliveryDateController.clear();
       notifier.billingController.clear();
@@ -449,16 +421,13 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       notifier.vendorContactController.clear();
       notifier.paymentTermsController.clear();
       _vendorAutocompleteController.clear();
-
       notifier.overallDiscountController.text = '0';
       notifier.roundOffController.text = '0';
-
       notifier.subTotal = 0.0;
       notifier.itemWiseDiscount = 0.0;
       notifier.overallDiscountAmount = 0.0;
       notifier.calculatedFinalAmount = 0.0;
       notifier.totalOrderAmount = 0.0;
-
       _updateTotalOrderAmount();
       _triggerUIRefresh();
     }
@@ -572,7 +541,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _editPO(BuildContext context, PO po) {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
     notifier.setEditingPO(po);
-
     print('🔄 Opening edit dialog for PO: ${po.purchaseOrderId}');
     print('   Vendor: ${po.vendorName}');
     print('   Items count: ${po.items.length}');
@@ -591,7 +559,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
       if (!mounted) return;
 
-      // Clear editing PO safely
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           notifier.setEditingPO(null);
@@ -600,7 +567,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
       if (result == true) {
         print('✅ PO edit was successful');
-        // ✅ Refresh PO list safely
         final poProvider = Provider.of<POProvider>(context, listen: false);
         await poProvider.fetchPOs();
 
@@ -610,7 +576,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
           widget.onStatusChanged!();
         }
 
-        // ✅ Show success message safely
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Purchase Order updated successfully!"),
@@ -654,13 +619,8 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   }
 
   void _loadTemplate(POTemplate template) {
-    // Apply template using logic method (handles all vendor + address + items)
     logic.applyTemplate(template);
-
-    // Update total amount
     _updateTotalOrderAmount();
-
-    // Refresh UI
     _triggerUIRefresh();
   }
 
@@ -695,11 +655,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   @override
   void dispose() {
     _isDisposed = true;
-
-    // remove listeners
     notifier.removeListener(_updateTotalOrderAmount);
-
-    // dispose ONLY local controllers / notifiers
+    notifier.setEditingPO(null);
+    notifier.resetControllers();
     _vendorAutocompleteController.dispose();
     _scrollController.dispose();
     _totalOrderAmount.dispose();
@@ -714,7 +672,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     if (!mounted || _isDisposed) return;
 
     try {
-      // Always clear safely using value
       controller.value = TextEditingValue.empty;
     } catch (e) {
       debugPrint('⚠️ Error clearing controller safely: $e');
@@ -1021,7 +978,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.center,
                                     children: [
-                                      // TOTAL AMOUNT (full visible text, no overflow)
                                       Expanded(
                                         child: SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
@@ -1087,8 +1043,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                       notifier.calculateTotals();
                                       notifier.notifyListeners();
                                     },
-
-                                    // ✅ SIMPLE DIRECT PROPERTY ACCESS (NO CALCULATION)
                                     getItemProperty: (item, String property) {
                                       switch (property) {
                                         case 'count':
@@ -1197,7 +1151,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                           builder: (context, constraints) {
                             final isSmall =
                                 constraints.maxWidth <
-                                420; // Mobile compact mode
+                                420;
                             final buttonHeight = isSmall ? 42.0 : 48.0;
                             final fontSize = isSmall ? 11.0 : 13.0;
                             final spacing = isSmall ? 8.0 : 12.0;
@@ -1238,7 +1192,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
                             return Row(
                               children: [
-                                // SAVE AS TEMPLATE
                                 if (widget.editingPO == null) ...[
                                   buildActionButton(
                                     text: "Save as Template",
@@ -1248,8 +1201,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(width: spacing),
                                 ],
 
-                                // CANCEL
-                                // In PurchaseOrderDialog build() method:
+                         
                                 buildActionButton(
                                   text: "Cancel",
                                   color: Colors.grey.shade700,
@@ -1260,7 +1212,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
                                 SizedBox(width: spacing),
 
-                                // SAVE / UPDATE ORDER
                                 buildActionButton(
                                   text: widget.editingPO != null
                                       ? "Update Order"

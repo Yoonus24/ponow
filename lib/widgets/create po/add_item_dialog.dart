@@ -52,7 +52,9 @@ class _AddItemDialogState extends State<AddItemDialog> {
   @override
   void initState() {
     super.initState();
+
     _initializeControllers();
+
     _eachQtyFocusNode.addListener(() {
       _isEachQtyFocused.value = _eachQtyFocusNode.hasFocus;
     });
@@ -68,21 +70,39 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (widget.editingItem != null) {
-        _initializeWithEditingItem(widget.editingItem!);
+
+      final poNotifier = Provider.of<PurchaseOrderNotifier>(
+        context,
+        listen: false,
+      );
+
+      if (widget.editingItem == null) {
+        poNotifier.isOverallDiscountActive = false;
+        poNotifier.isOverallDisabledFromItem = false;
+
+        _isBefTaxEnabled.value = true;
+        _isAfTaxEnabled.value = true;
+
+        print('🧹 Reset discount flags for NEW item dialog');
       }
     });
   }
 
   @override
   void dispose() {
+    final poNotifier = Provider.of<PurchaseOrderNotifier>(
+      context,
+      listen: false,
+    );
+
+    poNotifier.isOverallDisabledFromItem = false;
+
     _fieldControllers['count']?.removeListener(_refreshPreview);
     _fieldControllers['eachQuantity']?.removeListener(_refreshPreview);
     _fieldControllers['newPrice']?.removeListener(_refreshPreview);
     _fieldControllers['befTaxDiscount']?.removeListener(_refreshPreview);
     _fieldControllers['afTaxDiscount']?.removeListener(_refreshPreview);
 
-    // Dispose ValueNotifiers and FocusNode
     _itemWiseDiscountMode.dispose();
     _refreshTrigger.dispose();
     _loadingNotifier.dispose();
@@ -91,6 +111,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
     _isOverallDisabledFromItem.dispose();
     _eachQtyFocusNode.dispose();
     _isEachQtyFocused.dispose();
+
     super.dispose();
   }
 

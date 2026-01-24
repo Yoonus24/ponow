@@ -88,6 +88,25 @@ class _POWidgetState extends State<POWidget> {
     }
   }
 
+  String _getDisplayStatus(PO po) {
+    final status = po.poStatus?.toLowerCase() ?? '';
+
+    // 🔥 Pending but not approved yet
+    if (status == 'pending') {
+      return 'PENDING FOR APPROVAL';
+    }
+
+    if (status == 'approved') {
+      return 'APPROVED';
+    }
+
+    if (status == 'rejected') {
+      return 'REJECTED';
+    }
+
+    return status.isNotEmpty ? status.toUpperCase() : 'PENDING';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<POProvider>(
@@ -95,6 +114,11 @@ class _POWidgetState extends State<POWidget> {
         final updatedPO = poProvider.poList.firstWhere(
           (p) => p.purchaseOrderId == widget.po.purchaseOrderId,
           orElse: () => widget.po,
+        );
+
+        final double cardTotal = updatedPO.items.fold(
+          0.0,
+          (sum, i) => sum + (i.pendingFinalPrice ?? i.finalPrice ?? 0.0),
         );
 
         return Container(
@@ -148,7 +172,7 @@ class _POWidgetState extends State<POWidget> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            updatedPO.poStatus?.toUpperCase() ?? "N/A",
+                            _getDisplayStatus(updatedPO),
                             style: GoogleFonts.quicksand(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -198,8 +222,9 @@ class _POWidgetState extends State<POWidget> {
                       ),
                     ),
                     const SizedBox(height: 3),
+
                     Text(
-                      "Total: ${(updatedPO.pendingOrderAmount ?? updatedPO.totalOrderAmount ?? 0.0).toStringAsFixed(2)}",
+                      "Total: ${cardTotal.toStringAsFixed(2)}",
                       style: GoogleFonts.quicksand(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -446,6 +471,7 @@ class _POWidgetState extends State<POWidget> {
 
   void _editPO(BuildContext context, PO po) {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+
     notifier.setEditingPO(po);
 
     showDialog(
@@ -457,27 +483,16 @@ class _POWidgetState extends State<POWidget> {
         templateProvider: context.read<TemplateProvider>(),
       ),
     ).then((result) async {
-      if (!mounted) return; // ✅ VERY IMPORTANT
-
-      // Clear editing PO safely
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          notifier.setEditingPO(null);
-        }
-      });
+      if (!mounted) return;
 
       if (result == true) {
-        // ✅ Refresh PO list safely
         final poProvider = Provider.of<POProvider>(context, listen: false);
         await poProvider.fetchPOs();
 
         if (!mounted) return;
 
-        if (widget.onStatusChanged != null) {
-          widget.onStatusChanged!();
-        }
+        widget.onStatusChanged?.call();
 
-        // ✅ Show success message safely
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Purchase Order updated successfully!"),
