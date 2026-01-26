@@ -33,6 +33,37 @@ class APInvoiceProvider extends ChangeNotifier {
 
   final String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
+  // Single Dio instance for all requests
+  late Dio _dio;
+
+  APInvoiceProvider() {
+    _initDio();
+  }
+
+  void _initDio() {
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {'Content-Type': 'application/json'},
+      ),
+    );
+
+    // Add retry interceptor
+    _dio.interceptors.add(
+      RetryInterceptor(
+        dio: _dio,
+        retries: 3,
+        retryDelays: const [
+          Duration(seconds: 1),
+          Duration(seconds: 2),
+          Duration(seconds: 3),
+        ],
+      ),
+    );
+  }
+
   // Fetch AP Invoices
   Future<void> fetchAPInvoices({String? status}) async {
     print("🚀 fetchAPInvoices CALLED");
@@ -40,21 +71,18 @@ class APInvoiceProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      final dio = Dio();
-      dio.options.connectTimeout = const Duration(seconds: 10);
-      dio.options.receiveTimeout = const Duration(seconds: 10);
-
-      Map<String, dynamic> queryParams = {};
+      final Map<String, dynamic> queryParams = {};
       if (status != null && status.isNotEmpty) {
         queryParams['status'] = status;
       }
 
       print("🌐 GET $baseUrl/apinvoices/getAll");
 
-      final response = await dio.get(
-        '$baseUrl/apinvoices/getAll',
+      final response = await _dio.get(
+        '/apinvoices/getAll',
         queryParameters: queryParams,
       );
+
       print("🌐 AP RAW RESPONSE: ${response.data}");
 
       if (response.statusCode == 200) {
@@ -72,32 +100,22 @@ class APInvoiceProvider extends ChangeNotifier {
     }
   }
 
-  // Update in APInvoiceProvider - convertGrnToApAndOutgoing method
   Future<Map<String, dynamic>> postOutgoingAndUpdateDiscount(
     String invoiceId, {
     required double apDiscountPrice,
-    required double roundOffAdjustment, // ADD THIS PARAMETER
+    required double roundOffAdjustment,
     required Function(bool) setLoading,
     required Function(String?) setError,
   }) async {
     setLoading(true);
     setError(null);
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: 'http://192.168.29.252:8000/nextjstestapi/',
-        connectTimeout: const Duration(seconds: 60),
-        receiveTimeout: const Duration(seconds: 60),
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
-
     try {
       final currentDateTime = DateTime.now().toIso8601String();
       final requestBody = {
         'invoiceId': invoiceId,
         'apDiscountPrice': apDiscountPrice,
-        'roundOffAdjustment': roundOffAdjustment, // ADD THIS
+        'roundOffAdjustment': roundOffAdjustment,
         'lastUpdatedDate': currentDateTime,
         'outgoingDate': currentDateTime,
       };
@@ -107,7 +125,7 @@ class APInvoiceProvider extends ChangeNotifier {
       );
       print('Request Body: $requestBody');
 
-      final response = await dio.patch(
+      final response = await _dio.patch(
         '/apinvoices/$invoiceId/convert-to-outgoing-and-discount',
         data: requestBody,
       );
@@ -131,7 +149,6 @@ class APInvoiceProvider extends ChangeNotifier {
         throw Exception('Payment failed: ${response.statusCode}');
       }
     } catch (e) {
-      // ❌ CARD STAYS IN UI
       print('❌ Payment failed - Card remains');
       throw e;
     } finally {
@@ -146,26 +163,17 @@ class APInvoiceProvider extends ChangeNotifier {
     _setLoading(true);
     _setError(null);
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: 'http://192.168.29.252:8000/nextjstestapi',
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
-
     try {
-      final response = await dio.patch(
+      final response = await _dio.patch(
         '/apinvoices/convert-to-grn-from-returned/$invoiceId',
       );
 
       if (response.statusCode == 200) {
-        // 🔥 remove AP from UI
+        // Remove AP from UI
         _apInvoices.removeWhere((inv) => inv.invoiceId == invoiceId);
         notifyListeners();
 
-        // 🔄 refresh related lists
+        // Refresh related lists
         final grnProvider = Provider.of<GRNProvider>(context, listen: false);
         final outgoingProvider = Provider.of<OutgoingPaymentProvider>(
           context,
@@ -212,6 +220,7 @@ class APInvoiceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // This method appears unused - consider removing if not needed
   void postOutgoingAndUpdateStatus(String s) {}
 }
 

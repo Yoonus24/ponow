@@ -7,32 +7,23 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
 
 class OutgoingPaymentProvider extends ChangeNotifier {
-  // ---------------------------------------------------------------------------
-  // CONFIG
-  // ---------------------------------------------------------------------------
+
 
   final Dio dio = Dio();
   final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
-  // ---------------------------------------------------------------------------
-  // STATE
-  // ---------------------------------------------------------------------------
-
-  // Core payments
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
 
   List<GRN> _grnList = [];
   List<ApInvoice> _apInvoices = [];
 
-  // Vendor / Invoice lists for filters
   final ValueNotifier<List<String>> _vendorNamesNotifier =
       ValueNotifier<List<String>>([]);
   final ValueNotifier<List<String>> _invoiceNumbersNotifier =
@@ -50,9 +41,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   String _error = '';
   List<String> _validationWarnings = [];
 
-  // ---------------------------------------------------------------------------
-  // GETTERS
-  // ---------------------------------------------------------------------------
 
   List<Outgoing> get payments => _payments;
   List<Outgoing> get allPayments => _allPayments;
@@ -71,9 +59,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   String get error => _error;
   List<String> get validationWarnings => _validationWarnings;
 
-  // ---------------------------------------------------------------------------
-  // SIMPLE HELPERS
-  // ---------------------------------------------------------------------------
 
   void clearError() {
     _error = '';
@@ -101,10 +86,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // GRN / AP
-  // ---------------------------------------------------------------------------
 
   Future<void> fetchGrnList() async {
     try {
@@ -145,7 +126,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   }
 
   Future<void> fetchVendors() async {
-    final payments = _allPayments; // already filtered by backend status
+    final payments = _allPayments;
 
     final vendors =
         payments
@@ -217,11 +198,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
   Future<void> removeOutgoingPayment(String outgoingId) async {
     try {
-      // Remove from local list - use the correct list name
       _payments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
       _allPayments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
 
-      // Also delete from backend
       final response = await dio.delete(
         '$_baseUrl/outgoingpayments/$outgoingId',
       );
@@ -252,9 +231,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // -------------------------------
-      // ✅ STATUS MAPPING (MAIN FIX)
-      // -------------------------------
       String? backendStatus;
 
       if (status != null && status.trim().isNotEmpty) {
@@ -326,12 +302,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           if (local == null) return server;
 
           return server.copyWith(
-            // 🔥 SERVER IS SOURCE OF TRUTH
             totalPaidAmount: server.totalPaidAmount,
             remainingPayableAmount: server.remainingPayableAmount,
             paymentHistory: server.paymentHistory,
 
-            // Keep local-only UI fields
             partialAmount: local.partialAmount ?? server.partialAmount,
             advanceAmount: local.advanceAmount ?? server.advanceAmount,
             fullPaymentAmount:
@@ -365,7 +339,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     return _payments;
   }
 
-  // Add this method to your OutgoingPaymentProvider
   Future<void> testBackendResponse() async {
     try {
       if (kDebugMode) {
@@ -403,58 +376,50 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SAVE OUTGOING PAYMENT (used by PreOutgoing)
-  // ---------------------------------------------------------------------------
-
   Future<String> saveOutgoingPayment(Outgoing outgoing) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/outgoingpayments/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(outgoing.toJson()),
+      final response = await dio.post(
+        '$_baseUrl/outgoingpayments/',
+        data: jsonEncode(outgoing.toJson()),
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (kDebugMode) {
         print(
           '[API] Save outgoing payment response status: ${response.statusCode}',
         );
-        print('[API] Save outgoing payment response body: ${response.body}');
+        print('[API] Save outgoing payment response body: ${response.data}');
       }
 
       if (response.statusCode != 200 && response.statusCode != 201) {
-        throw Exception('Failed to save outgoing payment: ${response.body}');
+        throw Exception('Failed to save outgoing payment: ${response.data}');
       }
 
-      final responseData = jsonDecode(response.body);
+      final responseData = response.data;
       return responseData['outgoingId'] ?? outgoing.outgoingId;
     } catch (e) {
       throw Exception('Failed to connect to server: $e');
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // SINGLE PAYMENT PROCESS (used by PreOutgoing)
-  // ---------------------------------------------------------------------------
-
   Future<void> processOutgoingPayment(String outgoingId) async {
     try {
       if (kDebugMode) {
         print('[API] Processing payment for ID: $outgoingId');
       }
-      final response = await http.post(
-        Uri.parse('$_baseUrl/outgoingpayments/$outgoingId/process'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await dio.post(
+        '$_baseUrl/outgoingpayments/$outgoingId/process',
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (kDebugMode) {
         print('[API] Response status: ${response.statusCode}');
-        print('[API] Response body: ${response.body}');
+        print('[API] Response body: ${response.data}');
       }
 
       if (response.statusCode != 200) {
         throw Exception(
-          'Failed to process payment: ${response.body} (Status: ${response.statusCode})',
+          'Failed to process payment: ${response.data} (Status: ${response.statusCode})',
         );
       }
     } catch (e) {
@@ -465,15 +430,11 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // PROCESS PAYMENT (single – used by PendingOutgoing, PartialPayment, etc.)
-  // ---------------------------------------------------------------------------
-
   Future<void> processPayment({
     required String outgoingId,
-    required String paymentType, // full / partial / advance
+    required String paymentType,
     required double amount,
-    required String paymentMode, // Cash / Bank
+    required String paymentMode,
     required String paymentMethod,
     required Map<String, dynamic> transactionDetails,
   }) async {
@@ -490,7 +451,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         ..options.connectTimeout = const Duration(seconds: 10)
         ..options.receiveTimeout = const Duration(seconds: 10);
 
-      // ---------------- PAYMENT METHOD NORMALIZATION ----------------
       String backendPaymentMethod;
       if (paymentMode == 'Cash') {
         if (paymentMethod == 'petty_cash') {
@@ -504,13 +464,11 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         backendPaymentMethod = paymentMethod.toLowerCase();
       }
 
-      // ---------------- REQUEST BODY ----------------
       final Map<String, dynamic> requestData = {
         'paymentType': paymentType,
         'paymentMode': paymentMode,
         'paymentMethod': backendPaymentMethod,
 
-        // REQUIRED BY BACKEND
         'totalPayableAmount': _payments
             .firstWhere((p) => p.outgoingId == outgoingId)
             .totalPayableAmount,
@@ -546,7 +504,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         print('processPayment -> requestData=$requestData');
       }
 
-      // ---------------- API CALL ----------------
       final response = await dio.patch(
         '$_baseUrl/outgoingpayments/$outgoingId/payment',
         data: requestData,
@@ -559,7 +516,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
       final Map<String, dynamic> data = response.data;
 
-      // ---------------- PARSE RESPONSE ----------------
       final double remaining =
           (data['remainingPayableAmount'] as num?)?.toDouble() ?? 0.0;
 
@@ -573,7 +529,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
               .map((e) => PaymentHistory.fromJson(e))
               .toList();
 
-      // ---------------- UPDATE LOCAL STATE (🔥 MAIN FIX) ----------------
       final int index = _payments.indexWhere((p) => p.outgoingId == outgoingId);
 
       if (index != -1) {
@@ -609,10 +564,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // BULK PAYMENT (used by PendingOutgoing multiple pay)
-  // ---------------------------------------------------------------------------
-
   Future<Map<String, dynamic>> processBulkPayments(
     List<BulkPayment> bulkPayments,
     List<Outgoing> outgoing,
@@ -621,12 +572,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       dio.options.connectTimeout = const Duration(seconds: 30);
       dio.options.receiveTimeout = const Duration(seconds: 30);
 
-      // ---------------- MAP OUTGOINGS ----------------
       final Map<String, Outgoing> outgoingMap = {
         for (var o in outgoing) o.outgoingId: o,
       };
 
-      // ---------------- BULK PARTIAL SPLIT ----------------
       double perOutgoingPartialAmount = 0.0;
 
       if (bulkPayments.isNotEmpty &&
@@ -642,7 +591,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         );
       }
 
-      // ---------------- VALIDATION ----------------
       for (final payment in bulkPayments) {
         final match = outgoingMap[payment.outgoingId];
         if (match == null) {
@@ -670,7 +618,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         }
       }
 
-      // ---------------- BUILD REQUEST BODY ----------------
       final requestData = {
         'paymentDate': DateTime.now().toIso8601String().split('T').first,
 
@@ -681,7 +628,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           final match = outgoingMap[p.outgoingId]!;
 
           return {
-            // 🔥 REQUIRED BY BACKEND (Pydantic)
             'outgoingId': p.outgoingId,
             'totalPayableAmount': match.totalPayableAmount,
 
@@ -689,7 +635,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
             'paymentMode': p.paymentMode,
             'paymentMethod': isCash ? 'cash' : p.paymentMethod,
 
-            // 🔥 REQUIRED BY BACKEND
             'cashAmount': isCash
                 ? (p.paymentType == 'full'
                       ? p.fullPaymentAmount
@@ -718,7 +663,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
       debugPrint('✅ BULK REQUEST => $requestData');
 
-      // ---------------- API CALL ----------------
       final response = await dio.patch(
         '$_baseUrl/outgoingpayments/bulk/bulk-payment',
         data: requestData,
@@ -738,10 +682,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // CLEANUP
-  // ---------------------------------------------------------------------------
 
   @override
   void dispose() {

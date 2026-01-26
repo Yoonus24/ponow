@@ -43,6 +43,7 @@ class PO {
   final PurchaseOrderDiscount? overallDiscount;
   final double? roundOffAdjustment;
   final bool? isHoldOrder;
+  final double? overallDiscountValue;
   double? manualTotalDiscount;
 
   // ------------------------------
@@ -96,6 +97,7 @@ class PO {
     this.templateName,
     this.templateCreatedDate,
     this.templateId,
+    this.overallDiscountValue,
   }) : items = items ?? [];
 
   // ------------------------------
@@ -121,10 +123,21 @@ class PO {
 
   double get totalDiscount {
     if (manualTotalDiscount != null) return manualTotalDiscount!;
+
+    // If backend already calculated, trust it
+    if (overallDiscountValue != null) {
+      return overallDiscountValue!;
+    }
+
+    // UI-side fallback
     return itemWiseDiscount + overallDiscountAmount;
   }
 
   double get finalAmount {
+    if (totalOrderAmount != null) {
+      return totalOrderAmount!;
+    }
+
     final roundOff = roundOffAdjustment ?? 0.0;
     final amount = subTotal - totalDiscount + roundOff;
     return amount > 0 ? amount : 0.0;
@@ -263,6 +276,8 @@ class PO {
     'gstNumber': gstNumber,
     'creditLimit': creditLimit,
     'overallDiscount': overallDiscount?.toJson(),
+    'overallDiscountValue': overallDiscountValue ?? totalDiscount,
+
     'roundOffAdjustment': roundOffAdjustment ?? 0.0,
     'isHoldOrder': isHoldOrder ?? false,
     // TEMPLATE
@@ -312,6 +327,10 @@ class PO {
     overallDiscount: json['overallDiscount'] != null
         ? PurchaseOrderDiscount.fromJson(json['overallDiscount'])
         : null,
+    overallDiscountValue:
+        (json['overallDiscountValue'] ?? json['overallDiscount'] ?? 0.0)
+            .toDouble(),
+
     roundOffAdjustment:
         (json['roundOffAdjustment'] ?? json['roundOffValue'] ?? 0.0).toDouble(),
     isHoldOrder: json['isHoldOrder'] ?? false,

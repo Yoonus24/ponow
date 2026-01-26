@@ -2,7 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import '../models/po.dart';
 
 class POModalProvider with ChangeNotifier {
@@ -70,24 +70,33 @@ class POModalProvider with ChangeNotifier {
 
     final pendingTotalQty = pendingCount * pendingQty;
 
-    final uri = Uri.parse(
-      "http://192.168.29.252:8000/nextjstestapi/purchaseorders/items/totals"
-      "?pendingTotalQuantity=$pendingTotalQty"
-      "&poQuantity=$pendingTotalQty"
-      "&newPrice=$newPrice"
-      "&befTaxDiscount=$befDisc"
-      "&afTaxDiscount=$afDisc"
-      "&taxPercentage=$taxPerc"
-      "&taxType=$taxType",
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: "http://192.168.29.252:8000/nextjstestapi",
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+      ),
     );
 
     try {
-      final res = await http.get(uri);
-      if (res.statusCode != 200) return;
+      final response = await dio.get(
+        "/purchaseorders/items/totals",
+        queryParameters: {
+          "pendingTotalQuantity": pendingTotalQty,
+          "poQuantity": pendingTotalQty,
+          "newPrice": newPrice,
+          "befTaxDiscount": befDisc,
+          "afTaxDiscount": afDisc,
+          "taxPercentage": taxPerc,
+          "taxType": taxType,
+        },
+      );
 
-      final data = jsonDecode(res.body);
+      if (response.statusCode != 200) return;
 
-      // ✅ Apply backend result to item
+      final data = response.data;
+
       item.pendingTotalQuantity = pendingTotalQty;
       item.pendingTotalPrice = data["pendingTotalPrice"];
       item.pendingBefTaxDiscountAmount = data["pendingBefTaxDiscountAmount"];
@@ -175,17 +184,23 @@ class POModalProvider with ChangeNotifier {
     String purchaseOrderId,
     List<Map<String, dynamic>> items,
   ) async {
-    final url =
-        "http://192.168.29.252:8000/nextjstestapi/purchaseorders/$purchaseOrderId/items";
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: "http://192.168.29.252:8000/nextjstestapi",
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+        headers: {"Content-Type": "application/json"},
+      ),
+    );
 
     try {
-      final res = await http.patch(
-        Uri.parse(url),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"items": items}),
+      final response = await dio.patch(
+        "/purchaseorders/$purchaseOrderId/items",
+        data: jsonEncode({"items": items}),
       );
 
-      if (res.statusCode == 200) {
+      if (response.statusCode == 200) {
         return true;
       }
 

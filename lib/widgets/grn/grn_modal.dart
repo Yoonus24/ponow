@@ -574,22 +574,21 @@ class _GRNModalState extends State<GRNModal> {
     );
   }
 
-  double _calculateApRoundOff() {
-    double itemSum = 0.0;
+  // double _calculateApRoundOff() {
+  //   double itemSum = 0.0;
 
-    for (final item in grn.itemDetails ?? []) {
-      itemSum += item.finalPrice ?? 0.0;
-    }
+  //   for (final item in grn.itemDetails ?? []) {
+  //     itemSum += item.finalPrice ?? 0.0;
+  //   }
 
-    final grnAmount = grn.grnAmount ?? 0.0;
+  //   final grnAmount = grn.grnAmount ?? 0.0;
 
-    return double.parse((grnAmount - itemSum).toStringAsFixed(2));
-  }
+  //   return double.parse((grnAmount - itemSum).toStringAsFixed(2));
+  // }
 
   Future<void> _convertToAP(BuildContext context) async {
     if (isConverting.value) return;
 
-    // ✅ ORIGINAL CONFIRM DIALOG
     final shouldConvert = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -614,15 +613,16 @@ class _GRNModalState extends State<GRNModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(color: Colors.blueAccent),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blueAccent,
             ),
+            child: const Text("Cancel"),
           ),
+
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent,
-              foregroundColor: Colors.white,
+              backgroundColor: Colors.blueAccent, 
+              foregroundColor: Colors.white, 
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text("Convert"),
@@ -636,27 +636,27 @@ class _GRNModalState extends State<GRNModal> {
     try {
       isConverting.value = true;
 
-      // ------------------ CORE LOGIC (NO UI CHANGE) ------------------
-      final double backendBaseAmount = (grn.itemDetails ?? []).fold<double>(
+      final double itemTotal = (grn.itemDetails ?? []).fold<double>(
         0.0,
         (sum, item) => sum + (item.finalPrice ?? 0.0),
       );
+      final double grnFinalAmount = grn.grnAmount ?? itemTotal;
+      final double apRoundOff = double.parse(
+        (grnFinalAmount - itemTotal).toStringAsFixed(2),
+      );
 
-      final double grnFinalAmount = grn.grnAmount ?? backendBaseAmount;
-
-      final double userEnteredRoundOff =
-          double.tryParse(roundOffController.text) ?? 0.0;
-
-      final double roundOffToSend =
-          (grnFinalAmount + userEnteredRoundOff) - backendBaseAmount;
-      // ----------------------------------------------------------------
+      print('🧮 Item Total      : $itemTotal');
+      print('🧮 GRN Amount     : $grnFinalAmount');
+      print('🧮 AP Round-Off   : $apRoundOff');
 
       final result = await context
           .read<GRNProvider>()
           .convertGrnToApAndOutgoing(
             grnId: grn.grnId ?? '',
             discountPrice: grn.discountPrice ?? 0.0,
-            roundOffAdjustment: roundOffToSend,
+
+            roundOffAdjustment: apRoundOff,
+
             itemUpdates:
                 grn.itemDetails
                     ?.map(
@@ -671,39 +671,22 @@ class _GRNModalState extends State<GRNModal> {
                 [],
           );
 
-      // ✅ ORIGINAL SUCCESS UI
       if (result['success'] == true && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'GRN converted to AP + Outgoing successfully!',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 13),
-            ),
+            content: Text('GRN converted to AP successfully'),
             backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
           ),
         );
 
-        Navigator.of(context).pop(); // close GRN modal
+        Navigator.of(context).pop(); 
       } else {
         throw Exception(result['error'] ?? 'Conversion failed');
       }
     } catch (e) {
       if (!context.mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed: ${e.toString()}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13),
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+        SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
       );
     } finally {
       isConverting.value = false;

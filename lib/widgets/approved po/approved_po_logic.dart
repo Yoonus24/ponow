@@ -122,10 +122,10 @@ class ApprovedPOLogic {
       _dialogMessengerKey;
 
   void initialize() {
+    normalizePoDiscountsForApproval();
     _initializeControllers();
     _setupScrollSync();
 
-    // 🔒 STORE PO CREATE-TIME DISCOUNT (ONCE)
     originalBefTaxDiscount.clear();
     originalAfTaxDiscount.clear();
 
@@ -135,11 +135,9 @@ class ApprovedPOLogic {
       originalBefTaxDiscount[item] = item.befTaxDiscount ?? 0.0;
       originalAfTaxDiscount[item] = item.afTaxDiscount ?? 0.0;
 
-      // ✅ Base discount from PO (used later)
       _poBaseDiscount += item.pendingDiscountAmount ?? 0.0;
     }
 
-    // 🔒 Approved discount starts empty
     _approvedExtraDiscount = 0.0;
 
     // ---------------- ROUND OFF ----------------
@@ -178,11 +176,7 @@ class ApprovedPOLogic {
     for (final res in items) {
       final item = po.items.firstWhere((i) => i.itemId == res["itemId"]);
 
-      // ✅ Percentages (always cast safely)
-      item.befTaxDiscount = (res["befTaxDiscount"] as num?)?.toDouble() ?? 0.0;
-      item.afTaxDiscount = (res["afTaxDiscount"] as num?)?.toDouble() ?? 0.0;
 
-      // ✅ Discount amounts
       item.pendingBefTaxDiscountAmount =
           (res["pendingBefTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
@@ -192,7 +186,6 @@ class ApprovedPOLogic {
       item.pendingDiscountAmount =
           (res["pendingDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
-      // ✅ Tax amounts
       item.pendingTaxAmount =
           (res["pendingTaxAmount"] as num?)?.toDouble() ?? 0.0;
 
@@ -202,12 +195,10 @@ class ApprovedPOLogic {
 
       item.pendingIgst = (res["pendingIgst"] as num?)?.toDouble() ?? 0.0;
 
-      // ✅ Final prices
       item.pendingFinalPrice =
           (res["pendingFinalPrice"] as num?)?.toDouble() ?? 0.0;
     }
 
-    // ✅ Update PO-level summary
     final summary = data["summary"] ?? {};
 
     po.pendingDiscountAmount =
@@ -219,7 +210,6 @@ class ApprovedPOLogic {
     po.totalOrderAmount =
         (summary["totalFinalAmount"] as num?)?.toDouble() ?? 0.0;
 
-    // 🔥 Notify UI to rebuild
     onUpdated();
   }
 
@@ -231,73 +221,47 @@ class ApprovedPOLogic {
       return;
     }
 
-    // 🔥 Add ONLY approved discount
     _approvedExtraDiscount += entered;
 
-    final double totalDiscountToApply =
-        _poBaseDiscount + _approvedExtraDiscount;
+    final double totalDiscount = _poBaseDiscount + _approvedExtraDiscount;
 
-    final discountType = isBefTaxDiscount.value ? "before" : "after";
+    po.pendingDiscountAmount = totalDiscount;
 
-    // ✅ Payload uses ONLY PO CREATE discounts
-    final List<Map<String, dynamic>> itemsPayload = po.items
-        .where((i) => (i.receivedQuantity ?? 0) > 0)
-        .map((i) {
-          return {
-            "itemId": i.itemId,
-            "receivedQuantity": i.receivedQuantity,
-            "grnPrice": i.newPrice,
-            "befTaxDiscount": originalBefTaxDiscount[i] ?? 0.0,
-            "afTaxDiscount": originalAfTaxDiscount[i] ?? 0.0,
-            "taxPercentage": i.taxPercentage ?? 0.0,
-            "taxType": i.taxType ?? "cgst_sgst",
-          };
-        })
-        .toList();
+    recalculateFinalAmountAfterDiscount();
 
-    if (itemsPayload.isEmpty) {
-      showTopError("No received items");
-      return;
-    }
+    discountInputController.clear();
 
-    try {
-      final response = await poProvider.calculateGrnOverallDiscount(
-        items: itemsPayload,
-        discountAmount: totalDiscountToApply,
-        discountType: discountType,
-      );
+    onUpdated();
 
-      if (response["success"] != true) {
-        showTopError(response["error"] ?? "Discount calculation failed");
-        return;
-      }
+    showTopMessage(
+      "Approved Discount Applied: ₹${_approvedExtraDiscount.toStringAsFixed(2)}",
+      color: Colors.green,
+    );
+  }
 
-      // ✅ Apply backend-calculated values
-      _applyDiscountResponseToItems(response);
+  void recalculateFinalAmountAfterDiscount() {
+    final double subTotal = po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.totalPrice ?? 0.0),
+    );
 
-      // 🔒 Final discount = PO + Approved
-      po.pendingDiscountAmount = totalDiscountToApply;
+    final double discount = po.pendingDiscountAmount ?? 0.0;
+    final double tax = po.pendingTaxAmount ?? 0.0;
+    final double roundOff = roundOffAmount.value;
 
-      discountInputController.clear();
+    po.totalOrderAmount = subTotal - discount + tax + roundOff;
+    po.pendingOrderAmount = po.totalOrderAmount;
 
-      showTopMessage(
-        "Approved Discount Applied: ₹${_approvedExtraDiscount.toStringAsFixed(2)}",
-        color: Colors.green,
-      );
-    } catch (e) {
-      showTopError("Error applying discount: $e");
-    }
+    debugPrint("✅ FINAL AMOUNT RECALCULATED: ${po.totalOrderAmount}");
   }
 
   Future<void> clearDiscountFromAllItems() async {
     try {
-      // 1️⃣ Restore ONLY PO CREATE discount %
       for (var item in po.items) {
         item.befTaxDiscount = originalBefTaxDiscount[item] ?? 0.0;
         item.afTaxDiscount = originalAfTaxDiscount[item] ?? 0.0;
       }
 
-      // 2️⃣ Build payload using PO discounts ONLY
       final List<Map<String, dynamic>> itemsPayload = po.items
           .where((item) => (item.receivedQuantity ?? 0) > 0)
           .map((item) {
@@ -318,10 +282,9 @@ class ApprovedPOLogic {
         return;
       }
 
-      // 3️⃣ Backend recalculation with ZERO approved discount
       final response = await poProvider.calculateGrnOverallDiscount(
         items: itemsPayload,
-        discountAmount: _poBaseDiscount, // 🔒 PO discount only
+        discountAmount: _poBaseDiscount,
         discountType: "after",
       );
 
@@ -330,10 +293,8 @@ class ApprovedPOLogic {
         return;
       }
 
-      // 4️⃣ Apply backend response
       _applyDiscountResponseToItems(response);
 
-      // 5️⃣ Reset approved state ONLY
       _approvedExtraDiscount = 0.0;
       po.pendingDiscountAmount = _poBaseDiscount;
 
@@ -350,7 +311,6 @@ class ApprovedPOLogic {
 
   void updateTabletStatus(double screenWidth) {
     isTablet = screenWidth > 600;
-    // Initialize all columns with proper visibility
     final allColumns = Map<String, bool>.fromEntries(
       sharedColumns.value.map((column) => MapEntry(column, true)),
     );
@@ -371,7 +331,7 @@ class ApprovedPOLogic {
     _dialogMessengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: color, // ✅ dynamic
+        backgroundColor: color,
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(bottom: 80, left: 12, right: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -380,12 +340,10 @@ class ApprovedPOLogic {
     );
   }
 
-  // 🔴 Error helper (keeps old calls working)
   void showTopError(String message) {
     showTopMessage(message, color: Colors.red);
   }
 
-  // 🔵 Generic helper with custom color
 
   bool validateForm() {
     bool isValid = true;
@@ -410,7 +368,6 @@ class ApprovedPOLogic {
   }
 
   void _setupScrollSync() {
-    // ORDERED TABLE — LEFT ↔ RIGHT VERTICAL SYNC
     _orderedLeftVertical.addListener(() {
       if (_orderedRightVertical.offset != _orderedLeftVertical.offset) {
         _orderedRightVertical.jumpTo(_orderedLeftVertical.offset);
@@ -423,7 +380,6 @@ class ApprovedPOLogic {
       }
     });
 
-    // RECEIVED TABLE — LEFT ↔ RIGHT VERTICAL SYNC
     _receivedLeftVertical.addListener(() {
       if (_receivedRightVertical.offset != _receivedLeftVertical.offset) {
         _receivedRightVertical.jumpTo(_receivedLeftVertical.offset);
@@ -436,7 +392,6 @@ class ApprovedPOLogic {
       }
     });
 
-    // ORDERED ↔ RECEIVED — VERTICAL SYNC (MAIN SCROLL LINK)
     _orderedRightVertical.addListener(() {
       if (_receivedRightVertical.offset != _orderedRightVertical.offset) {
         _receivedRightVertical.jumpTo(_orderedRightVertical.offset);
@@ -492,7 +447,6 @@ class ApprovedPOLogic {
     expiryDateErrors.clear();
 
     for (var item in po.items) {
-      // 🔥 Recalculate pending total using updated pack structure
       item.pendingTotalQuantity =
           (item.pendingCount ?? item.count ?? 0) *
           (item.pendingQuantity ?? item.eachQuantity ?? 0);
@@ -516,7 +470,6 @@ class ApprovedPOLogic {
         text: formattedExpiry,
       );
 
-      // ✅ Initialize expiry error notifier to avoid null crash
       expiryDateErrors[item] = ValueNotifier<String?>(null);
 
       // ---------------- Default Received Qty ----------------
@@ -570,25 +523,14 @@ class ApprovedPOLogic {
 
   void updateQtyWhenReceivedChanges(Item item) {
     final received = item.receivedQuantity ?? 0.0;
-
-    // 🔥 Keep original pack structure
     final double originalEach =
         item.pendingQuantity ?? item.poQuantity ?? item.eachQuantity ?? 0.0;
-
     final double originalCount = item.pendingCount ?? item.count ?? 1.0;
-
     item.eachQuantity = originalEach;
     item.count = originalCount;
-
-    // 🔥 Total ordered = count * each
     final totalOrdered = originalEach * originalCount;
 
-    // Clear pending only if fully received
-    //   if (received >= totalOrdered) {
-    //     item.pendingQuantity = 0.0;
-    //     item.pendingCount = 0.0;
-    //     item.pendingTotalQuantity = 0.0;
-    //   }
+
   }
 
   void showNumericCalculator({
@@ -782,21 +724,21 @@ class ApprovedPOLogic {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: now,
-      firstDate: now, // 🔒 expiry cannot be past
+      firstDate: now, 
       lastDate: DateTime(2100),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              surface: Colors.white, // background
-              primary: Colors.blueAccent, // selected date
-              onPrimary: Colors.white, // header text
-              onSurface: Colors.black, // calendar text
+              surface: Colors.white, 
+              primary: Colors.blueAccent, 
+              onPrimary: Colors.white,
+              onSurface: Colors.black, 
             ),
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent, // OK / CANCEL
+                foregroundColor: Colors.blueAccent,
               ),
             ),
           ),
@@ -811,10 +753,8 @@ class ApprovedPOLogic {
           '${picked.month.toString().padLeft(2, '0')}-'
           '${picked.year}';
 
-      // ✅ update controller
       expiryDateControllers[item]?.text = formatted;
 
-      // ✅ clear expiry error if any
       expiryDateErrors[item]?.value = null;
     }
   }
@@ -892,209 +832,116 @@ class ApprovedPOLogic {
     );
   }
 
-  Future<void> convertToGRN(BuildContext context) async {
-    if (!validateForm()) return;
-
-    if (!validateRoundOff()) {
-      showTopError("Invalid round-off value");
-      return;
-    }
-
-    if (!validateExpiryDatesBasedOnReceived(po.items)) {
-      showTopError("Expiry date is required for received items");
-      return;
-    }
+  Future<void> convertPoToGRN(BuildContext context) async {
+    final poProvider = Provider.of<POProvider>(context, listen: false);
+    final grnProvider = Provider.of<GRNProvider>(context, listen: false);
 
     try {
       isSaving.value = true;
 
-      final poProvider = Provider.of<POProvider>(context, listen: false);
-      final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+      final double overallDiscount =
+          po.pendingDiscountAmount ?? po.overallDiscountValue ?? 0.0;
 
-      // --------------------------------------------------
-      // 🔥 STEP 1: CHECK IF ITEM-LEVEL DISCOUNT EXISTS
-      // --------------------------------------------------
+      Map<String, dynamic>? discountResult;
 
-      final bool hasItemDiscount = po.items.any(
-        (i) => (i.befTaxDiscount ?? 0) > 0 || (i.afTaxDiscount ?? 0) > 0,
-      );
+      if (overallDiscount > 0) {
+        discountResult = await poProvider.calculateGrnOverallDiscount(
+          items: po.items.map((item) {
+            return {
+              "itemId": item.itemId,
+              "receivedQuantity": item.receivedQuantity ?? item.quantity,
+              "grnPrice": item.newPrice,
+              "befTaxDiscount": 0.0,
+              "afTaxDiscount": 0.0,
+              "taxPercentage": item.taxPercentage ?? 0.0,
+              "taxType": item.taxType ?? "cgst_sgst",
+            };
+          }).toList(),
+          discountAmount: overallDiscount,
+          discountType: "after",
+        );
+      }
 
-      // --------------------------------------------------
-      // 🔥 STEP 2: IF NOT, DISTRIBUTE PO OVERALL DISCOUNT
-      // --------------------------------------------------
-
-      if (!hasItemDiscount && (po.pendingDiscountAmount ?? 0) > 0) {
-        final List<Map<String, dynamic>> itemsPayload = po.items
-            .where((item) {
-              final qty =
-                  double.tryParse(receivedQtyController[item]?.text ?? '0') ??
-                  0.0;
-              return qty > 0;
-            })
-            .map((item) {
-              final qty =
-                  double.tryParse(receivedQtyController[item]?.text ?? '0') ??
-                  0.0;
-
-              return {
-                "itemId": item.itemId,
-                "receivedQuantity": qty,
-                "grnPrice": item.newPrice,
-                "befTaxDiscount": 0.0,
-                "afTaxDiscount": 0.0,
-                "taxPercentage": item.taxPercentage ?? 0.0,
-                "taxType": item.taxType ?? "cgst_sgst",
-              };
-            })
-            .toList();
-
-        final response = await poProvider.calculateGrnOverallDiscount(
-          items: itemsPayload,
-          discountAmount: po.pendingDiscountAmount!,
-          discountType: "after", // 🔒 PO discount is AFTER tax
+      final List<Item> receivedItems = po.items.map((item) {
+        final calculatedItem = discountResult?["items"]?.firstWhere(
+          (e) => e["itemId"] == item.itemId,
+          orElse: () => null,
         );
 
-        if (response["success"] != true) {
-          showTopError("Failed to apply PO discount");
-          return;
-        }
-
-        // 🔥 APPLY DISTRIBUTED % TO PO ITEMS
-        _applyDiscountResponseToItems(response);
-      }
-
-      // --------------------------------------------------
-      // 🔥 STEP 3: BUILD RECEIVED ITEMS (NOW WITH %)
-      // --------------------------------------------------
-
-      final List<Item> receivedItems = po.items
-          .where((item) {
-            final qty =
-                double.tryParse(receivedQtyController[item]?.text ?? '0') ??
-                0.0;
-            return qty > 0;
-          })
-          .map((item) {
-            final qty =
-                double.tryParse(receivedQtyController[item]?.text ?? '0') ??
-                0.0;
-
-            return Item(
-              itemId: item.itemId,
-              itemName: item.itemName,
-              newPrice: item.newPrice,
-              count: item.count,
-              eachQuantity: item.eachQuantity,
-              receivedQuantity: qty,
-              pendingCount: item.pendingCount,
-              pendingQuantity: item.pendingQuantity,
-              expiryDate: expiryDateControllers[item]?.text ?? "",
-              taxPercentage: item.taxPercentage,
-              taxType: item.taxType,
-              uom: item.uom,
-
-              // ✅ FINAL DISCOUNT % (NOW PRESENT)
-              befTaxDiscount: item.befTaxDiscount ?? 0.0,
-              afTaxDiscount: item.afTaxDiscount ?? 0.0,
-              befTaxDiscountType: 'percentage',
-              afTaxDiscountType: 'percentage',
-            );
-          })
-          .toList();
-
-      if (receivedItems.isEmpty) {
-        showTopError("At least one item must have Received Quantity > 0");
-        return;
-      }
-
-      // --------------------------------------------------
-      // 🔥 STEP 4: PARSE INVOICE DATE
-      // --------------------------------------------------
-
-      late DateTime invoiceDate;
-      try {
-        invoiceDate = DateFormat(
-          'dd-MM-yyyy',
-        ).parse(invoiceDateController.text.trim());
-      } catch (_) {
-        showTopError("Invalid invoice date format (DD-MM-YYYY)");
-        return;
-      }
-
-      // --------------------------------------------------
-      // 🔥 STEP 5: CREATE GRN
-      // --------------------------------------------------
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-
+        return item.copyWith(
+          receivedQuantity: item.receivedQuantity ?? item.quantity,
+          befTaxDiscount: calculatedItem?["befTaxDiscount"] ?? 0.0,
+          afTaxDiscount: calculatedItem?["afTaxDiscount"] ?? 0.0,
+          befTaxDiscountType: "percentage",
+          afTaxDiscountType: "percentage",
+        );
+      }).toList();
+      final DateTime parsedInvoiceDate = DateFormat(
+        'dd-MM-yyyy',
+      ).parse(invoiceDateController.text.trim());
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
         invoiceNumberController.text.trim(),
-        invoiceDate,
-        0.0,
+        parsedInvoiceDate,
+        overallDiscount,
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      Navigator.of(context).pop();
-
-      if (response['grnCreated'] != true || response['grnId'] == null) {
-        showTopError(
-          "Failed to create GRN: ${response['message'] ?? 'Unknown error'}",
-        );
-        return;
+      if (response["grnCreated"] != true) {
+        throw Exception("GRN creation failed");
       }
-
-      final String grnId = response['grnId'];
-
       await poProvider.convertPoToGrn(
         context,
         po.purchaseOrderId,
         invoiceNumberController.text.trim(),
-        0.0,
-        grnId,
+        overallDiscount,
+        response["grnId"],
         roundOffAdjustment: roundOffAmount.value,
       );
-
-      // --------------------------------------------------
-      // 🔥 STEP 6: REFRESH
-      // --------------------------------------------------
-
-      poProvider.removeApprovedPO(po.purchaseOrderId);
-      await poProvider.fetchApprovedPOsOnly();
       await grnProvider.fetchFilteredGRNs();
+      poProvider.removeApprovedPO(po.purchaseOrderId);
+      if (context.mounted) {
+        Navigator.of(context).pop(true);
+      }
+    } catch (e, stack) {
+      debugPrint("❌ Convert PO to GRN failed: $e");
+      debugPrintStack(stackTrace: stack);
 
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("GRN created successfully!"),
-            backgroundColor: Colors.green,
+            content: Text("Failed to convert PO to GRN"),
+            backgroundColor: Colors.red,
           ),
         );
       }
-    } catch (e) {
-      Navigator.of(context).pop();
-      showTopError("Error creating GRN: $e");
     } finally {
       isSaving.value = false;
     }
   }
 
+  void normalizePoDiscountsForApproval() {
+    for (var item in po.items) {
+      item.befTaxDiscount = 0.0;
+      item.afTaxDiscount = 0.0;
+
+      item.befTaxDiscountAmount = 0.0;
+      item.afTaxDiscountAmount = 0.0;
+      item.discountAmount = 0.0;
+    }
+    _poBaseDiscount = po.pendingDiscountAmount ?? 0.0;
+    _approvedExtraDiscount = 0.0;
+  }
+
   void resetPoDiscountsForApproval() {
     for (var item in po.items) {
-      // 🔥 Ignore old PO discounts
       item.befTaxDiscount = 0.0;
       item.afTaxDiscount = 0.0;
       item.befTaxDiscountAmount = 0.0;
       item.afTaxDiscountAmount = 0.0;
       item.discountAmount = 0.0;
 
-      // 🔥 Treat as fresh percentage mode
       item.befTaxDiscountType = 'percentage';
       item.afTaxDiscountType = 'percentage';
     }
@@ -1141,14 +988,9 @@ class ApprovedPOLogic {
     double totalWidth = 0.0;
 
     for (var column in columns) {
-      // Skip 'Item' column as it's fixed separately
       if (column == 'Item') continue;
-
-      // Check if column exists in visibility map and is visible
       final isVisible = visibility[column] ?? true;
       if (!isVisible) continue;
-
-      // Skip columns based on table type
       if (isOrdered && column == 'Received') continue;
       if (!isOrdered && column == 'Total') continue;
 

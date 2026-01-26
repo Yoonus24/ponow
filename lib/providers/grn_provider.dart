@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
@@ -37,6 +36,8 @@ class GRNProvider with ChangeNotifier {
   List<DebitCreditNote> get debitCreditNotes => _debitCreditNotes;
   int get skip => _skip;
   int get limit => _limit;
+
+  final Dio _dio = Dio();
 
   GRNProvider() {
     fetchReturnReasons();
@@ -87,8 +88,7 @@ class GRNProvider with ChangeNotifier {
     print('[API] addReturnReason: $reason');
     setLoading(true);
     try {
-      final dio = Dio();
-      final response = await dio.post(
+      final response = await _dio.post(
         _returnReasonsEndpoint.replaceFirst(
           '/getgrn/return-reasons',
           '/return-reasons',
@@ -116,8 +116,7 @@ class GRNProvider with ChangeNotifier {
     setLoading(true);
     _error = null;
     try {
-      final dio = Dio();
-      final response = await dio.get(
+      final response = await _dio.get(
         _returnReasonsEndpoint,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -179,17 +178,15 @@ class GRNProvider with ChangeNotifier {
       if (date != null)
         queryParams["date"] = DateFormat("yyyy-MM-dd").format(date);
 
-      final uri = Uri.parse(
+      final response = await _dio.get(
         _grnListEndpoint,
-      ).replace(queryParameters: queryParams);
-      print("🌐 GET $uri");
+        queryParameters: queryParams,
+      );
 
-      final response = await http.get(uri);
+      print("🌐 GET ${response.realUri}");
 
       if (response.statusCode == 200) {
-        _grns = (jsonDecode(response.body) as List)
-            .map((e) => GRN.fromJson(e))
-            .toList();
+        _grns = (response.data as List).map((e) => GRN.fromJson(e)).toList();
       } else {
         _grns = [];
       }
@@ -202,20 +199,27 @@ class GRNProvider with ChangeNotifier {
   }
 
   Future<List<GRN>> _fetchByStatus(String status) async {
-    final uri = Uri.parse(_grnListEndpoint).replace(
-      queryParameters: {"skip": "$_skip", "limit": "$_limit", "status": status},
-    );
+    try {
+      final response = await _dio.get(
+        _grnListEndpoint,
+        queryParameters: {
+          "skip": "$_skip",
+          "limit": "$_limit",
+          "status": status,
+        },
+      );
 
-    print("🌐 RAW FETCH $uri");
+      print("🌐 RAW FETCH ${response.realUri}");
 
-    final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final List data = response.data;
+        return data.map((e) => GRN.fromJson(e)).toList();
+      }
 
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body);
-      return data.map((e) => GRN.fromJson(e)).toList();
+      return [];
+    } catch (e) {
+      return [];
     }
-
-    return [];
   }
 
   Future<bool> updateGRN(GRN grn, String newStatus) async {
@@ -232,16 +236,17 @@ class GRNProvider with ChangeNotifier {
       grn.status = newStatus;
       grn.lastUpdatedDate = formattedDate;
 
-      final uri = Uri.parse('$_grnBase/${grn.grnId}');
-      final headers = {'Content-Type': 'application/json'};
-      final body = jsonEncode(grn.toJson());
+      final response = await _dio.patch(
+        '$_grnBase/${grn.grnId}',
+        data: jsonEncode(grn.toJson()),
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
 
-      final response = await http.patch(uri, headers: headers, body: body);
       print('PATCH status: ${response.statusCode}');
-      print('PATCH body: ${response.body}');
+      print('PATCH body: ${response.data}');
 
       if (response.statusCode == 200) {
-        final updatedGrn = GRN.fromJson(jsonDecode(response.body));
+        final updatedGrn = GRN.fromJson(response.data);
         final index = _grns.indexWhere((item) => item.grnId == grn.grnId);
         if (index != -1) {
           _grns[index] = updatedGrn;
@@ -249,7 +254,7 @@ class GRNProvider with ChangeNotifier {
         }
         return true;
       } else {
-        throw Exception('Failed to update GRN: ${response.body}');
+        throw Exception('Failed to update GRN: ${response.data}');
       }
     } catch (error) {
       setError(error.toString());
@@ -271,86 +276,64 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      // 🔍 Debug: log incoming items
-      for (var item in itemUpdates) {
-        print(
-          '🧾 ItemUpdate -> id: ${item.itemId}, '
-          'bef: ${item.befTaxDiscount}, af: ${item.afTaxDiscount}, '
-          'expiry: ${item.expiryDate}',
-        );
-      }
-
-      // ✅ Filter only valid items with itemId
-      final List<Map<String, dynamic>> itemUpdatesJson = itemUpdates
-          .where((item) => item.itemId != null && item.itemId!.isNotEmpty)
-          .map((item) {
-            return {
-              'itemId': item.itemId,
-              'befTaxDiscount': item.befTaxDiscount ?? 0.0,
-              'afTaxDiscount': item.afTaxDiscount ?? 0.0,
-              'expiryDate': item.expiryDate,
-            };
-          })
+      final itemsJson = itemUpdates
+          .where((e) => e.itemId != null && e.itemId!.isNotEmpty)
+          .map(
+            (e) => {
+              'itemId': e.itemId,
+              'befTaxDiscount': e.befTaxDiscount ?? 0.0,
+              'afTaxDiscount': e.afTaxDiscount ?? 0.0,
+              'expiryDate': e.expiryDate,
+            },
+          )
           .toList();
 
-      if (itemUpdatesJson.isEmpty) {
-        throw Exception('No valid items with itemId to convert');
+      if (itemsJson.isEmpty) {
+        throw Exception('No valid items found');
       }
 
-      // ✅ Build URL with round-off
-      final uri = Uri.parse('$_grnBase/convert-to-ap/ap-to-outgoing/$grnId')
-          .replace(
-            queryParameters: {
-              'apRoundOff': roundOffAdjustment.toStringAsFixed(2),
-            },
-          );
+      final grn = _grns.firstWhere(
+        (g) => g.grnId == grnId,
+        orElse: () => throw Exception('GRN not found'),
+      );
 
-      print('🚀 CONVERT URL: $uri');
+      final double grnAmount = grn.grnAmount ?? grn.totalReceivedAmount ?? 0.0;
+      final double finalApRoundOff = roundOffAdjustment;
 
-      final headers = {'Content-Type': 'application/json'};
-      final body = jsonEncode(itemUpdatesJson);
+      print('🧮 ROUND OFF FLOW');
+      print('GRN Amount        : $grnAmount');
+      print('Manual Round Off  : $finalApRoundOff');
+      print('➡️ AP Final Amount: ${grnAmount + finalApRoundOff}');
 
-      print('📤 PATCH $uri');
-      print('Request body: $body');
+      final response = await _dio.patch(
+        '$_grnBase/convert-to-ap/ap-to-outgoing/$grnId',
+        queryParameters: {'apRoundOff': finalApRoundOff.toStringAsFixed(2)},
+        data: jsonEncode(itemsJson),
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
 
-      final response = await http.patch(uri, headers: headers, body: body);
-
-      print('📥 Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      print('🚀 CONVERT URL: ${response.realUri}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final result = jsonDecode(response.body);
         await fetchFilteredGRNs();
-
-        return {
-          'success': true,
-          'message': result['message'] ?? 'Conversion successful',
-          'data': result,
-        };
+        return {'success': true};
       } else {
-        throw Exception(
-          'Failed to convert GRN: ${response.statusCode} - ${response.body}',
-        );
+        throw Exception(response.data);
       }
-    } catch (error) {
-      setError(error.toString());
-      print('❌ convertGrnToApAndOutgoing exception: $error');
-
-      return {'success': false, 'error': error.toString()};
+    } catch (e) {
+      setError(e.toString());
+      return {'success': false, 'error': e.toString()};
     } finally {
       setLoading(false);
     }
   }
 
-  // Add this method to GRNProvider class
   Future<Map<String, dynamic>?> fetchPODetails(String poId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$_baseApi/purchaseorders/$poId'),
-      );
+      final response = await _dio.get('$_baseApi/purchaseorders/$poId');
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        return response.data;
       }
       return null;
     } catch (e) {
@@ -359,8 +342,6 @@ class GRNProvider with ChangeNotifier {
     }
   }
 
-  // Add this method to convert from Approved PO to GRN with round-off
-  // Update the convertFromApprovedPOToGRN method in GRNProvider
   Future<Map<String, dynamic>> convertFromApprovedPOToGRN({
     required String poId,
     required String invoiceNo,
@@ -372,53 +353,61 @@ class GRNProvider with ChangeNotifier {
     print('=== Starting convertFromApprovedPOToGRN ===');
     print('PO ID: $poId');
     print('Invoice No: $invoiceNo');
-    print('Round Off Adjustment: $roundOffAdjustment');
-    print('Discount: $discount');
 
     setLoading(true);
     setError(null);
 
     try {
-      // Prepare the request body
+      final double itemFinalTotal = items.fold<double>(
+        0.0,
+        (sum, item) => sum + ((item['finalPrice'] ?? 0.0) as num).toDouble(),
+      );
+
+      final double roundedTotal = itemFinalTotal.roundToDouble();
+      final double calculatedRoundOff = double.parse(
+        (roundedTotal - itemFinalTotal).toStringAsFixed(2),
+      );
+
+      print('🧮 Item Total       : $itemFinalTotal');
+      print('🧮 Rounded Total    : $roundedTotal');
+      print('🧮 Round-Off Stored : $calculatedRoundOff');
+
       final Map<String, dynamic> requestBody = {
         'poId': poId,
         'invoiceNo': invoiceNo,
         'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
         'discountPrice': discount,
-        'roundOffAdjustment': roundOffAdjustment,
-        'freights': 0.0, // 👈 ADD THIS LINE
+        'roundOffAdjustment': calculatedRoundOff,
+        'freights': 0.0,
         'items': items,
       };
 
-      print('Request Body: ${jsonEncode(requestBody)}');
+      print('📤 Request Body: ${jsonEncode(requestBody)}');
 
-      // Try different endpoints - Use the existing convert-to-ap endpoint
-      final response = await http.post(
-        Uri.parse('$_grnBase/convert-to-ap'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(requestBody),
+      final response = await _dio.post(
+        '$_grnBase/convert-to-ap',
+        data: jsonEncode(requestBody),
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print('Response Status: ${response.statusCode}');
-      print('Response Body: ${response.body}');
+      print('📥 Response Status: ${response.statusCode}');
+      print('📥 Response Body: ${response.data}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
+        final responseData = response.data;
 
-        // Refresh GRN list
         await fetchFilteredGRNs();
 
         return {
           'success': true,
           'grnId': responseData['grnId'],
           'message': 'GRN created successfully',
-          'roundOffAdjustment':
-              responseData['roundOffAdjustment'] ?? roundOffAdjustment,
+          'roundOffAdjustment': calculatedRoundOff,
         };
       } else {
         return {
           'success': false,
-          'error': 'Server error: ${response.statusCode} - ${response.body}',
+          'error': 'Server error: ${response.statusCode} - ${response.data}',
         };
       }
     } catch (e) {
@@ -435,12 +424,10 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await http.get(
-        Uri.parse('$_grnBase/items/status/$status'),
-      );
+      final response = await _dio.get('$_grnBase/items/status/$status');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final List<dynamic> data = response.data;
         final grnsList = data.map((item) => GRN.fromJson(item)).toList();
         _grns = grnsList;
         notifyListeners();
@@ -465,17 +452,10 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await http.get(
-        Uri.parse(
-          '$_baseApi/purchaseorders/getByRandomId'.replaceFirst(
-            '/nextjstestapi',
-            '/nextjstestapi',
-          ),
-        ),
-      );
+      final response = await _dio.get('$_baseApi/purchaseorders/getByRandomId');
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final List<dynamic> data = response.data;
         return data.cast<String>();
       } else {
         throw Exception(
@@ -497,8 +477,6 @@ class GRNProvider with ChangeNotifier {
       if (data.returnedBy.isEmpty)
         throw Exception('Returned by field cannot be empty');
 
-      final url = Uri.parse('$_grnBase/$grnId/return');
-
       final requestBody = {
         "scenario": data.scenario?.toLowerCase() ?? "",
         "returnedDate": (data.returnedDate ?? DateTime.now()).toIso8601String(),
@@ -519,21 +497,21 @@ class GRNProvider with ChangeNotifier {
 
       print('📤 returnGrn request: ${jsonEncode(requestBody)}');
 
-      final response = await http.patch(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestBody),
+      final response = await _dio.patch(
+        '$_grnBase/$grnId/return',
+        data: jsonEncode(requestBody),
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print('📥 returnGrn response: ${response.statusCode} - ${response.body}');
+      print('📥 returnGrn response: ${response.statusCode} - ${response.data}');
 
       if (response.statusCode == 200) {
-        final res = jsonDecode(response.body);
+        final res = response.data;
         await fetchFilteredGRNs();
         notifyListeners();
         return res;
       } else {
-        throw Exception('Failed: ${response.statusCode} -> ${response.body}');
+        throw Exception('Failed: ${response.statusCode} -> ${response.data}');
       }
     } catch (e) {
       print('❌ returnGrn exception: $e');
@@ -546,18 +524,15 @@ class GRNProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final uri = Uri.parse(
-        '$_baseApi/grns/returnprocess/Grnwise?skip=$skip&limit=$limit',
+      final response = await _dio.get(
+        '$_baseApi/grns/returnprocess/Grnwise',
+        queryParameters: {'skip': skip, 'limit': limit},
       );
 
-      print('🌐 GET RETURNED GRNS $uri');
-
-      final response = await http.get(uri);
+      print('🌐 GET RETURNED GRNS ${response.realUri}');
 
       if (response.statusCode == 200) {
-        _grns = (jsonDecode(response.body) as List)
-            .map((e) => GRN.fromJson(e))
-            .toList();
+        _grns = (response.data as List).map((e) => GRN.fromJson(e)).toList();
       } else {
         _grns = [];
       }
@@ -579,13 +554,13 @@ class GRNProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final url = Uri.parse(
-        '$_baseApi/returnprocess/DebitCreditNote/$grnId?skip=$skip&limit=$limit',
+      final response = await _dio.get(
+        '$_baseApi/returnprocess/DebitCreditNote/$grnId',
+        queryParameters: {'skip': skip, 'limit': limit},
       );
-      final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
+        final List<dynamic> data = response.data;
         _debitCreditNotes = data
             .map((json) => DebitCreditNote.fromJson(json))
             .toList();
@@ -595,7 +570,8 @@ class GRNProvider with ChangeNotifier {
       } else if (response.statusCode == 400) {
         _error = 'Invalid GRN ID format';
       } else {
-        _error = 'Failed to fetch debit/credit notes: ${response.reasonPhrase}';
+        _error =
+            'Failed to fetch debit/credit notes: ${response.statusMessage}';
       }
     } catch (e) {
       _error = 'Error fetching debit/credit notes: $e';

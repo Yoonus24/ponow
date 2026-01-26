@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import '../models/po.dart';
 import '../models/po_template.dart';
@@ -11,34 +11,31 @@ class TemplateProvider extends ChangeNotifier {
   String? _error;
 
   final String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
+  final Dio _dio = Dio();
 
   List<POTemplate> get templates => _templates;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  // =========================================================
-  // FETCH TEMPLATES (with backend search filter)
-  // =========================================================
   Future<void> fetchTemplates({String search = ""}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // If search is empty → no filter
-      final uri = search.trim().isEmpty
-          ? Uri.parse('$baseUrl/purchaseorders/templates')
-          : Uri.parse(
-              '$baseUrl/purchaseorders/templates?search=${Uri.encodeQueryComponent(search.trim())}',
-            );
+      final Map<String, dynamic> queryParams = {};
+      if (search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
 
-      final response = await http.get(
-        uri,
-        headers: {'Content-Type': 'application/json'},
+      final response = await _dio.get(
+        '$baseUrl/purchaseorders/templates',
+        queryParameters: queryParams,
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data;
         _templates = data.map((json) => POTemplate.fromJson(json)).toList();
         _error = null;
       } else {
@@ -52,9 +49,6 @@ class TemplateProvider extends ChangeNotifier {
     }
   }
 
-  // =========================================================
-  // CREATE TEMPLATE FROM PO
-  // =========================================================
   Future<bool> createTemplate(PO po, String templateName) async {
     _isLoading = true;
     notifyListeners();
@@ -62,10 +56,10 @@ class TemplateProvider extends ChangeNotifier {
     try {
       final template = POTemplate.fromPO(po, templateName);
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/purchaseorders/templates'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(template.toJson()),
+      final response = await _dio.post(
+        '$baseUrl/purchaseorders/templates',
+        data: json.encode(template.toJson()),
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -84,21 +78,18 @@ class TemplateProvider extends ChangeNotifier {
     }
   }
 
-  // =========================================================
-  // CREATE PO FROM TEMPLATE
-  // =========================================================
   Future<PO?> createPOFromTemplate(String templateId) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/purchaseorders/templates/$templateId/create-order'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _dio.post(
+        '$baseUrl/purchaseorders/templates/$templateId/create-order',
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data;
         return PO.fromJson(data['purchaseOrder']);
       } else {
         _error = 'Failed to create PO from template: ${response.statusCode}';
@@ -113,9 +104,6 @@ class TemplateProvider extends ChangeNotifier {
     }
   }
 
-  // =========================================================
-  // ACTIVATE / DEACTIVATE TEMPLATE
-  // =========================================================
   Future<bool> _setTemplateActive(String templateId, bool isActive) async {
     _isLoading = true;
     notifyListeners();
@@ -123,13 +111,13 @@ class TemplateProvider extends ChangeNotifier {
     final action = isActive ? 'activate' : 'deactivate';
 
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/purchaseorders/templates/$templateId/$action'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _dio.patch(
+        '$baseUrl/purchaseorders/templates/$templateId/$action',
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
-        await fetchTemplates(); // Reload from backend
+        await fetchTemplates();
         return true;
       } else {
         _error =
@@ -153,14 +141,11 @@ class TemplateProvider extends ChangeNotifier {
     return _setTemplateActive(templateId, false);
   }
 
-  // =========================================================
-  // DELETE TEMPLATE
-  // =========================================================
   Future<bool> deleteTemplate(String templateId) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/purchaseorders/templates/$templateId'),
-        headers: {'Content-Type': 'application/json'},
+      final response = await _dio.delete(
+        '$baseUrl/purchaseorders/templates/$templateId',
+        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
@@ -177,9 +162,6 @@ class TemplateProvider extends ChangeNotifier {
     }
   }
 
-  // =========================================================
-  // Convert Template → PO
-  // =========================================================
   PO convertTemplateToPO(POTemplate template) {
     return PO(
       purchaseOrderId: '',
@@ -265,9 +247,6 @@ class TemplateProvider extends ChangeNotifier {
     );
   }
 
-  // =========================================================
-  // GET TEMPLATE BY ID
-  // =========================================================
   POTemplate? getTemplateById(String templateId) {
     try {
       return _templates.firstWhere((t) => t.templateId == templateId);

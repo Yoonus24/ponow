@@ -122,7 +122,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     if (!mounted) return;
 
     if (confirmed == true) {
-      await _logic.convertToGRN(context);
+      await _logic.convertPoToGRN(context);
     }
   }
 

@@ -116,10 +116,14 @@ class _POWidgetState extends State<POWidget> {
           orElse: () => widget.po,
         );
 
-        final double cardTotal = updatedPO.items.fold(
+        final double itemsTotal = updatedPO.items.fold(
           0.0,
           (sum, i) => sum + (i.pendingFinalPrice ?? i.finalPrice ?? 0.0),
         );
+
+        final double roundOff = updatedPO.roundOffAdjustment ?? 0.0;
+
+        final double cardTotal = itemsTotal + roundOff;
 
         return Container(
           margin: const EdgeInsets.all(10),
