@@ -53,7 +53,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-
           title: const Text(
             'Confirm Conversion',
             style: TextStyle(
@@ -62,17 +61,13 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               color: Colors.black87,
             ),
           ),
-
           content: const Text(
             'Are you sure you want to convert this PO to GRN?',
             style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
           ),
-
           actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           actionsAlignment: MainAxisAlignment.end,
-
           actions: [
-            // 🔵 CANCEL — TEXT ONLY (NO OUTLINE)
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               style: TextButton.styleFrom(
@@ -87,10 +82,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
-
             const SizedBox(width: 8),
-
-            // 🔵 CONFIRM — BLUE BG + WHITE TEXT
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               style: ElevatedButton.styleFrom(
@@ -122,6 +114,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     if (!mounted) return;
 
     if (confirmed == true) {
+      // 🔥 Pass the context to the logic
       await _logic.convertPoToGRN(context);
     }
   }

@@ -13,8 +13,6 @@ import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
 
 class OutgoingPaymentProvider extends ChangeNotifier {
-
-
   final Dio dio = Dio();
   final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
@@ -41,7 +39,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   String _error = '';
   List<String> _validationWarnings = [];
 
-
   List<Outgoing> get payments => _payments;
   List<Outgoing> get allPayments => _allPayments;
 
@@ -58,7 +55,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
   String get error => _error;
   List<String> get validationWarnings => _validationWarnings;
-
 
   void clearError() {
     _error = '';

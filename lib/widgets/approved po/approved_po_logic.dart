@@ -176,7 +176,6 @@ class ApprovedPOLogic {
     for (final res in items) {
       final item = po.items.firstWhere((i) => i.itemId == res["itemId"]);
 
-
       item.pendingBefTaxDiscountAmount =
           (res["pendingBefTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
@@ -343,7 +342,6 @@ class ApprovedPOLogic {
   void showTopError(String message) {
     showTopMessage(message, color: Colors.red);
   }
-
 
   bool validateForm() {
     bool isValid = true;
@@ -529,8 +527,6 @@ class ApprovedPOLogic {
     item.eachQuantity = originalEach;
     item.count = originalCount;
     final totalOrdered = originalEach * originalCount;
-
-
   }
 
   void showNumericCalculator({
@@ -610,6 +606,44 @@ class ApprovedPOLogic {
     }
 
     return isValid;
+  }
+
+  Future<bool> _showGrnConfirmDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              title: const Text(
+                "Confirm GRN Conversion",
+                style: TextStyle(color: Colors.black),
+              ),
+              content: const Text(
+                "Are you sure you want to convert this PO to GRN?",
+                style: TextStyle(color: Colors.black),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text(
+                    "Cancel",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text("Confirm"),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   void updateCountAndQuantityFromReceived(Item item) {
@@ -724,22 +758,20 @@ class ApprovedPOLogic {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: now,
-      firstDate: now, 
+      firstDate: now,
       lastDate: DateTime(2100),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              surface: Colors.white, 
-              primary: Colors.blueAccent, 
+              surface: Colors.white,
+              primary: Colors.blueAccent,
               onPrimary: Colors.white,
-              onSurface: Colors.black, 
+              onSurface: Colors.black,
             ),
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent,
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
           ),
           child: child!,
@@ -833,91 +865,55 @@ class ApprovedPOLogic {
   }
 
   Future<void> convertPoToGRN(BuildContext context) async {
-    final poProvider = Provider.of<POProvider>(context, listen: false);
-    final grnProvider = Provider.of<GRNProvider>(context, listen: false);
-
     try {
+      if (!validateForm()) return;
+
       isSaving.value = true;
 
-      final double overallDiscount =
-          po.pendingDiscountAmount ?? po.overallDiscountValue ?? 0.0;
+      for (final item in po.items) {
+        final receivedQty = item.receivedQuantity ?? 0;
+        if (receivedQty <= 0) continue;
 
-      Map<String, dynamic>? discountResult;
+        item.count = 1;
+        item.pendingCount = 1;
+        item.eachQuantity = receivedQty;
+        item.pendingQuantity = receivedQty;
 
-      if (overallDiscount > 0) {
-        discountResult = await poProvider.calculateGrnOverallDiscount(
-          items: po.items.map((item) {
-            return {
-              "itemId": item.itemId,
-              "receivedQuantity": item.receivedQuantity ?? item.quantity,
-              "grnPrice": item.newPrice,
-              "befTaxDiscount": 0.0,
-              "afTaxDiscount": 0.0,
-              "taxPercentage": item.taxPercentage ?? 0.0,
-              "taxType": item.taxType ?? "cgst_sgst",
-            };
-          }).toList(),
-          discountAmount: overallDiscount,
-          discountType: "after",
-        );
+        item.poQuantity = receivedQty;
+        item.pendingTotalQuantity = receivedQty;
       }
 
-      final List<Item> receivedItems = po.items.map((item) {
-        final calculatedItem = discountResult?["items"]?.firstWhere(
-          (e) => e["itemId"] == item.itemId,
-          orElse: () => null,
-        );
+      await poProvider.updatePO(po);
 
-        return item.copyWith(
-          receivedQuantity: item.receivedQuantity ?? item.quantity,
-          befTaxDiscount: calculatedItem?["befTaxDiscount"] ?? 0.0,
-          afTaxDiscount: calculatedItem?["afTaxDiscount"] ?? 0.0,
-          befTaxDiscountType: "percentage",
-          afTaxDiscountType: "percentage",
-        );
-      }).toList();
-      final DateTime parsedInvoiceDate = DateFormat(
+      final String invoiceNo = invoiceNumberController.text.trim();
+      final DateTime invoiceDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
-      final response = await poProvider.updatePoDetails(
-        po.purchaseOrderId,
-        receivedItems,
-        invoiceNumberController.text.trim(),
-        parsedInvoiceDate,
-        overallDiscount,
+
+      final double discount = po.pendingDiscountAmount ?? 0.0;
+
+      await poProvider.updatePoDetails(
+        po.purchaseOrderId!,
+        po.items,
+        invoiceNo,
+        invoiceDate,
+        discount,
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      if (response["grnCreated"] != true) {
-        throw Exception("GRN creation failed");
-      }
-      await poProvider.convertPoToGrn(
-        context,
-        po.purchaseOrderId,
-        invoiceNumberController.text.trim(),
-        overallDiscount,
-        response["grnId"],
-        roundOffAdjustment: roundOffAmount.value,
-      );
-      await grnProvider.fetchFilteredGRNs();
-      poProvider.removeApprovedPO(po.purchaseOrderId);
-      if (context.mounted) {
-        Navigator.of(context).pop(true);
-      }
-    } catch (e, stack) {
-      debugPrint("❌ Convert PO to GRN failed: $e");
-      debugPrintStack(stackTrace: stack);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to convert PO to GRN"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
       isSaving.value = false;
+
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        showTopMessage("PO converted to GRN successfully", color: Colors.green);
+        onUpdated(); 
+      });
+    } catch (e) {
+      isSaving.value = false;
+      showTopError("Convert to GRN failed: $e");
     }
   }
 
