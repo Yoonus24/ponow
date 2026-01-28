@@ -486,9 +486,13 @@ class POProvider extends ChangeNotifier {
         final List<PO> filteredPOs = fixedPOs.where((po) {
           // Approved tab must NOT show fully GRN converted POs
           if (_currentFilterStatus == 'Approved') {
-            return po.poStatus == 'Approved' &&
-                (po.pendingOrderAmount ?? 0) > 0;
+            return po.poStatus == 'Approved';
           }
+
+          if (_currentFilterStatus == 'PartiallyReceived') {
+            return po.poStatus == 'PartiallyReceived';
+          }
+
           return true;
         }).toList();
 
@@ -1602,7 +1606,6 @@ class POProvider extends ChangeNotifier {
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
 
-      // ✅ Only received items
       final receivedItems = items
           .where((item) => (item.receivedQuantity ?? 0) > 0)
           .toList();
@@ -1611,7 +1614,6 @@ class POProvider extends ChangeNotifier {
         throw Exception("No items have received quantity greater than 0");
       }
 
-      // ✅ Prepare item payload
       final List<Map<String, dynamic>> itemsList = receivedItems.map((item) {
         String? formattedExpiryDate;
         if (item.expiryDate != null && item.expiryDate!.isNotEmpty) {
@@ -1664,40 +1666,48 @@ class POProvider extends ChangeNotifier {
         "freights": [],
       };
 
-      debugPrint('=== Updating PO with Fixed Discount ===');
-      debugPrint('URL => $localBaseUrl/purchaseorders/receivedupdates/$poId');
-      debugPrint('Body => ${jsonEncode(body)}');
-
       final response = await _dio.patch(
         '/purchaseorders/receivedupdates/$poId',
         data: body,
       );
 
-      debugPrint('⬅️ Status: ${response.statusCode}');
-      debugPrint('⬅️ Body: ${response.data}');
-
       if (response.statusCode != 200) {
-        final errorResponse = response.data;
-        throw Exception(errorResponse["detail"] ?? "PO update failed");
+        throw Exception(response.data?["detail"] ?? "PO update failed");
       }
 
-      final responseData = response.data;
+      final String newStatus =
+          response.data["poStatus"] ??
+          response.data["status"] ??
+          "PartiallyReceived";
 
-      // ✅ Update local state
+      await _dio.patch('/purchaseorders/$poId', data: {"poStatus": newStatus});
+
       final index = _pos.indexWhere((p) => p.purchaseOrderId == poId);
       if (index != -1) {
-        _pos[index] = _pos[index].copyWith(
+        final updatedPoFromServer = PO.fromJson(response.data);
+
+        _pos[index] = updatedPoFromServer.copyWith(
+          poStatus: newStatus,
           roundOffAdjustment: roundOffAdjustment,
           lastUpdatedDate: DateTime.now().toIso8601String(),
           invoiceNo: invoiceNumber,
           invoiceDate: formattedInvoiceDate,
         );
+
+        final poListIndex = _poList.indexWhere(
+          (p) => p.purchaseOrderId == poId,
+        );
+
+        if (poListIndex != -1) {
+          _poList[poListIndex] = _pos[index];
+        }
+
         notifyListeners();
       }
 
-      return responseData;
+      return response.data;
     } catch (e) {
-      debugPrint("❌ updatePoDetails error: $e");
+      debugPrint("updatePoDetails failed: $e");
       throw Exception("updatePoDetails failed: $e");
     }
   }

@@ -10,7 +10,8 @@ import 'package:flutter/services.dart' show rootBundle;
 /// Outgoing PDF generator
 class OutgoingPdf {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
-  static const String businessUrl = 'https://yenerp.com/purchaseapi/pobusiness';
+  static const String businessUrl =
+      'http://192.168.29.252:8000/nextjstestapi/pobusiness';
   static const String vendorByNameUrl =
       'http://192.168.29.252:8000/nextjstestapi/purchas/vendors/exact-name/';
 

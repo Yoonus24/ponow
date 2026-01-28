@@ -226,7 +226,17 @@ class ApprovedPOLogic {
 
     po.pendingDiscountAmount = totalDiscount;
 
-    recalculateFinalAmountAfterDiscount();
+ 
+    final double subTotal = po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.pendingTotalPrice ?? i.totalPrice ?? 0.0),
+    );
+
+    final double tax = po.pendingTaxAmount ?? 0.0;
+    final double roundOff = po.roundOffAdjustment ?? 0.0;
+
+    po.totalOrderAmount = subTotal - totalDiscount + tax + roundOff;
+    po.pendingOrderAmount = po.totalOrderAmount;
 
     discountInputController.clear();
 
@@ -236,6 +246,32 @@ class ApprovedPOLogic {
       "Approved Discount Applied: ₹${_approvedExtraDiscount.toStringAsFixed(2)}",
       color: Colors.green,
     );
+  }
+
+  double get orderedSubTotal {
+    return po.items.fold(0.0, (sum, i) => sum + (i.totalPrice ?? 0.0));
+  }
+
+  double get orderedDiscount {
+    return _poBaseDiscount; // original PO discount only
+  }
+
+  double get orderedFinalAmount {
+    return orderedSubTotal - orderedDiscount;
+  }
+
+  double get receivedSubTotal {
+    return po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.pendingTotalPrice ?? i.totalPrice ?? 0.0),
+    );
+  }
+
+  double get receivedFinalAmount {
+    final discount = po.pendingDiscountAmount ?? 0.0;
+    final tax = po.pendingTaxAmount ?? 0.0;
+    final roundOff = po.roundOffAdjustment ?? 0.0;
+    return receivedSubTotal - discount + tax + roundOff;
   }
 
   void recalculateFinalAmountAfterDiscount() {
@@ -451,18 +487,15 @@ class ApprovedPOLogic {
 
       // ---------------- Expiry Date ----------------
       String formattedExpiry = '';
-      if (item.expiryDate != null && item.expiryDate!.isNotEmpty) {
-        try {
-          if (item.expiryDate!.contains('-')) {
-            formattedExpiry = item.expiryDate!;
-          } else {
-            final d = DateTime.parse(item.expiryDate!);
-            formattedExpiry = DateFormat('dd-MM-yyyy').format(d);
-          }
-        } catch (_) {
-          formattedExpiry = item.expiryDate!;
-        }
+
+      // show expiry ONLY if nothing is received yet
+      if ((item.receivedQuantity ?? 0) == 0) {
+        formattedExpiry = '';
       }
+
+      expiryDateControllers[item] = TextEditingController(
+        text: formattedExpiry,
+      );
 
       expiryDateControllers[item] = TextEditingController(
         text: formattedExpiry,
@@ -608,92 +641,40 @@ class ApprovedPOLogic {
     return isValid;
   }
 
-  Future<bool> _showGrnConfirmDialog() async {
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              title: const Text(
-                "Confirm GRN Conversion",
-                style: TextStyle(color: Colors.black),
-              ),
-              content: const Text(
-                "Are you sure you want to convert this PO to GRN?",
-                style: TextStyle(color: Colors.black),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text(
-                    "Cancel",
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text("Confirm"),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-  }
-
   void updateCountAndQuantityFromReceived(Item item) {
-    final receivedQty = item.receivedQuantity ?? 0;
-    final pendingQty = item.pendingQuantity ?? 0;
-    final pendingCount = item.pendingCount ?? 1;
-    final poQuantity = item.poQuantity ?? 0;
-    if (receivedQty <= 0) {
+    final receivedQty = item.receivedQuantity ?? 0.0;
+
+    final double poQuantity =
+        item.poQuantity ?? ((item.count ?? 1.0) * (item.eachQuantity ?? 0.0));
+
+    final int pendingCount = (item.pendingCount ?? item.count ?? 1).toInt();
+
+    if (receivedQty <= 0 || poQuantity <= 0 || pendingCount <= 0) {
       item.count = 0.0;
       item.eachQuantity = 0.0;
-    } else {
-      if (pendingCount > 1) {
-        final expectedQuantityPerCount = poQuantity / pendingCount;
-        final fullPackagesReceived = (receivedQty / expectedQuantityPerCount)
-            .floor();
-        final partialQuantity = receivedQty % expectedQuantityPerCount;
-        item.count = fullPackagesReceived.toDouble();
-        item.eachQuantity = expectedQuantityPerCount;
-        if (partialQuantity > 0) {
-          item.count = (fullPackagesReceived + 1).toDouble();
-          item.eachQuantity = partialQuantity;
-        }
-      } else {
-        item.count = 1.0;
-        item.eachQuantity = receivedQty;
-      }
+      return;
     }
-    final totalReceived = item.receivedQuantity ?? 0;
-    item.pendingTotalQuantity = max(
-      0,
-      poQuantity - totalReceived - receivedQty,
-    );
-    scanpendingCountController[item]?.text =
-        item.count?.toStringAsFixed(2) ?? '0.00';
-    scaneachQtyControllers[item]?.text =
-        item.eachQuantity?.toStringAsFixed(2) ?? '0.00';
+
+    if (pendingCount > 1) {
+      final expectedQuantityPerCount = poQuantity / pendingCount;
+
+      final fullPackages = (receivedQty / expectedQuantityPerCount).floor();
+      final remainder = receivedQty % expectedQuantityPerCount;
+
+      item.count = fullPackages.toDouble();
+      item.eachQuantity = expectedQuantityPerCount;
+
+      if (remainder > 0) {
+        item.count = (item.count ?? 0.0) + 1.0;
+        item.eachQuantity = remainder;
+      }
+    } else {
+      item.count = 1.0;
+      item.eachQuantity = receivedQty;
+    }
   }
 
-  double _findGCD(double a, double b) {
-    a = a.abs();
-    b = b.abs();
-    int aInt = (a * 100).round();
-    int bInt = (b * 100).round();
-    while (bInt != 0) {
-      int temp = bInt;
-      bInt = aInt % bInt;
-      aInt = temp;
-    }
-    return aInt / 100.0;
-  }
+
 
   void updateRoundOff(String value) {
     double roundOffValue = double.tryParse(value) ?? 0.0;
@@ -865,55 +846,114 @@ class ApprovedPOLogic {
   }
 
   Future<void> convertPoToGRN(BuildContext context) async {
+    if (isSaving.value) return;
+    final poProvider = Provider.of<POProvider>(context, listen: false);
+    final grnProvider = Provider.of<GRNProvider>(context, listen: false);
     try {
-      if (!validateForm()) return;
-
       isSaving.value = true;
 
-      for (final item in po.items) {
-        final receivedQty = item.receivedQuantity ?? 0;
-        if (receivedQty <= 0) continue;
+      if (!validateForm()) {
+        isSaving.value = false;
+        return;
+      }
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
 
-        item.count = 1;
-        item.pendingCount = 1;
-        item.eachQuantity = receivedQty;
-        item.pendingQuantity = receivedQty;
+      final double overallDiscount =
+          po.pendingDiscountAmount ?? po.overallDiscountValue ?? 0.0;
 
-        item.poQuantity = receivedQty;
-        item.pendingTotalQuantity = receivedQty;
+      Map<String, dynamic>? discountResult;
+
+      if (overallDiscount > 0) {
+        discountResult = await poProvider.calculateGrnOverallDiscount(
+          items: po.items.map((item) {
+            return {
+              "itemId": item.itemId,
+              "receivedQuantity": item.receivedQuantity ?? item.quantity,
+              "grnPrice": item.newPrice,
+              "befTaxDiscount": 0.0,
+              "afTaxDiscount": 0.0,
+              "taxPercentage": item.taxPercentage ?? 0.0,
+              "taxType": item.taxType ?? "cgst_sgst",
+            };
+          }).toList(),
+          discountAmount: overallDiscount,
+          discountType: "after",
+        );
       }
 
-      await poProvider.updatePO(po);
+      final List<Item> receivedItems = po.items.map((item) {
+        final calculatedItem = discountResult?["items"]?.firstWhere(
+          (e) => e["itemId"] == item.itemId,
+          orElse: () => null,
+        );
 
-      final String invoiceNo = invoiceNumberController.text.trim();
-      final DateTime invoiceDate = DateFormat(
+        return item.copyWith(
+          receivedQuantity: item.receivedQuantity ?? item.quantity,
+          befTaxDiscount: calculatedItem?["befTaxDiscount"] ?? 0.0,
+          afTaxDiscount: calculatedItem?["afTaxDiscount"] ?? 0.0,
+          befTaxDiscountType: "percentage",
+          afTaxDiscountType: "percentage",
+        );
+      }).toList();
+
+      final DateTime parsedInvoiceDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
 
-      final double discount = po.pendingDiscountAmount ?? 0.0;
-
-      await poProvider.updatePoDetails(
-        po.purchaseOrderId!,
-        po.items,
-        invoiceNo,
-        invoiceDate,
-        discount,
+      final response = await poProvider.updatePoDetails(
+        po.purchaseOrderId,
+        receivedItems,
+        invoiceNumberController.text.trim(),
+        parsedInvoiceDate,
+        overallDiscount,
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      isSaving.value = false;
+      if (response["grnCreated"] != true) {
+        throw Exception("GRN creation failed");
+      }
+
+      await poProvider.convertPoToGrn(
+        context,
+        po.purchaseOrderId,
+        invoiceNumberController.text.trim(),
+        overallDiscount,
+        response["grnId"],
+        roundOffAdjustment: roundOffAmount.value,
+      );
+
+      await poProvider.applyCurrentFilters();
+      await grnProvider.fetchFilteredGRNs();
+
+      if (context.mounted) {
+        Navigator.of(context).pop(); 
+      }
+
+      if (context.mounted) {
+        Navigator.of(context).pop(true); 
+      }
+    } catch (e, stack) {
+      debugPrint("❌ Convert PO to GRN failed: $e");
+      debugPrintStack(stackTrace: stack);
 
       if (context.mounted) {
         Navigator.of(context).pop();
       }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        showTopMessage("PO converted to GRN successfully", color: Colors.green);
-        onUpdated(); 
-      });
-    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Failed to convert PO to GRN"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
       isSaving.value = false;
-      showTopError("Convert to GRN failed: $e");
     }
   }
 

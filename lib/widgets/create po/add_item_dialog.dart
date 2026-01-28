@@ -31,6 +31,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
   // MARK: - Form and State Variables
   final _formKey = GlobalKey<FormState>();
   bool _isInitialized = false;
+  late PurchaseOrderNotifier _poNotifier;
 
   // MARK: - Value Notifiers
   final ValueNotifier<String> _itemWiseDiscountMode = ValueNotifier(
@@ -89,13 +90,15 @@ class _AddItemDialogState extends State<AddItemDialog> {
   }
 
   @override
-  void dispose() {
-    final poNotifier = Provider.of<PurchaseOrderNotifier>(
-      context,
-      listen: false,
-    );
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _poNotifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+  }
 
-    poNotifier.isOverallDisabledFromItem = false;
+  @override
+  void dispose() {
+    // ✅ use cached notifier – NO context usage
+    _poNotifier.isOverallDisabledFromItem = false;
 
     _fieldControllers['count']?.removeListener(_refreshPreview);
     _fieldControllers['eachQuantity']?.removeListener(_refreshPreview);
@@ -875,7 +878,10 @@ class _AddItemDialogState extends State<AddItemDialog> {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               TextButton(
-                                onPressed: () => Navigator.pop(context),
+                                onPressed: () {
+                                  _poNotifier.isOverallDisabledFromItem = false;
+                                  Navigator.pop(context);
+                                },
                                 style: TextButton.styleFrom(
                                   foregroundColor: const Color.fromARGB(
                                     255,

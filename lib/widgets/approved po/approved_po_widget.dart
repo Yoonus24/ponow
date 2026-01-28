@@ -18,36 +18,28 @@ class ApprovedPOWidget extends StatefulWidget {
   });
 
   @override
-  _ApprovedPOWidgetState createState() => _ApprovedPOWidgetState();
+  State<ApprovedPOWidget> createState() => _ApprovedPOWidgetState();
 }
 
 class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
-  late PO po;
-
-  @override
-  void initState() {
-    super.initState();
-    po = widget.po.copyWith();
-  }
-
   void _showItemDetails(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
         return ApprovedPODialog(
-          po: po,
+          po: widget.po,
           poProvider: widget.poProvider,
           onUpdated: () async {
             final provider = Provider.of<POProvider>(context, listen: false);
-            await provider.fetchApprovedPOsOnly();
+            await provider.fetchPOs();
+            provider.notifyListeners();
           },
         );
       },
     );
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -65,17 +57,14 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
           padding: const EdgeInsets.all(12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Header with PO No and buttons - ALIGNED PROPERLY
+              // ===== HEADER =====
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment:
-                    CrossAxisAlignment.center, // Changed to center
                 children: [
                   Expanded(
                     child: Text(
-                      'PO No: ${po.randomId}',
+                      'PO No: ${widget.po.randomId}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -86,18 +75,12 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
                     ),
                   ),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
                         icon: const Icon(
                           Icons.remove_red_eye,
                           color: Colors.white,
                           size: 20,
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
                         ),
                         onPressed: () => _showItemDetails(context),
                       ),
@@ -107,34 +90,20 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
                           color: Colors.white,
                           size: 20,
                         ),
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
                         onPressed: () async {
                           try {
                             final poService = PurchaseOrderService();
-                            final purchaseOrderId = po.purchaseOrderId;
-
                             final pdfFile = await poService
-                                .generatePurchaseOrderPdf(purchaseOrderId);
+                                .generatePurchaseOrderPdf(
+                                  widget.po.purchaseOrderId,
+                                );
 
                             await Printing.layoutPdf(
                               onLayout: (_) => pdfFile.readAsBytesSync(),
                             );
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('PDF generated successfully'),
-                              ),
-                            );
                           } catch (e) {
-                            print("PDF error: $e");
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to generate PDF: $e'),
-                              ),
+                              SnackBar(content: Text('PDF failed: $e')),
                             );
                           }
                         },
@@ -145,9 +114,10 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
               ),
 
               const SizedBox(height: 8),
-              // Vendor Name
+
+              // ===== VENDOR =====
               Text(
-                'Vendor: ${po.vendorName ?? 'N/A'}',
+                'Vendor: ${widget.po.vendorName ?? 'N/A'}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
@@ -158,29 +128,29 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
               ),
 
               const SizedBox(height: 6),
-              // Total Order Amount
+
+              // ===== AMOUNT =====
               Text(
-                'Total Order Amount: ${po.pendingOrderAmount?.toStringAsFixed(2) ?? '0.00'}',
+                'Total Order Amount: '
+                '${widget.po.pendingOrderAmount?.toStringAsFixed(2) ?? '0.00'}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                   color: Colors.white,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
 
               const SizedBox(height: 6),
-              // Order Date
+
+              // ===== DATE =====
               Text(
-                'Order Date: ${po.orderDate != null ? DateFormat('dd-MM-yyyy').format(DateTime.parse(po.orderDate!)) : 'N/A'}',
+                'Order Date: '
+                '${widget.po.orderDate != null ? DateFormat('dd-MM-yyyy').format(DateTime.parse(widget.po.orderDate!)) : 'N/A'}',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                   color: Colors.white,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

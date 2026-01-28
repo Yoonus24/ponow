@@ -163,28 +163,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     _editingPO = po;
 
-    // -------------------------------
-    // 🔥 RESTORE OVERALL DISCOUNT FLAG
-    // -------------------------------
-    if (po?.overallDiscount != null && (po!.overallDiscount!.value ?? 0) > 0) {
-      isOverallDiscountActive = true;
-
-      discountMode.value = po.overallDiscount!.mode;
-      _overallDiscountValue = po.overallDiscount!.value ?? 0.0;
-
-      overallDiscountController.text = _overallDiscountValue.toStringAsFixed(2);
-
-      print('✅ Overall discount restored in EDIT mode');
-    } else {
-      isOverallDiscountActive = false;
-      _overallDiscountValue = 0.0;
-      overallDiscountController.text = '0';
-    }
-
-    // -------------------------------
-    // 🔥 FORCE FINAL RECALCULATION
-    // -------------------------------
-    recalculateFromLoadedPO();
+    // ❗ DO NOT notify during cleanup
+    recalculateFromLoadedPO(notify: notify);
 
     if (notify) {
       safeNotify();
@@ -613,7 +593,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     _safeCalculateTotals();
   }
 
-  void recalculateFromLoadedPO() {
+  void recalculateFromLoadedPO({required bool notify}) {
     if (_disposed) return;
 
     print('🔁 Recalculating totals from loaded PO (EDIT MODE)');

@@ -188,8 +188,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     if (!_totalOrderAmount.hasListeners) return;
     try {
       _totalOrderAmount.value = notifier.totalOrderAmount;
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   void _triggerUIRefresh() {
@@ -655,9 +654,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   @override
   void dispose() {
     _isDisposed = true;
+
     notifier.removeListener(_updateTotalOrderAmount);
-    notifier.setEditingPO(null);
-    notifier.resetControllers();
+
     _vendorAutocompleteController.dispose();
     _scrollController.dispose();
     _totalOrderAmount.dispose();
@@ -1149,9 +1148,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                         ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
-                            final isSmall =
-                                constraints.maxWidth <
-                                420;
+                            final isSmall = constraints.maxWidth < 420;
                             final buttonHeight = isSmall ? 42.0 : 48.0;
                             final fontSize = isSmall ? 11.0 : 13.0;
                             final spacing = isSmall ? 8.0 : 12.0;
@@ -1201,11 +1198,15 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(width: spacing),
                                 ],
 
-                         
                                 buildActionButton(
                                   text: "Cancel",
                                   color: Colors.grey.shade700,
                                   onPressed: () {
+                                    notifier.setEditingPO(
+                                      null,
+                                      notify: false,
+                                    ); 
+                                    notifier.poItems.clear();
                                     Navigator.of(context).pop();
                                   },
                                 ),

@@ -10,7 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 class GRNDebitPdf {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   static const String businessUrl =
-      'https://yenerp.com/purchaseapi/pobusiness/';
+      'http://192.168.29.252:8000/nextjstestapi/pobusiness/';
   static const String vendorUrl =
       'http://192.168.29.252:8000/nextjstestapi/vendors/';
 

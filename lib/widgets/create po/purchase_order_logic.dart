@@ -872,7 +872,7 @@ class PurchaseOrderLogic {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isDisposed()) return;
 
-      notifier.recalculateFromLoadedPO();
+      notifier.recalculateFromLoadedPO(notify: true);
       updateTotalOrderAmount();
       triggerUIRefresh();
     });

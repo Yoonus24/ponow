@@ -53,6 +53,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+
           title: const Text(
             'Confirm Conversion',
             style: TextStyle(
@@ -61,12 +62,15 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               color: Colors.black87,
             ),
           ),
+
           content: const Text(
             'Are you sure you want to convert this PO to GRN?',
             style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
           ),
+
           actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           actionsAlignment: MainAxisAlignment.end,
+
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -82,7 +86,9 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
             ),
+
             const SizedBox(width: 8),
+
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
               style: ElevatedButton.styleFrom(
@@ -114,7 +120,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     if (!mounted) return;
 
     if (confirmed == true) {
-      // 🔥 Pass the context to the logic
       await _logic.convertPoToGRN(context);
     }
   }
@@ -159,7 +164,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ===== Vendor + PO No SIDE BY SIDE =====
             Row(
               children: [
                 Expanded(
@@ -188,7 +192,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               ],
             ),
             const SizedBox(height: 10),
-            // ===== Invoice No + Date SAME SIZE =====
             Row(
               children: [
                 Expanded(
@@ -643,8 +646,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 },
               ),
 
-              const SizedBox(width: 4), // 👈 light space
-              // ===== DISCOUNT AMOUNT FIELD =====
+              const SizedBox(width: 4), 
               SizedBox(
                 width: 70,
                 child: TextField(
@@ -666,8 +668,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 ),
               ),
 
-              const SizedBox(width: 4), // 👈 light space
-              // ===== SAVE ICON =====
+              const SizedBox(width: 4), 
               ValueListenableBuilder<bool>(
                 valueListenable: _logic.isBefTaxDiscount,
                 builder: (context, isBefTax, _) {
@@ -689,7 +690,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 },
               ),
 
-              const SizedBox(width: 4), // 👈 light space
+              const SizedBox(width: 4), 
               // ===== CLEAR ICON =====
               ValueListenableBuilder<bool>(
                 valueListenable: _logic.isBefTaxDiscount,
@@ -775,7 +776,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                     ),
                     onChanged: (value) {
                       _logic.updateRoundOff(value);
-                      _logic.validateRoundOff(); // ✅ live validation
+                      _logic.validateRoundOff(); 
                     },
                   ),
                 ),
