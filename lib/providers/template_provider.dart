@@ -167,6 +167,8 @@ class TemplateProvider extends ChangeNotifier {
       purchaseOrderId: '',
       vendorName: template.vendorName,
       vendorContact: template.vendorContact,
+      location: template.location,
+      locationName: template.locationName,
       items: template.items.map((item) => _createNewItem(item)).toList(),
       totalOrderAmount: template.totalOrderAmount,
       pendingOrderAmount: template.totalOrderAmount,

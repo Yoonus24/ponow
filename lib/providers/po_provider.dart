@@ -14,6 +14,7 @@ import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/vendorpurchasemodel.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
+import 'package:purchaseorders2/models/branchlocation.dart';
 
 class POProvider extends ChangeNotifier {
   static const String cloudBaseUrl = 'https://yenerp.com';
@@ -85,6 +86,12 @@ class POProvider extends ChangeNotifier {
   String? _selectedRandomIdFilter;
   String _filterBy = 'orderDate'; // 'orderDate', 'approvedDate', 'rejectedDate'
   bool _includeInactive = false;
+
+  List<BranchLocation> _branches = [];
+  List<BranchLocation> get branches => _branches;
+
+  bool _isBranchLoading = false;
+  bool get isBranchLoading => _isBranchLoading;
 
   // SCROLL CONTROLLERS
   final ScrollController vendorScrollController = ScrollController();
@@ -915,6 +922,31 @@ class POProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchBranches() async {
+    _isBranchLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await Dio().get(
+        'https://yenerp.com/fluttertestapi/branches/',
+      );
+
+      if (response.statusCode == 200 && response.data is List) {
+        _branches = (response.data as List)
+            .map((e) => BranchLocation.fromJson(e))
+            .toList();
+      } else {
+        _branches = [];
+      }
+    } catch (e) {
+      debugPrint('❌ fetchBranches error: $e');
+      _branches = [];
+    } finally {
+      _isBranchLoading = false;
+      notifyListeners();
+    }
+  }
+
   // SEARCH ITEMS
   Future<void> searchPurchaseItems(String query) async {
     try {
@@ -1606,12 +1638,12 @@ class POProvider extends ChangeNotifier {
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
 
-      final receivedItems = items
-          .where((item) => (item.receivedQuantity ?? 0) > 0)
-          .toList();
+      final receivedItems = items.map((item) {
+        return item.copyWith(receivedQuantity: item.receivedQuantity ?? 0);
+      }).toList();
 
       if (receivedItems.isEmpty) {
-        throw Exception("No items have received quantity greater than 0");
+        throw Exception("No items found");
       }
 
       final List<Map<String, dynamic>> itemsList = receivedItems.map((item) {
@@ -1623,6 +1655,9 @@ class POProvider extends ChangeNotifier {
         final double qty = item.receivedQuantity ?? 0.0;
         final double price = item.newPrice ?? 0.0;
         final double base = qty * price;
+
+        final double poQty =
+            item.poQuantity ?? ((item.count ?? 1) * (item.eachQuantity ?? 0));
 
         double befTaxToSend = item.befTaxDiscount ?? 0.0;
         if (item.befTaxDiscountType == 'amount') {
@@ -1647,8 +1682,10 @@ class POProvider extends ChangeNotifier {
           "receivedQuantity": qty,
           "pendingQuantity": item.pendingQuantity ?? 0.0,
           "pendingCount": item.pendingCount ?? 0.0,
+          "poQuantity": poQty,
           "damagedQuantity": item.damagedQuantity ?? 0.0,
           "newPrice": price,
+          "grnPrice": price,
           "befTaxDiscount": double.parse(befTaxToSend.toStringAsFixed(2)),
           "afTaxDiscount": double.parse(afTaxToSend.toStringAsFixed(2)),
           "taxPercentage": item.taxPercentage ?? 0.0,
@@ -1673,36 +1710,6 @@ class POProvider extends ChangeNotifier {
 
       if (response.statusCode != 200) {
         throw Exception(response.data?["detail"] ?? "PO update failed");
-      }
-
-      final String newStatus =
-          response.data["poStatus"] ??
-          response.data["status"] ??
-          "PartiallyReceived";
-
-      await _dio.patch('/purchaseorders/$poId', data: {"poStatus": newStatus});
-
-      final index = _pos.indexWhere((p) => p.purchaseOrderId == poId);
-      if (index != -1) {
-        final updatedPoFromServer = PO.fromJson(response.data);
-
-        _pos[index] = updatedPoFromServer.copyWith(
-          poStatus: newStatus,
-          roundOffAdjustment: roundOffAdjustment,
-          lastUpdatedDate: DateTime.now().toIso8601String(),
-          invoiceNo: invoiceNumber,
-          invoiceDate: formattedInvoiceDate,
-        );
-
-        final poListIndex = _poList.indexWhere(
-          (p) => p.purchaseOrderId == poId,
-        );
-
-        if (poListIndex != -1) {
-          _poList[poListIndex] = _pos[index];
-        }
-
-        notifyListeners();
       }
 
       return response.data;

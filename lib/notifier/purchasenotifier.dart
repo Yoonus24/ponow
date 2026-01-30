@@ -143,6 +143,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   double totalOrderAmount = 0.0;
   bool _vendorsLoaded = false;
   bool _vendorsLoading = false;
+  String? selectedLocation;
+  String? selectedLocationName;
 
   List<Item> poItems = [];
   List<PurchaseItem> purchaseItems = [];
@@ -152,11 +154,20 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   List<BillingAddress> billingAddress = [];
   List<Vendor> vendors = [];
   List<VendorAll> vendorAllList = [];
+  bool _isLocationFocused = false;
+
+  bool get isLocationFocused => _isLocationFocused;
 
   int? editingIndex;
 
   PO? _editingPO;
   PO? get editingPO => _editingPO;
+  void setLocationFocus(bool focused) {
+    if (_isLocationFocused != focused) {
+      _isLocationFocused = focused;
+      notifyListeners();
+    }
+  }
 
   void setEditingPO(PO? po, {bool notify = true}) {
     if (_disposed) return;
@@ -208,6 +219,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     safeControllerAction(() {
       selectedVendor = null;
       selectedVendorDetails = null;
+      selectedLocation = null;
+      selectedLocationName = null;
 
       vendorContactController.value = TextEditingValue.empty;
       paymentTermsController.value = TextEditingValue.empty;
@@ -245,6 +258,22 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
 
     _safeCalculateTotals();
+  }
+
+  void setLocation({required String location, String? locationName}) {
+    if (_disposed) return;
+
+    selectedLocation = location;
+    selectedLocationName = locationName;
+    safeNotify();
+  }
+
+  void clearLocation() {
+    if (_disposed) return;
+
+    selectedLocation = null;
+    selectedLocationName = null;
+    safeNotify();
   }
 
   void clearAllItems() {
@@ -861,12 +890,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   void resetControllers() {
-    print('[🔄 Reset Controllers] Resetting all controllers...');
+    print('[🔄 Reset Controllers]');
 
-    // ✅ FIX: Don't use clear() - it calls controller.value= which can throw if disposed
-    // Instead, create NEW controllers
-
-    // List of all controllers to reset
     final controllers = [
       vendorContactController,
       paymentTermsController,
@@ -900,20 +925,25 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       fileController,
     ];
 
-    // ✅ FIX: Don't clear - check if disposed first
     for (final controller in controllers) {
-      _safeResetController(controller);
+      try {
+        controller.clear();
+      } catch (_) {}
     }
 
-    // Keep count as '1'
     countController.text = '1';
 
-    // Clear other data
     selectedVendor = null;
     selectedVendorDetails = null;
+
+    // 🔥 LOCATION CLEAR FIX
+    selectedLocation = null;
+    selectedLocationName = null;
+
     selectedPaymentTerm = null;
     selectedShippingaddress = null;
     selectedBillingaddress = null;
+
     poItems.clear();
     purchaseItems.clear();
     filteredItems.clear();
@@ -921,18 +951,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     _editItem = null;
     _editingPO = null;
 
-    // Reset totals
     subTotal = 0.0;
     itemWiseDiscount = 0.0;
     overallDiscountAmount = 0.0;
     calculatedFinalAmount = 0.0;
     totalOrderAmount = 0.0;
-    discount = 0;
-    roundedAmount = 0;
-    finalAmount = 0;
     _overallDiscountValue = 0.0;
 
-    print('[✅ Reset Controllers] All controllers reset successfully');
     notifyListeners();
   }
 
@@ -1132,7 +1157,28 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
 
     try {
-      // 🔐 SNAPSHOT ALL CONTROLLER VALUES FIRST (CRITICAL)
+      // 🔴 VALIDATION — LOCATION (REQUIRED)
+      if (selectedLocation == null || selectedLocation!.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select location')),
+          );
+        }
+        return false;
+      }
+
+      // 🔴 VALIDATION — VENDOR
+      final vendorDetails = selectedVendorDetails;
+      if (vendorDetails == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please select a vendor')),
+          );
+        }
+        return false;
+      }
+
+      // 🔐 SNAPSHOT CONTROLLERS (SAFE)
       final snapshot = {
         "vendorContact": _getControllerTextSafely(vendorContactController),
         "paymentTerms": _getControllerTextSafely(paymentTermsController),
@@ -1146,24 +1192,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         "overallDiscount": _getControllerTextSafely(overallDiscountController),
       };
 
-      final vendorDetails = selectedVendorDetails;
-      if (vendorDetails == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select a vendor')),
-          );
-        }
-        return false;
-      }
-
-      // 🔥 ALWAYS recalc before submit
+      // 🔁 Recalculate before submit
       calculateTotals();
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-      // ---------------------------
-      // Date formatter
-      // ---------------------------
       String formatDate(String? s) {
         if (s == null || s.isEmpty) return '';
         try {
@@ -1180,30 +1213,30 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       final formattedOrderDate = formatDate(snapshot["orderedDate"]);
       final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
 
-      // ---------------------------
-      // Deep copy items (SAFE)
-      // ---------------------------
       final List<Item> finalItems = poItems.map((e) => e.copyWith()).toList();
 
       double roundOffValue = double.tryParse(snapshot["roundOff"] ?? '') ?? 0.0;
 
       final bool hasOverallDiscount = discountMode.value != DiscountMode.none;
-
       final double overallDiscountValue = hasOverallDiscount
           ? double.tryParse(snapshot["overallDiscount"] ?? '') ?? 0.0
           : 0.0;
 
-      // ---------------------------
+      // =====================================================
       // ✏️ UPDATE PO
-      // ---------------------------
+      // =====================================================
       if (editingPO != null) {
         final updatedPO = editingPO!.copyWith(
           vendorName: selectedVendor,
           vendorContact: snapshot["vendorContact"],
           orderedDate: formattedOrderDate,
           expectedDeliveryDate: formattedExpectedDate,
-          items: finalItems,
 
+          // 🔥 LOCATION FIX
+          location: selectedLocation,
+          locationName: selectedLocationName,
+
+          items: finalItems,
           totalOrderAmount: calculatedFinalAmount,
           pendingOrderAmount: calculatedFinalAmount,
           pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
@@ -1223,8 +1256,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           creditLimit: vendorDetails.creditLimit,
 
           roundOffAdjustment: roundOffValue,
-
-          // 🔥 THIS IS THE FIX
           overallDiscount: hasOverallDiscount
               ? PurchaseOrderDiscount(
                   value: overallDiscountValue,
@@ -1242,19 +1273,25 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return true;
       }
 
-      // ---------------------------
+      // =====================================================
       // ➕ CREATE NEW PO
-      // ---------------------------
+      // =====================================================
       final newPO = PO(
         purchaseOrderId: '',
         randomId: '',
         vendorName: selectedVendor ?? '',
+
+        // 🔥 LOCATION FIX
+        location: selectedLocation,
+        locationName: selectedLocationName,
+
         vendorContact: snapshot["vendorContact"],
         items: finalItems,
         totalOrderAmount: calculatedFinalAmount,
         pendingOrderAmount: calculatedFinalAmount,
         pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
         pendingTaxAmount: pendingTaxAmount,
+
         paymentTerms: snapshot["paymentTerms"] ?? '',
         billingAddress: snapshot["billing"] ?? '',
         shippingAddress: snapshot["shipping"] ?? '',
@@ -1267,6 +1304,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         postalCode: vendorDetails.postalCode,
         gstNumber: vendorDetails.gstNumber,
         creditLimit: vendorDetails.creditLimit,
+
         orderDate: formattedOrderDate,
         expectedDeliveryDate: formattedExpectedDate,
         roundOffAdjustment: roundOffValue,
@@ -1276,6 +1314,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
                 mode: discountMode.value,
               )
             : null,
+
         poStatus: calculatedFinalAmount > vendorDetails.creditLimit
             ? 'CreditLimit for Approve'
             : 'Pending',

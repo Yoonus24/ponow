@@ -32,6 +32,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       context: context,
       onUpdated: widget.onUpdated,
     );
+    
     _logic.initialize();
   }
 
@@ -526,8 +527,12 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         ),
         _summaryRow("Tax", po.pendingTaxAmount),
         _summaryRow("Sub Total", po.pendingOrderAmount),
-        _summaryRow("Round Off", po.roundOffAdjustment),
-        _summaryRow("Final Amount", po.totalOrderAmount, highlight: true),
+        _summaryRow("Round Off", _logic.roundOffAmount.value),
+        _summaryRow(
+          "Final Amount",
+          _logic.receivedFinalAmount,
+          highlight: true,
+        ),
       ],
     );
   }
@@ -646,7 +651,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 },
               ),
 
-              const SizedBox(width: 4), 
+              const SizedBox(width: 4),
               SizedBox(
                 width: 70,
                 child: TextField(
@@ -668,7 +673,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 ),
               ),
 
-              const SizedBox(width: 4), 
+              const SizedBox(width: 4),
               ValueListenableBuilder<bool>(
                 valueListenable: _logic.isBefTaxDiscount,
                 builder: (context, isBefTax, _) {
@@ -690,7 +695,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 },
               ),
 
-              const SizedBox(width: 4), 
+              const SizedBox(width: 4),
               // ===== CLEAR ICON =====
               ValueListenableBuilder<bool>(
                 valueListenable: _logic.isBefTaxDiscount,
@@ -776,7 +781,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                     ),
                     onChanged: (value) {
                       _logic.updateRoundOff(value);
-                      _logic.validateRoundOff(); 
+                      _logic.validateRoundOff();
                     },
                   ),
                 ),

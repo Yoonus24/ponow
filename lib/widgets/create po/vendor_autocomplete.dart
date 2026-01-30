@@ -106,7 +106,7 @@ class VendorAutocomplete extends StatelessWidget {
                     floatingLabelBehavior: FloatingLabelBehavior.auto,
                     labelStyle: const TextStyle(
                       fontSize: 14,
-                      color: Colors.black87,
+                      color: Colors.black54,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),

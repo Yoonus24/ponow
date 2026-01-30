@@ -6,6 +6,7 @@ import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/save_template_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/template_list_dialog.dart';
 import '../widgets/create po/purchase_order_logic.dart';
@@ -76,6 +77,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
+      Provider.of<POProvider>(context, listen: false).fetchBranches();
       if (widget.editingPO == null) {
         print('🧹 Clearing old notifier data for NEW PO');
 
@@ -628,6 +630,8 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       purchaseOrderId: '',
       vendorName: notifier.selectedVendor ?? '',
       vendorContact: notifier.vendorContactController.text,
+      location: notifier.selectedLocation,
+      locationName: notifier.selectedLocationName,
       items: notifier.poItems,
       totalOrderAmount: notifier.totalOrderAmount,
       pendingOrderAmount: notifier.pendingOrderAmount,
@@ -969,6 +973,16 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(height: isTablet ? 10 : 16),
                                 ],
 
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 0),
+                                    LocationDropdown(
+                                      inputDecoration: _inputDecoration,
+                                    ),
+                                  ],
+                                ),
+
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 1.0,
@@ -1202,10 +1216,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   text: "Cancel",
                                   color: Colors.grey.shade700,
                                   onPressed: () {
-                                    notifier.setEditingPO(
-                                      null,
-                                      notify: false,
-                                    ); 
+                                    notifier.setEditingPO(null, notify: false);
                                     notifier.poItems.clear();
                                     Navigator.of(context).pop();
                                   },

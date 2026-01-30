@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/models/po_item.dart';
-import 'package:purchaseorders2/calculation/purchase_order_calculations.dart';
 import 'package:provider/provider.dart';
 import 'table_components.dart';
 import '../../models/discount_model.dart';

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/calculation/purchase_order_calculations.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -797,6 +796,16 @@ class PurchaseOrderLogic {
     notifier.creditLimitController.text = vendor.creditLimit.toString();
 
     // ---------------------------
+    // LOCATION (EDIT MODE FIX)
+    // ---------------------------
+    if (po.location != null && po.location!.isNotEmpty) {
+      notifier.setLocation(
+        location: po.location!,
+        locationName: po.locationName, // optional but recommended
+      );
+    }
+
+    // ---------------------------
     // Dates
     // ---------------------------
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
@@ -1014,12 +1023,8 @@ class PurchaseOrderLogic {
   void applyTemplate(POTemplate t) {
     if (isDisposed()) return;
 
-    // ❌ Do not allow template in edit mode
     if (editingPO != null) return;
 
-    // -------------------------------
-    // 1️⃣ CLEAR OLD DATA
-    // -------------------------------
     notifier.poItems.clear();
 
     notifier.isOverallDiscountActive = false;
@@ -1030,9 +1035,6 @@ class PurchaseOrderLogic {
     notifier.overallDiscountAmount = 0.0;
     notifier.itemWiseDiscount = 0.0;
 
-    // -------------------------------
-    // 2️⃣ LOAD VENDOR (IMPORTANT)
-    // -------------------------------
     notifier.setSelectedVendor(t.vendorName);
     vendorController.text = t.vendorName;
 
@@ -1049,20 +1051,15 @@ class PurchaseOrderLogic {
       notifier.selectedVendorDetails = null;
     }
 
-    // -------------------------------
-    // 3️⃣ LOAD ADDRESSES
-    // -------------------------------
+    if (t.location != null && t.location!.isNotEmpty) {
+      notifier.setLocation(location: t.location!, locationName: t.locationName);
+    }
+
     notifier.billingController.text = t.billingAddress;
     notifier.shippingController.text = t.shippingAddress;
 
-    // -------------------------------
-    // 4️⃣ LOAD ITEMS
-    // -------------------------------
     notifier.poItems.addAll(t.items.map((i) => i.copyWith()).toList());
 
-    // -------------------------------
-    // 5️⃣ INITIALIZE ITEM TOTALS
-    // -------------------------------
     for (final item in notifier.poItems) {
       final qty = item.quantity ?? 0.0;
       final price = item.newPrice ?? 0.0;
@@ -1090,9 +1087,6 @@ class PurchaseOrderLogic {
       item.pendingDiscountAmount = befDisc + afDisc;
     }
 
-    // -------------------------------
-    // 6️⃣ DETECT OVERALL DISCOUNT (FIXED)
-    // -------------------------------
     bool hasOverallDiscount = false;
 
     if (notifier.poItems.isNotEmpty) {
@@ -1144,9 +1138,6 @@ class PurchaseOrderLogic {
       notifier.overallDiscountAmount = 0.0;
     }
 
-    // -------------------------------
-    // 7️⃣ FINAL TOTALS
-    // -------------------------------
     notifier.totalOrderAmount = notifier.poItems.fold(
       0.0,
       (sum, i) => sum + (i.finalPrice ?? 0.0),

@@ -1,7 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use, library_private_types_in_public_api
 
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/calculation/purchase_order_calculations.dart';
 import 'package:purchaseorders2/models/discount_model.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/po_template.dart';
@@ -13,6 +12,7 @@ import 'package:purchaseorders2/widgets/create%20po/add_item_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/address_fields.dart';
 import 'package:purchaseorders2/widgets/create%20po/discount_section.dart';
 import 'package:purchaseorders2/widgets/create%20po/items_table.dart';
+import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/purchase_order_logic.dart';
 import 'package:purchaseorders2/widgets/create%20po/vendor_autocomplete.dart';
 import 'package:purchaseorders2/widgets/keyboard_dismisser.dart';
@@ -173,18 +173,19 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   // In the _saveTemplate method of TemplateCreationScreen
 
   Future<void> _saveTemplate() async {
-    // 1. Validate form
+    // 1️⃣ Validate form
     if (!_formKey.currentState!.validate()) {
       _showValidationError('Please fill all required fields');
       return;
     }
+
     final roundOffError = logic.roundOffErrorNotifier.value;
     if (roundOffError != null) {
       _showValidationError(roundOffError);
       return;
     }
 
-    // 2. Validate vendor (same as PurchaseOrderDialog)
+    // 2️⃣ Validate vendor
     if (_vendorAutocompleteController.text.isEmpty ||
         notifier.selectedVendor == null ||
         notifier.selectedVendor!.isEmpty) {
@@ -195,7 +196,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 3. Validate billing address (same as PurchaseOrderDialog)
+    // 3️⃣ Validate billing address
     if (notifier.billingController.text.isEmpty) {
       _showValidationError(
         'Please enter billing address',
@@ -204,7 +205,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 4. Validate items (same as PurchaseOrderDialog)
+    // 4️⃣ Validate items
     if (notifier.poItems.isEmpty) {
       _showValidationError(
         'Please add at least one item',
@@ -213,28 +214,32 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 5. Validate tax type is selected
-    if (logic.selectedTaxType.value == 0) {
-      _showValidationError('Please select tax type (CGST/SGST or IGST)');
+    // 5️⃣ Validate location (IMPORTANT)
+    if (notifier.selectedLocation == null ||
+        notifier.selectedLocation!.isEmpty) {
+      _showValidationError('Please select location');
       return;
     }
 
-    // Show template name dialog
+    // 6️⃣ Ask template name
     final templateName = await _showTemplateNameDialog();
-    if (templateName == null || templateName.isEmpty) {
-      return;
-    }
+    if (templateName == null || templateName.isEmpty) return;
 
-    // Create PO from current data
-    final currentPO = _createPOFromCurrentData(notifier);
+    // 7️⃣ Create PO snapshot from current UI state
+    final poSnapshot = _createPOFromCurrentData(notifier).copyWith(
+      location: notifier.selectedLocation,
+      locationName: notifier.selectedLocationName,
+    );
 
-    // Save template
+    // 8️⃣ Save template
     final success = await templateProvider.createTemplate(
-      currentPO,
+      poSnapshot,
       templateName,
     );
 
-    if (success && mounted) {
+    if (!mounted || _isDisposed) return;
+
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Template "$templateName" saved successfully'),
@@ -243,9 +248,8 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
           margin: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
         ),
       );
-
       Navigator.of(context).pop(true);
-    } else if (mounted) {
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to save template: ${templateProvider.error}'),
@@ -385,6 +389,10 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       purchaseOrderId: '',
       vendorName: notifier.selectedVendor ?? '',
       vendorContact: notifier.vendorContactController.text,
+
+      location: notifier.selectedLocation,
+      locationName: notifier.selectedLocationName,
+
       items: notifier.poItems,
       totalOrderAmount: notifier.totalOrderAmount,
       pendingOrderAmount: notifier.pendingOrderAmount,
@@ -678,6 +686,8 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                               const SizedBox(height: 16),
                             ],
+                            const SizedBox(height: 0),
+                            LocationDropdown(inputDecoration: _inputDecoration),
 
                             // Total Amount Display
                             Padding(

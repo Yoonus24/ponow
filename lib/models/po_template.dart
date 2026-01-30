@@ -21,8 +21,9 @@ class POTemplate {
   final int creditLimit;
   final DateTime createdDate;
   final String randomId;
+  final String? location;
+  final String? locationName;
 
-  /// ⭐ NEW FIELD for Active/Inactive
   final bool isActive;
 
   POTemplate({
@@ -46,6 +47,8 @@ class POTemplate {
     required this.createdDate,
     required this.randomId,
     required this.isActive,
+    required this.location,
+    required this.locationName,
   });
 
   factory POTemplate.fromPO(PO po, String templateName) {
@@ -67,9 +70,13 @@ class POTemplate {
       postalCode: po.postalCode ?? 0,
       gstNumber: po.gstNumber ?? '',
       creditLimit: po.creditLimit ?? 0,
+
+      location: po.location,
+      locationName: po.locationName,
+
       createdDate: DateTime.now(),
       randomId: po.randomId ?? '',
-      isActive: true, // NEW default value
+      isActive: true,
     );
   }
 
@@ -106,9 +113,8 @@ class POTemplate {
           ? DateTime.parse(json['createdDate'])
           : DateTime.now(),
       randomId: json['randomId']?.toString() ?? '',
-
-      /// ⭐ The FIX: Backend must send isActive, but we default to true if missing
-      isActive: json['isActive'] ?? true,
+      isActive: json['isActive'] ?? true, location: json['location'] ?? '', locationName: json['locationName'] ?? '',
+    
     );
   }
 
@@ -136,6 +142,8 @@ class POTemplate {
 
       /// NEW FIELD
       'isActive': isActive,
+      'location': location,
+      'locationName': locationName,
     };
   }
 

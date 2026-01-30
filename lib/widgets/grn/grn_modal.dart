@@ -613,16 +613,14 @@ class _GRNModalState extends State<GRNModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blueAccent,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             child: const Text("Cancel"),
           ),
 
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent, 
-              foregroundColor: Colors.white, 
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text("Convert"),
@@ -679,7 +677,7 @@ class _GRNModalState extends State<GRNModal> {
           ),
         );
 
-        Navigator.of(context).pop(); 
+        Navigator.of(context).pop();
       } else {
         throw Exception(result['error'] ?? 'Conversion failed');
       }

@@ -53,6 +53,8 @@ class PO {
   final String? templateName;
   final String? templateCreatedDate;
   final String? templateId;
+  final String? location;
+  final String? locationName;
 
   PO({
     required this.purchaseOrderId,
@@ -98,6 +100,9 @@ class PO {
     this.templateCreatedDate,
     this.templateId,
     this.overallDiscountValue,
+
+    this.location,
+    this.locationName,
   }) : items = items ?? [];
 
   // ------------------------------
@@ -189,6 +194,9 @@ class PO {
     String? templateName,
     String? templateCreatedDate,
     String? templateId,
+
+    String? location,
+    String? locationName,
   }) {
     return PO(
       purchaseOrderId: purchaseOrderId ?? this.purchaseOrderId,
@@ -233,6 +241,8 @@ class PO {
       templateName: templateName ?? this.templateName,
       templateCreatedDate: templateCreatedDate ?? this.templateCreatedDate,
       templateId: templateId ?? this.templateId,
+      location: location ?? this.location,
+      locationName: locationName ?? this.locationName,
     );
   }
 
@@ -285,6 +295,8 @@ class PO {
     'templateName': templateName ?? '',
     'templateCreatedDate': templateCreatedDate ?? '',
     'templateId': templateId ?? '',
+    'location': location ?? '',
+    'locationName': locationName ?? '',
   };
 
   // ------------------------------
@@ -344,6 +356,8 @@ class PO {
     templateName: json['templateName'] ?? '',
     templateCreatedDate: json['templateCreatedDate']?.toString() ?? '',
     templateId: json['templateId'] ?? json['randomId'] ?? '',
+    location: json['location']?.toString() ?? '',
+    locationName: json['locationName']?.toString() ?? '',
   );
 
   // ------------------------------

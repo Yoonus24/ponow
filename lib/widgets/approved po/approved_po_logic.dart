@@ -226,14 +226,13 @@ class ApprovedPOLogic {
 
     po.pendingDiscountAmount = totalDiscount;
 
- 
     final double subTotal = po.items.fold(
       0.0,
       (sum, i) => sum + (i.pendingTotalPrice ?? i.totalPrice ?? 0.0),
     );
 
     final double tax = po.pendingTaxAmount ?? 0.0;
-    final double roundOff = po.roundOffAdjustment ?? 0.0;
+    final double roundOff = roundOffAmount.value;
 
     po.totalOrderAmount = subTotal - totalDiscount + tax + roundOff;
     po.pendingOrderAmount = po.totalOrderAmount;
@@ -270,7 +269,7 @@ class ApprovedPOLogic {
   double get receivedFinalAmount {
     final discount = po.pendingDiscountAmount ?? 0.0;
     final tax = po.pendingTaxAmount ?? 0.0;
-    final roundOff = po.roundOffAdjustment ?? 0.0;
+    final roundOff = roundOffAmount.value;
     return receivedSubTotal - discount + tax + roundOff;
   }
 
@@ -674,16 +673,17 @@ class ApprovedPOLogic {
     }
   }
 
-
-
   void updateRoundOff(String value) {
     double roundOffValue = double.tryParse(value) ?? 0.0;
+
     roundOffAmount.value = roundOffValue;
     discountPriceController.text = value;
 
-    // Show debug info
+    recalculateFinalAmountAfterDiscount(); // ✅ THIS IS THE KEY
+
+    onUpdated(); // ✅ forces UI rebuild
+
     debugPrint('Round off updated: $roundOffValue');
-    debugPrint('PO roundOffAdjustment: ${po.roundOffAdjustment}');
   }
 
   void showColumnFilterDialog(BuildContext context) {
@@ -847,8 +847,10 @@ class ApprovedPOLogic {
 
   Future<void> convertPoToGRN(BuildContext context) async {
     if (isSaving.value) return;
+
     final poProvider = Provider.of<POProvider>(context, listen: false);
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+
     try {
       isSaving.value = true;
 
@@ -856,10 +858,24 @@ class ApprovedPOLogic {
         isSaving.value = false;
         return;
       }
+
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      await poProvider.updatePO(
+        po.copyWith(
+          items: po.items.map((item) {
+            final double resolvedPoQuantity =
+                (item.poQuantity != null && item.poQuantity! > 0)
+                ? item.poQuantity!
+                : ((item.count ?? 1) * (item.eachQuantity ?? 0));
+
+            return item.copyWith(poQuantity: resolvedPoQuantity);
+          }).toList(),
+        ),
       );
 
       final double overallDiscount =
@@ -929,20 +945,13 @@ class ApprovedPOLogic {
       await poProvider.applyCurrentFilters();
       await grnProvider.fetchFilteredGRNs();
 
-      if (context.mounted) {
-        Navigator.of(context).pop(); 
-      }
-
-      if (context.mounted) {
-        Navigator.of(context).pop(true); 
-      }
+      if (context.mounted) Navigator.of(context).pop();
+      if (context.mounted) Navigator.of(context).pop(true);
     } catch (e, stack) {
       debugPrint("❌ Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
 
-      if (context.mounted) {
-        Navigator.of(context).pop();
-      }
+      if (context.mounted) Navigator.of(context).pop();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
