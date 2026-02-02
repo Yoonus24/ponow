@@ -168,84 +168,120 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
         return ValueListenableBuilder<String>(
           valueListenable: vendorName,
           builder: (_, value, __) {
-            return Autocomplete<String>(
-              optionsBuilder: (TextEditingValue text) {
-                provider.fetchingVendors(
-                  vendorName: text.text.trim(),
-                  skip: skip,
-                  limit: limit,
-                );
+            return SizedBox(
+              height: 52,
+              child: Autocomplete<String>(
+                optionsBuilder: (TextEditingValue text) {
+                  provider.fetchingVendors(
+                    vendorName: text.text.trim(),
+                    skip: skip,
+                    limit: limit,
+                  );
+                  return provider.filteredVendorNames;
+                },
 
-                return provider.filteredVendorNames;
-              },
+                onSelected: (selected) {
+                  vendorCtrl.text = selected;
+                  vendorName.value = selected;
+                  _applyFilters();
+                  FocusScope.of(context).unfocus();
+                },
 
-              onSelected: (selected) {
-                vendorCtrl.text = selected;
-                vendorName.value = selected;
-                _applyFilters();
-              },
-              fieldViewBuilder: (context, ctrl, fn, submit) {
-                ctrl.text = vendorCtrl.text; // Keep sync
-
-                return TextField(
-                  controller: vendorCtrl,
-                  focusNode: fn,
-                  decoration: InputDecoration(
-                    labelText: "Vendor",
-                    border: const OutlineInputBorder(),
-                    suffixIcon: vendorCtrl.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: _clearVendor,
-                          )
-                        : const Icon(Icons.search),
-                  ),
-                  onChanged: (v) {
-                    vendorName.value = v;
-
-                    _vendorDebounce?.cancel();
-                    _vendorDebounce = Timer(
-                      const Duration(milliseconds: 500),
-                      () {
-                        if (v.isNotEmpty) {
-                          _applyFilters();
-                        }
-                      },
+                fieldViewBuilder: (context, ctrl, fn, _) {
+                  if (ctrl.text != vendorCtrl.text) {
+                    ctrl.text = vendorCtrl.text;
+                    ctrl.selection = TextSelection.fromPosition(
+                      TextPosition(offset: ctrl.text.length),
                     );
-                  },
-                );
-              },
-              optionsViewBuilder: (context, onSelected, options) {
-                return Material(
-                  elevation: 6,
-                  color: Colors.white, // ✅ DROPDOWN BACKGROUND
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    height: 200,
-                    decoration: BoxDecoration(
-                      color: Colors.white, // ✅ DOUBLE SAFETY
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                  }
+
+                  return TextField(
+                    controller: ctrl,
+                    focusNode: fn,
+                    decoration: InputDecoration(
+                      labelText: "Vendor",
+                      labelStyle: TextStyle(color: Colors.grey[700]),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.blueAccent,
+                          width: 1.8,
+                        ),
+                      ),
+                      suffixIcon: ctrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.clear,
+                                color: Colors.grey[700],
+                                size: 20,
+                              ),
+                              onPressed: _clearVendor,
+                            )
+                          : Icon(
+                              Icons.search,
+                              color: Colors.grey[600],
+                              size: 22,
+                            ),
                     ),
-                    child: ListView.builder(
-                      padding: EdgeInsets.zero,
-                      itemCount: options.length,
-                      itemBuilder: (context, i) {
-                        final option = options.elementAt(i);
-                        return ListTile(
-                          tileColor: Colors.white, // ✅ EACH ROW WHITE
-                          title: Text(
-                            option,
-                            style: const TextStyle(color: Colors.black),
-                          ),
-                          hoverColor: Colors.grey.shade100,
-                          onTap: () => onSelected(option),
-                        );
-                      },
+                    onChanged: (v) {
+                      vendorName.value = v;
+
+                      _vendorDebounce?.cancel();
+                      _vendorDebounce = Timer(
+                        const Duration(milliseconds: 500),
+                        () {
+                          if (v.isNotEmpty) {
+                            _applyFilters();
+                          }
+                        },
+                      );
+                    },
+                  );
+                },
+
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 240),
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          itemCount: options.length,
+                          itemBuilder: (context, i) {
+                            final option = options.elementAt(i);
+                            return ListTile(
+                              dense: true,
+                              title: Text(
+                                option,
+                                style: const TextStyle(fontSize: 14.5),
+                              ),
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             );
           },
         );
@@ -257,19 +293,57 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     return ValueListenableBuilder<DateTime?>(
       valueListenable: selectedDate,
       builder: (_, value, __) {
-        return TextField(
-          controller: dateCtrl,
-          readOnly: true,
-          onTap: _pickDate,
-          decoration: InputDecoration(
-            labelText: "Date",
-            border: const OutlineInputBorder(),
-            suffixIcon: value != null
-                ? IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: _clearDate,
-                  )
-                : const Icon(Icons.calendar_today),
+        return SizedBox(
+          height: 52,
+          child: TextField(
+            controller: dateCtrl,
+            readOnly: true,
+            onTap: _pickDate,
+            decoration: InputDecoration(
+              labelText: "Date",
+              labelStyle: TextStyle(color: Colors.grey[700]),
+              filled: true,
+              fillColor: Colors.grey[50],
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.blueAccent,
+                  width: 1.8,
+                ),
+              ),
+
+              // 👇 icon behaviour SAME as AP
+              suffixIconConstraints: const BoxConstraints(
+                minWidth: 40,
+                minHeight: 40,
+              ),
+              suffixIcon: value != null
+                  ? IconButton(
+                      icon: const Icon(
+                        Icons.clear,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      onPressed: _clearDate,
+                    )
+                  : Icon(
+                      Icons.calendar_today,
+                      color: Colors.grey[700],
+                      size: 20,
+                    ),
+            ),
           ),
         );
       },
@@ -359,6 +433,9 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                             }
 
                             final list = provider.pos.where((po) {
+                              // ✅ SHOW ONLY APPROVED
+                              if (po.poStatus != 'Approved') return false;
+
                               // ---------- VENDOR FILTER ----------
                               if (vendorName.value.isNotEmpty) {
                                 final vendorMatch =
@@ -384,7 +461,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                 if (approvedDate == null) return false;
 
                                 final selected = selectedDate.value!;
-
                                 final sameDay =
                                     approvedDate.year == selected.year &&
                                     approvedDate.month == selected.month &&

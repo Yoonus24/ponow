@@ -89,22 +89,28 @@ class _POWidgetState extends State<POWidget> {
   }
 
   String _getDisplayStatus(PO po) {
-    final status = po.poStatus?.toLowerCase() ?? '';
+    switch (po.poStatus) {
+      case 'Pending':
+        return 'PENDING';
 
-    // 🔥 Pending but not approved yet
-    if (status == 'pending') {
-      return 'PENDING FOR APPROVAL';
+      case 'Pending for Approve':
+        return 'PENDING FOR APPROVAL';
+
+      case 'CreditLimit for Approve':
+        return 'CREDIT LIMIT FOR APPROVAL';
+
+      case 'Approved':
+        return 'APPROVED';
+
+      case 'Rejected':
+        return 'REJECTED';
+
+      case 'PartiallyReceived':
+        return 'PARTIALLY RECEIVED';
+
+      default:
+        return po.poStatus?.toUpperCase() ?? 'PENDING';
     }
-
-    if (status == 'approved') {
-      return 'APPROVED';
-    }
-
-    if (status == 'rejected') {
-      return 'REJECTED';
-    }
-
-    return status.isNotEmpty ? status.toUpperCase() : 'PENDING';
   }
 
   @override

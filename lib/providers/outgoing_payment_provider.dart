@@ -101,23 +101,33 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
   Future<void> fetchApInvoices() async {
     try {
+      if (kDebugMode) {
+        print('🚀 fetchAPInvoices CALLED');
+      }
+
       final response = await dio.get(
         '$_baseUrl/apinvoices/getAll',
-        options: Options(validateStatus: (status) => (status ?? 500) < 500),
+        options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
       if (response.statusCode == 200) {
         _apInvoices = (response.data as List)
             .map((json) => ApInvoice.fromJson(json))
             .toList();
+
+        if (kDebugMode) {
+          print('✅ Fetched ${_apInvoices.length} AP invoices');
+        }
+
+        // 🔥 AUTO-REFRESH OUTGOINGS
+        await fetchFilteredOutgoings(status: 'pending', skip: 0, limit: 100);
       } else {
         _apInvoices = [];
-        _error = 'Failed to load AP Invoice data: ${response.statusCode}';
       }
     } catch (e) {
       _apInvoices = [];
-      _error = 'Failed to load AP Invoice data: $e';
     }
+
     notifyListeners();
   }
 
@@ -145,25 +155,18 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
     try {
       final response = await dio.get(
-        '$_baseUrl/outgoingpayments/',
+        '$_baseUrl/outgoingpayments/outgoing/getAll', // ✅ FIXED
         queryParameters: {
-          'status': 'Active,Pending,Partially Paid',
+          'status': 'active,Pending,Partially Paid',
           'limit': 500,
         },
-
         options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
       if (response.statusCode == 200) {
-        final dynamic raw = response.data;
+        final List<dynamic> data = response.data is List ? response.data : [];
 
-        final List<dynamic> data = raw is List
-            ? raw
-            : (raw is Map && raw['outgoings'] is List)
-            ? raw['outgoings']
-            : [];
-
-        final List<String> invoiceNumbers =
+        final invoiceNumbers =
             data
                 .map((e) => e['invoiceNo'] ?? e['apRandomId'] ?? e['invoiceId'])
                 .where((v) => v != null && v.toString().isNotEmpty)
@@ -172,7 +175,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
                 .toList()
               ..sort();
 
-        _invoiceNumbers = invoiceNumbers;
         _invoiceNumbersNotifier.value = invoiceNumbers;
 
         if (kDebugMode) {
@@ -229,8 +231,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     try {
       String? backendStatus;
 
+      // UI → backend status mapping
       if (status != null && status.trim().isNotEmpty) {
         final uiStatus = status.toLowerCase().trim();
+
         if (uiStatus == 'pending') {
           backendStatus = 'active,Pending,Partially Paid';
         } else if (uiStatus == 'partial') {
@@ -242,11 +246,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         }
       }
 
-      String? cleanedInvoiceNo;
-      if (invoiceNo != null && invoiceNo.trim().isNotEmpty) {
-        cleanedInvoiceNo = invoiceNo.trim();
-      }
-
       final Map<String, dynamic> queryParams = {
         'filterBy': filterBy,
         'sortOrder': sortOrder,
@@ -256,61 +255,51 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         if (backendStatus != null) 'status': backendStatus,
         if (fromDate != null) 'fromDate': fromDate.toIso8601String(),
         if (toDate != null) 'toDate': toDate.toIso8601String(),
-        if (vendorName != null && vendorName.isNotEmpty)
-          'vendorName': vendorName,
-        if (cleanedInvoiceNo != null) 'invoiceNo': cleanedInvoiceNo,
+        if (vendorName != null && vendorName.trim().isNotEmpty)
+          'vendorName': vendorName.trim(),
+        if (invoiceNo != null && invoiceNo.trim().isNotEmpty)
+          'invoiceNo': invoiceNo.trim(),
       };
 
       if (kDebugMode) {
         print('=== FETCHING OUTGOINGS ===');
-        print('UI Status      : $status');
-        print('Backend Status : $backendStatus');
-        print('Query Params   : $queryParams');
+        print('Query Params: $queryParams');
       }
 
       final response = await dio.get(
-        '$_baseUrl/outgoingpayments/',
+        '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: queryParams,
         options: Options(
           headers: {'Content-Type': 'application/json'},
-          validateStatus: (status) => (status ?? 500) < 500,
+          validateStatus: (s) => (s ?? 500) < 500,
         ),
       );
 
       if (response.statusCode == 200) {
-        final dynamic raw = response.data;
+        final raw = response.data;
+        final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
 
-        final List<dynamic> data = raw is List
-            ? raw
-            : (raw is Map && raw['outgoings'] is List)
-            ? raw['outgoings']
-            : [];
+        _payments = data.map((e) => Outgoing.fromJson(e)).where((outgoing) {
+          // 🔑 SINGLE SOURCE OF TRUTH = AP STATUS
 
-        final fetched = data.map((json) => Outgoing.fromJson(json)).toList();
+          ApInvoice? ap;
+          try {
+            ap = _apInvoices.firstWhere(
+              (a) => a.invoiceId == outgoing.invoiceId,
+            );
+          } catch (_) {
+            ap = null;
+          }
 
-        final Map<String, Outgoing> localMap = {
-          for (final p in _payments) p.outgoingId: p,
-        };
+          // ❌ No AP → never show outgoing
+          if (ap == null) return false;
 
-        _payments = fetched.map((server) {
-          final local = localMap[server.outgoingId];
+          // ❌ AP returned → hide outgoing
+          if (ap.apReturnedDate != null) return false;
 
-          if (local == null) return server;
-
-          return server.copyWith(
-            totalPaidAmount: server.totalPaidAmount,
-            remainingPayableAmount: server.remainingPayableAmount,
-            paymentHistory: server.paymentHistory,
-
-            partialAmount: local.partialAmount ?? server.partialAmount,
-            advanceAmount: local.advanceAmount ?? server.advanceAmount,
-            fullPaymentAmount:
-                local.fullPaymentAmount ?? server.fullPaymentAmount,
-            status: server.status,
-          );
+          // ✅ Show outgoing ONLY if AP is posted to outgoing
+          return ap.status == 'Outgoing Posted';
         }).toList();
-
-        _allPayments = List.from(_payments);
 
         _allPayments = List.from(_payments);
 
@@ -330,8 +319,11 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       _isLoadingOutgoings = false;
       notifyListeners();
     }
+
+    // refresh dropdowns
     await fetchVendors();
     await fetchInvoiceNumbers();
+
     return _payments;
   }
 

@@ -63,25 +63,35 @@ class _POPageState extends State<POPage> {
             final pendingOrders = poProvider.pos.where((po) {
               return po.poStatus == 'Pending' ||
                   po.poStatus == 'Pending for Approve' ||
-                  po.poStatus == 'PartiallyReceived' ||
                   po.poStatus == 'CreditLimit for Approve';
             }).toList();
 
             // 📭 EMPTY STATE — ORIGINAL STYLE
             if (pendingOrders.isEmpty) {
-              return const Center(
-                child: Text(
-                  'No pending purchase orders available.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(), 
+                children: const [
+                  SizedBox(height: 200),
+                  Center(
+                    child: Text(
+                      'No pending purchase orders available.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  ),
+                ],
               );
             }
 
-            // 📋 PO LIST
-            return POListView(
-              purchaseOrders: pendingOrders,
-              scrollController: _scrollController,
-              onStatusChanged: _refreshPOs,
+            return ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
+              children: [
+                POListView(
+                  purchaseOrders: pendingOrders,
+                  scrollController: _scrollController,
+                  onStatusChanged: _refreshPOs,
+                ),
+              ],
             );
           },
         ),

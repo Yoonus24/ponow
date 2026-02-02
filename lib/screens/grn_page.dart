@@ -22,6 +22,12 @@ class _GRNPageState extends State<GRNPage> {
   final TextEditingController _vendorSearchController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   final ValueNotifier<int> _uiRefresh = ValueNotifier(0);
+  // 🔹 REQUIRED for AP-style UI
+  TextEditingController? _autoController;
+  final TextEditingController _vendorController = TextEditingController();
+
+  final ValueNotifier<String> _vendorNotifier = ValueNotifier('');
+  final ValueNotifier<DateTime?> _selectedDateNotifier = ValueNotifier(null);
 
   final GlobalKey _autocompleteKey = GlobalKey();
   DateTime? _selectedDate;
@@ -78,6 +84,10 @@ class _GRNPageState extends State<GRNPage> {
     _selectedVendorNotifier.dispose();
     _vendorSearchController.dispose();
     _dateController.dispose();
+    _vendorController.dispose();
+    _vendorNotifier.dispose();
+    _selectedDateNotifier.dispose();
+
     super.dispose();
   }
 
@@ -90,129 +100,162 @@ class _GRNPageState extends State<GRNPage> {
   Widget _buildVendorField() {
     return Consumer<POProvider>(
       builder: (context, poProvider, _) {
-        return Autocomplete<String>(
-          key: _autocompleteKey,
+        return SizedBox(
+          height: 52,
+          child: Autocomplete<String>(
+            key: _autocompleteKey,
+            optionsBuilder: (value) async {
+              await poProvider.fetchingVendors(
+                vendorName: value.text.trim(),
+                skip: _skip,
+                limit: _limit,
+              );
+              return poProvider.filteredVendorNames;
+            },
+            onSelected: (v) {
+              _vendorController.text = v;
 
-          optionsBuilder: (value) async {
-            await poProvider.fetchingVendors(
-              vendorName: value.text.trim(),
-              skip: _skip,
-              limit: _limit,
-            );
-            return poProvider.filteredVendorNames;
-          },
+              _vendorNotifier.value = v;
+              _selectedVendorNotifier.value = v;
 
-          onSelected: (vendor) {
-            _selectedVendorNotifier.value = vendor;
-            _vendorSearchController.text = vendor;
-            FocusScope.of(context).unfocus();
-          },
+              FocusScope.of(context).unfocus();
+              _refresh();
+            },
 
-          // ✅ WHITE DROPDOWN
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                color: Colors.white,
-                elevation: 4,
-                borderRadius: BorderRadius.circular(6),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxHeight: 220, // 🔥 LIMIT DROPDOWN HEIGHT
+            fieldViewBuilder: (context, controller, focusNode, _) {
+              _autoController = controller;
+
+              if (_vendorController.text != controller.text) {
+                _vendorController.text = controller.text;
+                _vendorController.selection = controller.selection;
+              }
+
+              return TextField(
+                controller: controller,
+                focusNode: focusNode,
+                decoration: InputDecoration(
+                  labelText: "Vendor",
+                  labelStyle: TextStyle(color: Colors.grey[700]),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
                   ),
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.65,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Colors.blueAccent,
+                      width: 1.8,
+                    ),
+                  ),
+                  suffixIcon: controller.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.clear,
+                            color: Colors.grey[700],
+                            size: 20,
+                          ),
+                          onPressed: _clearVendorFilter,
+                        )
+                      : Icon(Icons.search, color: Colors.grey[600], size: 22),
+                ),
+                onChanged: (v) {
+                  _vendorNotifier.value = v; // UI
+                  _selectedVendorNotifier.value = v; // 🔥 FILTER
+                  _refresh();
+                },
+              );
+            },
+            optionsViewBuilder: (context, onSelected, options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  color: Colors.white,
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 240),
                     child: ListView.builder(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 6),
                       itemCount: options.length,
                       itemBuilder: (context, index) {
                         final option = options.elementAt(index);
-                        return InkWell(
-                          onTap: () => onSelected(option),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: Text(
-                              option,
-                              style: const TextStyle(color: Colors.black),
-                            ),
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            option,
+                            style: const TextStyle(fontSize: 14.5),
                           ),
+                          onTap: () => onSelected(option),
                         );
                       },
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-
-          fieldViewBuilder: (context, controller, focusNode, _) {
-            if (_vendorSearchController.text != controller.text) {
-              controller.text = _vendorSearchController.text;
-            }
-
-            return TextFormField(
-              controller: controller,
-              focusNode: focusNode,
-              decoration: InputDecoration(
-                labelText: 'Vendor',
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                border: const OutlineInputBorder(),
-                suffixIcon: controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: _clearVendorFilter,
-                      )
-                    : const Icon(Icons.search, size: 20),
-              ),
-              onChanged: (value) {
-                _vendorSearchController.text = value;
-                _selectedVendorNotifier.value = value;
-              },
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
   }
 
   Widget _buildDateField() {
-    return TextField(
-      controller: _dateController,
-      readOnly: true,
-      decoration: InputDecoration(
-        labelText: 'Date',
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        border: const OutlineInputBorder(),
-
-        // ✅ DO NOT let suffix take extra width
-        suffixIconConstraints: const BoxConstraints(
-          minWidth: 28,
-          minHeight: 28,
-        ),
-
-        suffixIcon: _selectedDate != null
-            ? GestureDetector(
-                onTap: _clearDateFilter,
-                child: const Padding(
-                  padding: EdgeInsets.only(right: 8),
-                  child: Icon(Icons.clear, size: 18),
+    return SizedBox(
+      height: 52,
+      child: TextField(
+        controller: _dateController,
+        readOnly: true,
+        decoration: InputDecoration(
+          labelText: "Date",
+          labelStyle: TextStyle(color: Colors.grey[700]),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.blueAccent, width: 1.8),
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 40,
+            minHeight: 40,
+          ),
+          suffixIcon: ValueListenableBuilder<DateTime?>(
+            valueListenable: _selectedDateNotifier,
+            builder: (_, date, __) {
+              return IconButton(
+                icon: Icon(
+                  date != null ? Icons.clear : Icons.calendar_today,
+                  color: date != null ? Colors.redAccent : Colors.grey[700],
+                  size: 20,
                 ),
-              )
-            : const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.calendar_today, size: 18),
-              ),
+                onPressed: date != null ? _clearDateFilter : _selectDate,
+              );
+            },
+          ),
+        ),
+        onTap: _selectDate,
       ),
-      onTap: () => _selectDate(context),
     );
   }
 
@@ -234,52 +277,79 @@ class _GRNPageState extends State<GRNPage> {
       valueListenable: _selectedButton,
       builder: (context, selected, _) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           child: Row(
             children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    _selectedButton.value = 'active';
-                    Provider.of<GRNProvider>(
-                      context,
-                      listen: false,
-                    ).setFilterStatus('active');
-                    _refresh();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: selected == 'active'
-                        ? Colors.blueAccent.shade400
-                        : Colors.blueAccent.shade100,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("GRN List"),
-                ),
+              _statusPill(
+                title: "GRN List",
+                value: "active",
+                selected: selected,
+                onTap: () {
+                  _selectedButton.value = 'active';
+                  Provider.of<GRNProvider>(
+                    context,
+                    listen: false,
+                  ).setFilterStatus('active');
+                  _refresh();
+                },
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    _selectedButton.value = 'returned';
-                    Provider.of<GRNProvider>(
-                      context,
-                      listen: false,
-                    ).setFilterStatus('returned');
-                    _refresh();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: selected == 'returned'
-                        ? Colors.blueAccent.shade400
-                        : Colors.blueAccent.shade100,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("GRN Returned"),
-                ),
+              _statusPill(
+                title: "GRN Returned",
+                value: "returned",
+                selected: selected,
+                onTap: () {
+                  _selectedButton.value = 'returned';
+                  Provider.of<GRNProvider>(
+                    context,
+                    listen: false,
+                  ).setFilterStatus('returned');
+                  _refresh();
+                },
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _statusPill({
+    required String title,
+    required String value,
+    required String selected,
+    required VoidCallback onTap,
+  }) {
+    final bool isSelected = selected == value;
+
+    return Expanded(
+      child: Material(
+        elevation: isSelected ? 2 : 0,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.blueAccent : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(24),
+              border: isSelected
+                  ? null
+                  : Border.all(color: Colors.grey.shade300),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.blueGrey[800],
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 14.5,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -366,19 +436,23 @@ class _GRNPageState extends State<GRNPage> {
 
   void _clearVendorFilter() {
     if (!mounted) return;
-    _selectedVendorNotifier.value = '';
+    _autoController?.clear();
+    _vendorController.clear();
     _vendorSearchController.clear();
+    _vendorNotifier.value = '';
+    _selectedVendorNotifier.value = '';
     _refresh();
   }
 
   void _clearDateFilter() {
     if (!mounted) return;
     _selectedDate = null;
+    _selectedDateNotifier.value = null;
     _dateController.clear();
     _refresh();
   }
 
-  Future<void> _selectDate(BuildContext context) async {
+  Future<void> _selectDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
@@ -388,17 +462,13 @@ class _GRNPageState extends State<GRNPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              surface: Colors.white,
-              primary: Colors.blueAccent, // header & selected date
-              onPrimary: Colors.white, // header text
-              onSurface: Colors.black, // date numbers
+              primary: Colors.blueAccent,
+              onPrimary: Colors.white,
+              onSurface: Colors.black87,
             ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent, // OK / CANCEL
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
-            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -409,6 +479,7 @@ class _GRNPageState extends State<GRNPage> {
 
     if (picked != null) {
       _selectedDate = picked;
+      _selectedDateNotifier.value = picked;
       _dateController.text = _formatDate(picked);
       _refresh();
     }

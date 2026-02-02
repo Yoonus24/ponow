@@ -59,6 +59,8 @@ class POProvider extends ChangeNotifier {
   String? _error;
   bool _isVendorLoading = false;
   bool get isVendorLoading => _isVendorLoading;
+  bool _isRevertingPO = false;
+
   Map<String, dynamic>? _taxData;
   List<Item> _items = [];
   List<Item> approvedItems = [];
@@ -135,12 +137,12 @@ class POProvider extends ChangeNotifier {
 
   Future<void> fetchPendingPOsOnly() async {
     _currentFilterStatus = "Pending";
-    await fetchPOsWithFilters(status: "Pending", clearExisting: true);
+    await fetchPOsWithFilters(clearExisting: true);
   }
 
   Future<void> fetchApprovedPOsOnly() async {
     _currentFilterStatus = "Approved";
-    await fetchPOsWithFilters(status: "Approved", clearExisting: true);
+    await fetchPOsWithFilters(clearExisting: true);
   }
 
   Future<void> fetchGRNConvertedPOsOnly() async {
@@ -474,33 +476,18 @@ class POProvider extends ChangeNotifier {
         final List<PO> fetchedPOs = data.map((e) => PO.fromJson(e)).toList();
 
         // ---------------- CREDIT LIMIT FIX ----------------
-        final List<PO> fixedPOs = fetchedPOs.map((po) {
-          final double total = po.totalOrderAmount ?? 0;
-          final int credit = po.creditLimit ?? 0;
-
-          final bool exceedsCredit = credit > 0 && total > credit;
-
-          if (exceedsCredit &&
-              (po.poStatus == 'Pending' ||
-                  po.poStatus == 'Pending for Approve')) {
-            return po.copyWith(poStatus: 'CreditLimit for Approve');
-          }
-
-          return po;
-        }).toList();
+        final List<PO> fixedPOs = fetchedPOs;
 
         // ---------------- 🔒 SAFETY FILTER (THE REAL FIX) ----------------
-        final List<PO> filteredPOs = fixedPOs.where((po) {
-          // Approved tab must NOT show fully GRN converted POs
-          if (_currentFilterStatus == 'Approved') {
-            return po.poStatus == 'Approved';
+        final List<PO> filteredPOs = fetchedPOs.where((po) {
+          switch (_currentFilterStatus) {
+            case 'Pending':
+              return po.poStatus == 'Pending' ||
+                  po.poStatus == 'Pending for Approve' ||
+                  po.poStatus == 'CreditLimit for Approve';
+            default:
+              return true;
           }
-
-          if (_currentFilterStatus == 'PartiallyReceived') {
-            return po.poStatus == 'PartiallyReceived';
-          }
-
-          return true;
         }).toList();
 
         // ---------------- APPLY TO STATE ----------------
@@ -681,20 +668,7 @@ class POProvider extends ChangeNotifier {
               .map((json) => PO.fromJson(json))
               .toList();
 
-          final List<PO> fixedPOs = fetchedPOs.map((po) {
-            final double total = po.totalOrderAmount ?? 0;
-            final int credit = po.creditLimit ?? 0;
-
-            final bool exceedsCredit = credit > 0 && total > credit;
-
-            if (exceedsCredit &&
-                (po.poStatus == 'Pending' ||
-                    po.poStatus == 'Pending for Approve')) {
-              return po.copyWith(poStatus: 'CreditLimit for Approve');
-            }
-
-            return po;
-          }).toList();
+          final List<PO> fixedPOs = fetchedPOs;
 
           _pos = fixedPOs;
           _poList
@@ -1058,6 +1032,8 @@ class POProvider extends ChangeNotifier {
     _setLoadingState(true);
     _setError(null);
 
+    _isRevertingPO = true;
+
     try {
       final response = await _dio.patch(
         '/purchaseorders/$purchaseOrderId',
@@ -1073,11 +1049,8 @@ class POProvider extends ChangeNotifier {
           error: 'Server responded with ${response.statusCode}',
         );
       }
-    } on DioException catch (e) {
-      _setError(_formatStatusChangeError(e));
-    } catch (e) {
-      _setError('Failed to revert PO: ${e.toString()}');
     } finally {
+      _isRevertingPO = false; // ✅ RESET
       _setLoadingState(false);
     }
   }
@@ -2003,7 +1976,9 @@ class POProvider extends ChangeNotifier {
         ..['overallDiscountValue'] = overallDiscountValue
         ..['overallDiscountType'] = overallDiscountType
         ..['roundOffAdjustment'] = roundOffValue
-        ..['roundOffValue'] = roundOffValue;
+        ..['roundOffValue'] = roundOffValue
+        ..['poStatus'] = updatedPO.poStatus
+        ..['isHoldOrder'] = isHoldOrder;
 
       print('📤 Posting PO');
       print('   Items count: ${updatedItems.length}');

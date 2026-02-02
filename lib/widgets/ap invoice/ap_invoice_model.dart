@@ -224,16 +224,22 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
 
   @override
   Widget build(BuildContext context) {
+    final outgoingProvider = context.read<OutgoingPaymentProvider>();
+
+    final hasOutgoing = outgoingProvider.allPayments.any(
+      (o) => o.invoiceId == widget.apinvoice.invoiceId, // ✅ CORRECT
+    );
+
     debugPrint('🧾 AP MODAL STATUS => "${widget.apinvoice.status}"');
     final items = widget.apinvoice.itemDetails ?? [];
     final double roundOff = widget.apinvoice.roundOffAdjustment ?? 0.0;
 
     // 🔥 summary values – rounded
     final double finalTotal = (widget.apinvoice.invoiceAmount ?? 0.0);
-        // .roundToDouble();
+    // .roundToDouble();
 
     final double totalDiscount = (widget.apinvoice.discountDetails ?? 0.0);
-        // .roundToDouble();
+    // .roundToDouble();
 
     final apStatus = (widget.apinvoice.status ?? '').toLowerCase().trim();
     final canReturn = apStatus.isNotEmpty && !apStatus.contains('returned');
