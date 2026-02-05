@@ -39,8 +39,9 @@ class DiscountSection extends StatefulWidget {
 
 class _DiscountSectionState extends State<DiscountSection> {
   final ValueNotifier<bool> _showInlineAlert = ValueNotifier(false);
-  // bool _overallAppliedOnce = false;
   bool _isApplying = false;
+  double _lastAppliedDiscount = 0.0;
+  DiscountMode _lastAppliedMode = DiscountMode.none;
 
   double get totalCGST {
     return widget.poItems.fold(
@@ -67,11 +68,9 @@ class _DiscountSectionState extends State<DiscountSection> {
     return widget.notifier.overallDiscountAmount ?? 0.0;
   }
 
-  // ✅ Update finalAmount calculation
   double get finalAmount {
     final roundOff = double.tryParse(widget.roundOffController.text) ?? 0.0;
 
-    // Use notifier's calculated values instead of recalculating
     return (widget.notifier.calculatedFinalAmount ?? 0.0) + roundOff;
   }
 
@@ -101,6 +100,8 @@ class _DiscountSectionState extends State<DiscountSection> {
     print('🎯 Clearing ALL discounts (overall + item-wise)');
 
     final notifier = widget.notifier;
+    _lastAppliedDiscount = 0.0;
+    _lastAppliedMode = DiscountMode.none;
 
     widget.overallDiscountController.text = '0';
     widget.discountMode.value = DiscountMode.none;
@@ -116,7 +117,6 @@ class _DiscountSectionState extends State<DiscountSection> {
           item['afTaxDiscount'] = 0.0;
           item['afTaxDiscountAmount'] = 0.0;
           item['pendingAfTaxDiscountAmount'] = 0.0;
-          // item['itemOverallDiscountAmount'] = 0.0; // ❌ REMOVE - doesn't exist
           item['pendingDiscountAmount'] = 0.0;
           final quantity = item['quantity'] ?? 0.0;
           final newPrice = item['newPrice'] ?? 0.0;
@@ -138,7 +138,6 @@ class _DiscountSectionState extends State<DiscountSection> {
           item.afTaxDiscount = 0.0;
           item.afTaxDiscountAmount = 0.0;
           item.pendingAfTaxDiscountAmount = 0.0;
-          // item.itemOverallDiscountAmount = 0.0; // ❌ REMOVE - doesn't exist
           item.pendingDiscountAmount = 0.0;
           final quantity = item.quantity ?? 0.0;
           final newPrice = item.newPrice ?? 0.0;
@@ -200,16 +199,13 @@ class _DiscountSectionState extends State<DiscountSection> {
         item['afTaxDiscount'] = 0.0;
         item['afTaxDiscountAmount'] = 0.0;
         item['pendingAfTaxDiscountAmount'] = 0.0;
-        // item['itemOverallDiscountAmount'] = 0.0;
         item['pendingDiscountAmount'] = 0.0;
       } else if (item is Item) {
-        // ✅ ONLY EXISTING PROPERTIES
         item.befTaxDiscount = 0.0;
         item.befTaxDiscountAmount = 0.0;
         item.afTaxDiscount = 0.0;
         item.afTaxDiscountAmount = 0.0;
         item.pendingAfTaxDiscountAmount = 0.0;
-        // item.itemOverallDiscountAmount = 0.0;
         item.pendingDiscountAmount = 0.0;
       }
     } catch (_) {}
@@ -223,7 +219,6 @@ class _DiscountSectionState extends State<DiscountSection> {
         object.afTaxDiscount = 0.0;
         object.afTaxDiscountAmount = 0.0;
         object.pendingAfTaxDiscountAmount = 0.0;
-        // object.itemOverallDiscountAmount = 0.0;
         object.pendingDiscountAmount = 0.0;
       } else if (object is Map<String, dynamic>) {
         object['befTaxDiscount'] = 0.0;
@@ -231,7 +226,6 @@ class _DiscountSectionState extends State<DiscountSection> {
         object['afTaxDiscount'] = 0.0;
         object['afTaxDiscountAmount'] = 0.0;
         object['pendingAfTaxDiscountAmount'] = 0.0;
-        // object['itemOverallDiscountAmount'] = 0.0;
         object['pendingDiscountAmount'] = 0.0;
       }
     } catch (_) {}
@@ -423,15 +417,6 @@ class _DiscountSectionState extends State<DiscountSection> {
     return total;
   }
 
-  // double get overallDiscountAmount {
-  //   if (widget.discountMode.value == DiscountMode.none) return 0.0;
-  //   double total = 0.0;
-  //   for (var item in widget.poItems) {
-  //     total += _getItemProperty(item, 'afTaxDiscountAmount') ?? 0.0;
-  //   }
-  //   return total;
-  // }
-
   double get totalTaxAmount {
     return widget.poItems.fold(
       0.0,
@@ -439,14 +424,6 @@ class _DiscountSectionState extends State<DiscountSection> {
     );
   }
 
-  // double get finalAmount {
-  //   final roundOff = double.tryParse(widget.roundOffController.text) ?? 0.0;
-  //   return (widget.subtotal -
-  //           (actualItemWiseDiscount + overallDiscountAmount) +
-  //           totalTaxAmount +
-  //           roundOff)
-  //       .clamp(0, double.infinity);
-  // }
 
   Future<void> _handleApplyDiscount() async {
     if (_isApplying) return;
@@ -470,13 +447,22 @@ class _DiscountSectionState extends State<DiscountSection> {
       return;
     }
 
-    // 🔥 THIS LINE IS CRITICAL
-    widget.notifier.isOverallDiscountActive = true;
+    if (widget.notifier.isOverallDiscountActive &&
+        discountValue == _lastAppliedDiscount &&
+        mode == _lastAppliedMode) {
+      _showSnack('Discount already applied', Colors.orange);
+      return;
+    }
 
     _isApplying = true;
 
     try {
+      widget.notifier.isOverallDiscountActive = true;
+
       await widget.onApplyDiscount();
+
+      _lastAppliedDiscount = discountValue;
+      _lastAppliedMode = mode;
 
       widget.notifier.calculateTotals();
       widget.onCalculationsUpdate();
@@ -503,45 +489,50 @@ class _DiscountSectionState extends State<DiscountSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTopRow(),
+    return AnimatedBuilder(
+      animation: widget.notifier,
+      builder: (context, _) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopRow(),
 
-          ValueListenableBuilder<bool>(
-            valueListenable: _showInlineAlert,
-            builder: (_, show, __) {
-              if (!show) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 6),
-                child: Row(
-                  children: const [
-                    Icon(Icons.info, size: 14, color: Colors.blue),
-                    SizedBox(width: 6),
-                    Text(
-                      "Overall discount enabled",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w600,
-                      ),
+              ValueListenableBuilder<bool>(
+                valueListenable: _showInlineAlert,
+                builder: (_, show, __) {
+                  if (!show) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 6),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.info, size: 14, color: Colors.blue),
+                        SizedBox(width: 6),
+                        Text(
+                          "Overall discount enabled",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
 
-          const SizedBox(height: 12),
-          _buildDiscountModeToggle(),
-          const SizedBox(height: 16),
-          _buildCompactInputRow(),
-          const SizedBox(height: 16),
-          _buildPricingSummary(),
-        ],
-      ),
+              const SizedBox(height: 12),
+              _buildDiscountModeToggle(),
+              const SizedBox(height: 16),
+              _buildCompactInputRow(),
+              const SizedBox(height: 16),
+              _buildPricingSummary(),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -864,8 +855,11 @@ class _DiscountSectionState extends State<DiscountSection> {
     double overall = widget.notifier.overallDiscountAmount ?? 0.0;
     double totalDisc = itemWise + overall;
     double subtotal = widget.notifier.subTotal ?? 0.0;
-    double totalTax = widget.notifier.pendingTaxAmount ?? 0.0;
+    double totalCGST = this.totalCGST;
+    double totalSGST = this.totalSGST;
+    double totalIGST = this.totalIGST;
 
+    double totalTax = totalCGST + totalSGST + totalIGST;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -877,7 +871,11 @@ class _DiscountSectionState extends State<DiscountSection> {
         children: [
           _summary("Sub Total", _fmt(subtotal)),
 
-          if (totalTax > 0) _summary("Total Tax", "(+) ${_fmt(totalTax)}"),
+          if (totalIGST > 0) _summary("IGST", "(+) ${_fmt(totalIGST)}"),
+
+          if (totalCGST > 0) _summary("CGST", "(+) ${_fmt(totalCGST)}"),
+
+          if (totalSGST > 0) _summary("SGST", "(+) ${_fmt(totalSGST)}"),
 
           if (itemWise > 0)
             _summary("Item-wise Discount", "(-) ${_fmt(itemWise)}"),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/models/BranchLocation.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -52,15 +53,17 @@ class PurchaseOrderLogic {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (isDisposed()) return;
 
-      if (editingPO != null) {
-        // 🔥 1️⃣ FIRST load vendors synchronously
-        await notifier.fetchAllVendors1();
-        await notifier.fetchVendors1();
+      // 🔥 PRELOAD VENDORS FIRST (CRITICAL FOR EDIT MODE)
+      await poProvider.preloadVendors();
+      await notifier.fetchAllVendors1();
 
-        // 🔥 2️⃣ THEN initialize PO (vendor will match correctly)
+      // --------------------------------------------------
+      // ✏️ EDIT MODE
+      // --------------------------------------------------
+      if (editingPO != null) {
         _initializeWithPOData(editingPO!);
 
-        // 🔥 3️⃣ Remaining data can be background
+        // Supporting data can load in background
         _fetchSupportingDataInBackground();
 
         updateTotalOrderAmount();
@@ -68,6 +71,9 @@ class PurchaseOrderLogic {
         return;
       }
 
+      // --------------------------------------------------
+      // ➕ CREATE NEW PO
+      // --------------------------------------------------
       await _initializeForNewPO();
     });
   }
@@ -116,25 +122,33 @@ class PurchaseOrderLogic {
   }
 
   Future<void> _initializeForNewPO() async {
+    if (isDisposed()) return;
+
+    // 🔥 Load Billing & Shipping first (same behaviour as before)
     await Future.wait([
       notifier.fetchShippingAddress1(),
       notifier.fetchBillingAddress1(),
-      notifier.fetchAllVendors1(),
-      notifier.fetchVendors1(),
-      notifier.fetchItems(''),
     ]);
 
+    // 🔥 Load Location (branches) exactly like addresses
+    await poProvider.preloadBranches();
+
+    // Items can load after
+    await notifier.fetchItems('');
+
     notifier.expectedDeliveryDateController.clear();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      applyAddressesIfReady();
+      applyAddressesIfReady(); // Billing + Shipping
+      applyLocationIfReady(); // ✅ Location (NOW SAME BEHAVIOUR)
     });
 
     final backendDate = await poProvider.getServerDate();
-    notifier.orderedDateController.text = backendDate ?? '';
+    if (!isDisposed()) {
+      notifier.orderedDateController.text = backendDate ?? '';
+    }
 
-    notifier.roundOffController.text = '0';
     notifier.totalOrderAmount = 0.0;
-
     updateTotalOrderAmount();
     triggerUIRefresh();
   }
@@ -152,6 +166,30 @@ class PurchaseOrderLogic {
         triggerUIRefresh();
       }
     });
+  }
+
+  void applyLocationIfReady() {
+    if (isDisposed()) return;
+
+    final branches = poProvider.branches;
+    if (branches.isEmpty) return;
+
+    // Only for CREATE PO
+    if (notifier.selectedLocation != null &&
+        notifier.selectedLocation!.isNotEmpty) {
+      return;
+    }
+
+    // 🔥 Prefer prod_GW warehouse
+    final selected = branches.firstWhere(
+      (b) => b.location.toLowerCase() == 'prod_gw',
+      orElse: () => branches.first,
+    );
+
+    notifier.setLocation(
+      location: selected.location,
+      locationName: selected.branchName,
+    );
   }
 
   void _updateQuantity() {
@@ -516,12 +554,12 @@ class PurchaseOrderLogic {
     }
 
     try {
-      // 🔒 VALIDATE ITEM IDs
-      for (final item in notifier.poItems) {
-        if (item.itemId == null || item.itemId!.isEmpty) {
-          throw Exception('Item ID missing');
-        }
-      }
+      // // 🔒 VALIDATE ITEM IDs
+      // for (final item in notifier.poItems) {
+      //   if (item.itemId == null || item.itemId!.isEmpty) {
+      //     throw Exception('Item ID missing');
+      //   }
+      // }
 
       // 🔥 BUILD PAYLOAD
       final itemList = notifier.poItems.map((item) {

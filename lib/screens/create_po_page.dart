@@ -402,36 +402,28 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   }
 
   Future<void> _navigateToTemplateCreateScreen() async {
+    // 🔥 CLEAR OLD PO DATA
+    logic.resetAllFields();
+    notifier.poItems.clear();
+    notifier.clearSelectedVendor();
+
+    notifier.billingController.clear();
+    notifier.shippingController.clear();
+    notifier.vendorContactController.clear();
+    notifier.paymentTermsController.clear();
+    notifier.creditLimitController.clear();
+
+    notifier.overallDiscountController.text = '0';
+    notifier.roundOffController.text = '0';
+
+    notifier.calculateTotals();
+
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) =>
             TemplateCreationScreen(editingPO: null, editingTemplate: null),
       ),
     );
-
-    if (result == true && mounted) {
-      logic.resetAllFields();
-      notifier.poItems.clear();
-      notifier.clearSelectedVendor();
-      notifier.editingIndex = null;
-      notifier.orderedDateController.clear();
-      notifier.expectedDeliveryDateController.clear();
-      notifier.billingController.clear();
-      notifier.shippingController.clear();
-      notifier.creditLimitController.clear();
-      notifier.vendorContactController.clear();
-      notifier.paymentTermsController.clear();
-      _vendorAutocompleteController.clear();
-      notifier.overallDiscountController.text = '0';
-      notifier.roundOffController.text = '0';
-      notifier.subTotal = 0.0;
-      notifier.itemWiseDiscount = 0.0;
-      notifier.overallDiscountAmount = 0.0;
-      notifier.calculatedFinalAmount = 0.0;
-      notifier.totalOrderAmount = 0.0;
-      _updateTotalOrderAmount();
-      _triggerUIRefresh();
-    }
   }
 
   PO _createEmptyPO() {
@@ -877,7 +869,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                       ),
                                     ],
                                   ),
+
                                   SizedBox(height: isTablet ? 10 : 16),
+
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -921,7 +915,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                       ),
                                     ],
                                   ),
+
                                   SizedBox(height: isTablet ? 10 : 16),
+
                                   Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -938,16 +934,20 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                               'Credit Limit',
                                               isEditable: true,
                                             ),
-                                            readOnly: false,
                                             keyboardType: TextInputType.number,
                                           ),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
-                                      const Expanded(child: SizedBox()),
+                                      Expanded(
+                                        child: LocationDropdown(
+                                          inputDecoration: _inputDecoration,
+                                        ),
+                                      ),
                                     ],
                                   ),
-                                  const SizedBox(height: 10),
+
+                                  SizedBox(height: isTablet ? 10 : 16),
                                 ],
 
                                 if (!isMobile) ...[
@@ -973,16 +973,15 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(height: isTablet ? 10 : 16),
                                 ],
 
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 0),
-                                    LocationDropdown(
-                                      inputDecoration: _inputDecoration,
-                                    ),
-                                  ],
-                                ),
-
+                                // Column(
+                                //   crossAxisAlignment: CrossAxisAlignment.start,
+                                //   children: [
+                                //     const SizedBox(height: 0),
+                                //     LocationDropdown(
+                                //       inputDecoration: _inputDecoration,
+                                //     ),
+                                //   ],
+                                // ),
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 1.0,

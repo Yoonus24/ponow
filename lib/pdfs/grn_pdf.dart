@@ -8,11 +8,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class GRNPDF {
-  static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
+  static const String baseUrl = 'https://yenerp.com/nextjstestapi';
   static const String businessUrl =
-      'http://192.168.29.252:8000/nextjstestapi/pobusiness/';
-  static const String vendorUrl =
-      'http://192.168.29.252:8000/nextjstestapi/vendors/';
+      'https://yenerp.com/nextjstestapi/pobusiness/';
+  static const String vendorUrl = 'https://yenerp.com/nextjstestapi/vendors/';
 
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
     final response = await http.get(Uri.parse('$baseUrl/grns/$grnId'));

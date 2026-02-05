@@ -37,7 +37,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
     super.initState();
 
     final poProvider = context.read<POProvider>();
-    poProvider.initVendorScrollListener();
+    // poProvider.initVendorScrollListener();
 
     // ✅ SAFE: call provider AFTER first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {

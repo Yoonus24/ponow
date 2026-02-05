@@ -72,7 +72,7 @@ class POModalProvider with ChangeNotifier {
 
     final dio = Dio(
       BaseOptions(
-        baseUrl: "http://192.168.29.252:8000/nextjstestapi",
+        baseUrl: "https://yenerp.com/nextjstestapi",
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),
@@ -186,7 +186,7 @@ class POModalProvider with ChangeNotifier {
   ) async {
     final dio = Dio(
       BaseOptions(
-        baseUrl: "http://192.168.29.252:8000/nextjstestapi",
+        baseUrl: "https://yenerp.com/nextjstestapi",
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),

@@ -639,6 +639,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               const SizedBox(height: 16),
 
                               // Credit Limit
+                              // Credit Limit + Location (MATCHES PurchaseOrderDialog)
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -652,15 +653,19 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                           'Credit Limit',
                                           isEditable: true,
                                         ),
-                                        readOnly: false,
                                         keyboardType: TextInputType.number,
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 16),
-                                  Expanded(child: Container()),
+                                  Expanded(
+                                    child: LocationDropdown(
+                                      inputDecoration: _inputDecoration,
+                                    ),
+                                  ),
                                 ],
                               ),
+
                               const SizedBox(height: 10),
                             ],
 
@@ -686,8 +691,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                               const SizedBox(height: 16),
                             ],
-                            const SizedBox(height: 0),
-                            LocationDropdown(inputDecoration: _inputDecoration),
 
                             // Total Amount Display
                             Padding(

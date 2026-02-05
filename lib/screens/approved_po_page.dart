@@ -25,6 +25,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
   final ValueNotifier<DateTime?> selectedDate = ValueNotifier(null);
   final ValueNotifier<String> vendorName = ValueNotifier("");
+  TextEditingController? _autoVendorCtrl;
 
   final int skip = 0;
   final int limit = 50;
@@ -136,10 +137,11 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     }
   }
 
-  // ---------------- CLEAR FILTERS ----------------
   void _clearVendor() {
     vendorCtrl.clear();
+    _autoVendorCtrl?.clear();
     vendorName.value = "";
+    FocusScope.of(context).unfocus();
     _applyFilters();
   }
 
@@ -188,12 +190,19 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                 },
 
                 fieldViewBuilder: (context, ctrl, fn, _) {
-                  if (ctrl.text != vendorCtrl.text) {
-                    ctrl.text = vendorCtrl.text;
-                    ctrl.selection = TextSelection.fromPosition(
-                      TextPosition(offset: ctrl.text.length),
-                    );
-                  }
+                  _autoVendorCtrl = ctrl;
+                  // ✅ Sync ONLY when selecting from dropdown
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (vendorCtrl.text.isNotEmpty &&
+                        ctrl.text != vendorCtrl.text) {
+                      ctrl.value = ctrl.value.copyWith(
+                        text: vendorCtrl.text,
+                        selection: TextSelection.collapsed(
+                          offset: vendorCtrl.text.length,
+                        ),
+                      );
+                    }
+                  });
 
                   return TextField(
                     controller: ctrl,
@@ -434,7 +443,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                             final list = provider.pos.where((po) {
                               // ✅ SHOW ONLY APPROVED
-                              if (po.poStatus != 'Approved') return false;
+                              if (po.poStatus != 'Approved' &&
+                                  po.poStatus != 'PartiallyReceived') {
+                                return false;
+                              }
 
                               // ---------- VENDOR FILTER ----------
                               if (vendorName.value.isNotEmpty) {

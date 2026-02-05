@@ -14,7 +14,7 @@ import 'package:purchaseorders2/models/outgoing.dart';
 
 class OutgoingPaymentProvider extends ChangeNotifier {
   final Dio dio = Dio();
-  final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
+  final String _baseUrl = 'https://yenerp.com/nextjstestapi';
 
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
@@ -120,7 +120,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         }
 
         // 🔥 AUTO-REFRESH OUTGOINGS
-        await fetchFilteredOutgoings(status: 'pending', skip: 0, limit: 100);
+        // await fetchFilteredOutgoings(status: 'pending', skip: 0, limit: 100);
       } else {
         _apInvoices = [];
       }
@@ -128,6 +128,11 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       _apInvoices = [];
     }
 
+    notifyListeners();
+  }
+
+  void setLoadingOutgoings(bool value) {
+    _isLoadingOutgoings = value;
     notifyListeners();
   }
 
@@ -224,6 +229,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     int limit = 50,
     String? invoiceNo,
   }) async {
+    // 🔒 Prevent duplicate calls
+    // if (_isLoadingOutgoings) return _payments;
+
     _isLoadingOutgoings = true;
     _error = '';
     notifyListeners();
@@ -231,7 +239,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     try {
       String? backendStatus;
 
-      // UI → backend status mapping
       if (status != null && status.trim().isNotEmpty) {
         final uiStatus = status.toLowerCase().trim();
 
@@ -261,27 +268,18 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           'invoiceNo': invoiceNo.trim(),
       };
 
-      if (kDebugMode) {
-        print('=== FETCHING OUTGOINGS ===');
-        print('Query Params: $queryParams');
-      }
-
       final response = await dio.get(
         '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: queryParams,
-        options: Options(
-          headers: {'Content-Type': 'application/json'},
-          validateStatus: (s) => (s ?? 500) < 500,
-        ),
+        options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
+      // ✅ SUCCESS (even if empty)
       if (response.statusCode == 200) {
         final raw = response.data;
         final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
 
         _payments = data.map((e) => Outgoing.fromJson(e)).where((outgoing) {
-          // 🔑 SINGLE SOURCE OF TRUTH = AP STATUS
-
           ApInvoice? ap;
           try {
             ap = _apInvoices.firstWhere(
@@ -291,40 +289,59 @@ class OutgoingPaymentProvider extends ChangeNotifier {
             ap = null;
           }
 
-          // ❌ No AP → never show outgoing
           if (ap == null) return false;
-
-          // ❌ AP returned → hide outgoing
           if (ap.apReturnedDate != null) return false;
 
-          // ✅ Show outgoing ONLY if AP is posted to outgoing
-          return ap.status == 'Outgoing Posted';
+          return ap.status == 'Outgoing Posted' ||
+              outgoing.status?.toLowerCase() == 'partially paid';
         }).toList();
 
         _allPayments = List.from(_payments);
 
-        if (kDebugMode) {
-          print('✅ Loaded ${_payments.length} outgoing payments');
-        }
+        _error = ''; // 🔥 IMPORTANT
       } else {
+        // ❌ REAL BACKEND FAILURE ONLY
         _payments = [];
         _allPayments = [];
-        _error = 'Failed to load outgoings';
+        _error = 'Unable to load outgoings. Please try again.';
       }
     } catch (e) {
+      // ❌ NETWORK / EXCEPTION ONLY
       _payments = [];
       _allPayments = [];
-      _error = 'Error loading outgoings: $e';
+      _error = 'Network error. Please check your connection.';
     } finally {
       _isLoadingOutgoings = false;
       notifyListeners();
     }
 
-    // refresh dropdowns
-    await fetchVendors();
-    await fetchInvoiceNumbers();
-
     return _payments;
+  }
+
+  Future<void> fetchAllOutgoings({DateTime? fromDate, DateTime? toDate}) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await dio.get(
+        '$_baseUrl/outgoingpayments/outgoing/getAll',
+        queryParameters: {
+          if (fromDate != null) 'fromDate': fromDate.toIso8601String(),
+          if (toDate != null) 'toDate': toDate.toIso8601String(),
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final raw = response.data;
+        final List list = raw is List ? raw : raw['outgoings'] ?? [];
+
+        _payments = list.map((e) => Outgoing.fromJson(e)).toList();
+        _allPayments = List.from(_payments);
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> testBackendResponse() async {

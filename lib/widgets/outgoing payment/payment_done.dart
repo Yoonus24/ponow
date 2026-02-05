@@ -64,10 +64,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
 
     try {
       final provider = context.read<OutgoingPaymentProvider>();
-
-      await provider.fetchFilteredOutgoings(
-        status: 'Fully Paid',
-        filterByAmount: false,
+      await provider.fetchAllOutgoings(
         fromDate: widget.fromDate,
         toDate: widget.toDate,
       );
@@ -90,9 +87,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     final filtered = provider.payments.where((payment) {
       // if (payment.status?.toLowerCase() == 'active') return false;
 
-      final matchesStatus =
-          payment.status?.toLowerCase() == 'fully paid' ||
-          payment.status?.toLowerCase() == 'partially paid';
+      final matchesStatus = payment.status?.toLowerCase() == 'fully paid';
 
       if (!matchesStatus) return false;
 

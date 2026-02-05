@@ -21,7 +21,7 @@ class GRNProvider with ChangeNotifier {
   int _skip = 0;
   int _limit = 50;
 
-  static const String _baseApi = 'http://192.168.29.252:8000/nextjstestapi';
+  static const String _baseApi = 'https://yenerp.com/nextjstestapi';
   static const String _grnBase = '$_baseApi/grns';
   static const String _grnListEndpoint = '$_grnBase/getAll';
 

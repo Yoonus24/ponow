@@ -107,6 +107,8 @@ class _POModalState extends State<POModal> {
       );
     }
 
+    initializeTaxFromBackend();
+
     // ===============================
     // COLUMN SETUP
     // ===============================
@@ -160,6 +162,12 @@ class _POModalState extends State<POModal> {
       if (_leftVerticalController.hasClients &&
           _leftVerticalController.offset != _rightVerticalController.offset) {
         _leftVerticalController.jumpTo(_rightVerticalController.offset);
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (int i = 0; i < widget.po.items.length; i++) {
+        updateCalculations(i, context);
       }
     });
   }
@@ -228,7 +236,8 @@ class _POModalState extends State<POModal> {
     final priceAfterBefDiscount = totalPrice - befTaxDiscountAmount;
 
     // TAX
-    final taxAmount = (priceAfterBefDiscount * taxPercentage) / 100;
+    final taxAmount =
+        item.pendingTaxAmount ?? (priceAfterBefDiscount * taxPercentage) / 100;
 
     // AFTER TAX DISCOUNT (AMOUNT)
     final afTaxDiscountAmount =
@@ -297,6 +306,24 @@ class _POModalState extends State<POModal> {
     poModalProvider.notifyListeners();
   }
 
+  void initializeTaxFromBackend() {
+    for (final item in widget.po.items) {
+      final tax = item.pendingTaxAmount ?? 0.0;
+
+      if (tax > 0) {
+        if (item.taxType == "cgst_sgst") {
+          item.pendingCgst = tax / 2;
+          item.pendingSgst = tax / 2;
+          item.pendingIgst = 0.0;
+        } else {
+          item.pendingIgst = tax;
+          item.pendingCgst = 0.0;
+          item.pendingSgst = 0.0;
+        }
+      }
+    }
+  }
+
   double getTotalDiscountAmount() {
     return widget.po.items.fold(
       0.0,
@@ -330,7 +357,6 @@ class _POModalState extends State<POModal> {
   }
 
   double getTotalOrderAmount() {
-    // Use the PO's pendingOrderAmount if available, otherwise calculate it
     return widget.po.pendingOrderAmount ??
         widget.po.items.fold(
               0.0,

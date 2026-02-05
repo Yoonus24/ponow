@@ -57,7 +57,10 @@ class _LocationDropdownState extends State<LocationDropdown> {
         : Colors.grey.shade600;
 
     return DropdownButtonFormField2<String>(
-      value: selectedLocation,
+      value: branches.any((b) => b.location == selectedLocation)
+          ? selectedLocation
+          : null, // 🔥 CRITICAL FIX
+
       isExpanded: true,
       isDense: true,
       focusNode: _focusNode,
@@ -66,22 +69,16 @@ class _LocationDropdownState extends State<LocationDropdown> {
           .inputDecoration('Location')
           .copyWith(
             labelText: 'Location',
-
             labelStyle: const TextStyle(color: Colors.black54, fontSize: 15),
-
             floatingLabelStyle: TextStyle(
               color: isFocused ? activeBlue : Colors.black54,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
-
             floatingLabelBehavior: FloatingLabelBehavior.auto,
-
             hintText: 'Select Location',
             hintStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-
             contentPadding: const EdgeInsets.fromLTRB(12, 12, 44, 8),
-
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -91,7 +88,6 @@ class _LocationDropdownState extends State<LocationDropdown> {
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: activeBlue, width: 2),
             ),
-
             suffixIcon: hasValue
                 ? IconButton(
                     icon: const Icon(Icons.clear_rounded, size: 20),
@@ -144,16 +140,13 @@ class _LocationDropdownState extends State<LocationDropdown> {
           thickness: WidgetStateProperty.all(6),
           thumbVisibility: WidgetStateProperty.all(true),
         ),
-        openInterval: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
       ),
 
       items: branches.map((branch) {
-        final displayText = '${branch.branchName} (${branch.location})';
-
         return DropdownMenuItem<String>(
           value: branch.location,
           child: Text(
-            displayText,
+            '${branch.branchName} (${branch.location})',
             style: const TextStyle(fontSize: 14, color: Colors.black),
           ),
         );

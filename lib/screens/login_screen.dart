@@ -123,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
                       Column(
                         children: [
                           Text(
-                            'Welcome Back!',
+                            'Purchase Order',
                             style: TextStyle(
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -131,13 +131,13 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                           SizedBox(height: 8),
-                          Text(
-                            'Please login to your account',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
+                          // Text(
+                          //   'Please login to your account',
+                          //   style: TextStyle(
+                          //     fontSize: 16,
+                          //     color: Colors.grey.shade600,
+                          //   ),
+                          // ),
                         ],
                       ),
 
@@ -264,30 +264,6 @@ class _LoginPageState extends State<LoginPage> {
 
                             SizedBox(height: 10),
 
-                            // Forgot Password
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Forgot password feature coming soon!',
-                                      ),
-                                      backgroundColor: Colors.blueAccent,
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(
-                                    color: Colors.blueAccent,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ),
-
                             SizedBox(height: 30),
 
                             // Login Button
@@ -341,11 +317,6 @@ class _LoginPageState extends State<LoginPage> {
                                                 ),
                                               ),
                                               SizedBox(width: 10),
-                                              Icon(
-                                                Icons.arrow_forward,
-                                                color: Colors.white,
-                                                size: 22,
-                                              ),
                                             ],
                                           ),
                                         ),

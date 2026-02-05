@@ -69,7 +69,7 @@ class Outgoing {
   final String? poRandomId;
   final double? hoCash;
 
-  // ✅ ✅ ✅ PAYMENT SUMMARY (MAIN FIX)
+  final double? originalTotalPayableAmount;
   final double? totalPaidAmount;
   final double? paidAmount;
 
@@ -147,6 +147,7 @@ class Outgoing {
     this.remainingPayableAmount,
     this.paymentHistory,
     this.paidAmount,
+    this.originalTotalPayableAmount,
   });
 
   factory Outgoing.fromJson(Map<String, dynamic> json) {
@@ -218,6 +219,8 @@ class Outgoing {
         grnRandomId: _parseString(json['grnRandomId']),
         apRandomId: _parseString(json['apRandomId']),
         poRandomId: _parseString(json['poRandomId']),
+        originalTotalPayableAmount: (json['originalTotalPayableAmount'] as num?)
+            ?.toDouble(),
 
         paidAmount:
             (json['paidAmount'] as num?)?.toDouble() ??
@@ -229,8 +232,8 @@ class Outgoing {
             (json['paidAmount'] as num?)?.toDouble() ??
             0.0,
 
-        remainingPayableAmount:
-            (json['remainingPayableAmount'] as num?)?.toDouble() ?? 0.0,
+        remainingPayableAmount: (json['remainingPayableAmount'] as num?)
+            ?.toDouble(),
 
         paymentHistory: _parsePaymentHistory(json['paymentHistory']),
       );

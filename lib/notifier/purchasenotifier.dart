@@ -1,5 +1,7 @@
 // ignore_for_file: avoid_print, unnecessary_getters_setters
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +19,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   double finalAmount = 0;
   Item? _editItem;
   Item? get editItem => _editItem;
+  Timer? _itemSearchTimer;
 
   ValueNotifier<DiscountMode> discountMode = ValueNotifier(DiscountMode.none);
   DiscountMode itemWiseDiscountMode = DiscountMode.percentage;
@@ -37,20 +40,16 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   double get overallDiscountValue => _overallDiscountValue;
   set overallDiscountValue(double rawValue) {
-    // Check disposed first
     if (_disposed) {
       print('⚠️ overallDiscountValue: Notifier is disposed, skipping');
       return;
     }
 
-    // ✅ Store RAW user input only (5% OR ₹50)
     _overallDiscountValue = rawValue;
 
     if (_disposed) return;
     overallDiscountController.text = rawValue.toStringAsFixed(2);
 
-    // ✅ DO NOT divide by item count
-    // ✅ Just store raw value — calculation happens in calculateTotals()
     for (final item in poItems) {
       if (item == null) continue;
       item.afTaxDiscount = rawValue;
@@ -157,6 +156,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   bool _isLocationFocused = false;
 
   bool get isLocationFocused => _isLocationFocused;
+  PurchaseItem? selectedPurchaseItem;
 
   int? editingIndex;
 
@@ -174,7 +174,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     _editingPO = po;
 
-    // ❗ DO NOT notify during cleanup
     recalculateFromLoadedPO(notify: notify);
 
     if (notify) {
@@ -244,14 +243,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     print('🔧 APPLYING OVERALL DISCOUNT');
 
-    // ✅ FLAG
     isOverallDiscountActive = true;
-
     discountMode.value = mode;
     _overallDiscountValue = discountValue;
     overallDiscountController.text = discountValue.toStringAsFixed(2);
 
-    // ❌ Clear item-level AF discounts
     for (var item in poItems) {
       item.afTaxDiscount = 0.0;
       item.afTaxDiscountAmount = 0.0;
@@ -333,6 +329,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void dispose() {
     print('🛑 PurchaseOrderNotifier.dispose() called');
     _disposed = true;
+    _itemSearchTimer?.cancel();
 
     final controllers = [
       itemController,
@@ -369,17 +366,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     for (final c in controllers) {
       try {
-        // ✅ FIXED: Use try-catch instead of checking .disposed
-        // TextEditingController doesn't have a public .disposed property
         c.dispose();
       } catch (e) {
-        // Ignore if already disposed
         print('⚠️ Controller already disposed or error: $e');
       }
     }
 
     try {
-      // ✅ FIXED: ValueNotifier doesn't have .disposed property
       discountMode.dispose();
     } catch (e) {
       print('⚠️ Error disposing discountMode: $e');
@@ -391,16 +384,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   String _getControllerTextSafely(TextEditingController controller) {
     try {
-      // ✅ FIXED: Don't check .disposed - use try-catch instead
       return controller.text;
     } catch (e) {
-      // Controller might be disposed
       print('⚠️ Controller disposed, returning empty string');
       return '';
     }
   }
 
-  // ✅ ADDED: Helper method to check if controller is disposed
   bool _isControllerDisposed(TextEditingController controller) {
     try {
       // ✅ FIXED: Try to access the text property
@@ -414,61 +404,67 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   Future<void> fetchVendors1() async {
-    // ❌ DON'T fetch again if already loaded
-    if (_vendorsLoaded) {
-      print('⚡ fetchVendors1 skipped (already loaded)');
-      return;
-    }
+    if (_vendorsLoaded) return;
 
-    await fetchAllVendors1();
+    await poProvider.fetchingVendors();
+    vendors = poProvider.vendors;
+
+    _vendorsLoaded = true;
+    safeNotify();
   }
 
   Future<void> fetchAllVendors1() async {
-    if (_disposed) return;
+    if (_vendorsLoading) return;
 
-    // ✅ Already loaded → instant return
-    if (_vendorsLoaded && vendorAllList.isNotEmpty) {
-      print('⚡ Vendors already loaded (cache hit)');
-      return;
-    }
-
-    // ⛔ Prevent duplicate parallel API calls
-    if (_vendorsLoading) {
-      print('⏳ Vendors already loading, wait...');
-      return;
-    }
-
-    try {
-      _vendorsLoading = true;
-      print('🌐 Fetching vendors from API...');
-
-      await poProvider.fetchingVendors();
-      await poProvider.fetchingAllVendors();
-
-      vendors = poProvider.vendors;
-      vendorAllList = poProvider.vendorAllList;
-
-      _vendorsLoaded = true;
-
-      print('✅ Vendors loaded: ${vendorAllList.length}');
-      safeNotify();
-    } catch (e) {
-      print('❌ Vendor preload failed: $e');
-    } finally {
-      _vendorsLoading = false;
-    }
+    _vendorsLoading = true;
+    await poProvider.fetchingAllVendors();
+    vendorAllList = poProvider.vendorAllList;
+    _vendorsLoading = false;
   }
 
   Future<void> fetchItems(String query) async {
     if (_disposed) return;
 
     try {
-      await poProvider.searchPurchaseItems(query);
+      await poProvider.searchPurchaseItems(query: query);
       purchaseItems = poProvider.purchaseItems;
+
+      filteredItems = purchaseItems
+          .map((item) => item.itemName)
+          .where((name) => name.isNotEmpty)
+          .take(50)
+          .toList();
+
       safeNotify();
     } catch (e) {
-      print('❌ Error fetching items in notifier: $e');
+      print('❌ Error fetching items: $e');
     }
+  }
+
+  Future<void> preloadItems({bool forceRefresh = false}) async {
+    if (_disposed) return;
+
+    if (purchaseItems.isNotEmpty && !forceRefresh) return;
+
+    try {
+      await poProvider.searchPurchaseItems(query: '');
+      purchaseItems = poProvider.purchaseItems;
+      filteredItems = purchaseItems
+          .map((item) => item.itemName)
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      safeNotify();
+    } catch (e) {
+      print('❌ Error preloading items: $e');
+    }
+  }
+
+  Future<void> fetchBranches1() async {
+    if (_disposed) return;
+
+    await poProvider.fetchBranches();
+    safeNotify();
   }
 
   Future<void> fetchShippingAddress1() async {
@@ -508,98 +504,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     safeNotify();
   }
 
-  // void updateItem({
-  //   required double pendingCount,
-  //   required double quantity,
-  //   required double newPrice,
-  //   required double befTaxDiscount,
-  //   required double afTaxDiscount,
-  //   required double taxPercentage,
-  // }) {
-  //   if (_disposed) return;
-  //   if (editingIndex == null || editingIndex! >= poItems.length) {
-  //     print('❌ Invalid editing index: $editingIndex');
-  //     return;
-  //   }
-
-  //   final item = poItems[editingIndex!];
-
-  //   print("🔧 Updating Item => ${item.itemName}");
-  //   print("   Count: $pendingCount  Qty: $quantity  Price: $newPrice");
-  //   print("   BefTax: $befTaxDiscount  AfTax: $afTaxDiscount");
-  //   print("   Mode: $itemWiseDiscountMode");
-
-  //   String befTaxType = itemWiseDiscountMode == DiscountMode.percentage
-  //       ? "percentage"
-  //       : "amount";
-  //   String afTaxType = itemWiseDiscountMode == DiscountMode.percentage
-  //       ? "percentage"
-  //       : "amount";
-
-  //   double baseAmount = quantity * newPrice;
-  //   double befTaxDiscAmount = 0;
-
-  //   if (befTaxType == "percentage") {
-  //     befTaxDiscAmount = baseAmount * (befTaxDiscount / 100);
-  //   } else {
-  //     befTaxDiscAmount = befTaxDiscount;
-  //   }
-
-  //   double priceAfterBefTax = baseAmount - befTaxDiscAmount;
-  //   double taxAmount = priceAfterBefTax * (taxPercentage / 100);
-  //   double priceAfterTax = priceAfterBefTax + taxAmount;
-  //   double afTaxDiscAmount = 0;
-
-  //   if (afTaxType == "percentage") {
-  //     afTaxDiscAmount = priceAfterTax * (afTaxDiscount / 100);
-  //   } else {
-  //     afTaxDiscAmount = afTaxDiscount;
-  //   }
-
-  //   double finalPrice = priceAfterTax - afTaxDiscAmount;
-  //   if (finalPrice < 0) finalPrice = 0;
-
-  //   item.count = pendingCount;
-  //   item.eachQuantity = quantity / pendingCount;
-  //   item.quantity = quantity;
-  //   item.newPrice = newPrice;
-  //   item.befTaxDiscount = befTaxDiscount;
-  //   item.afTaxDiscount = afTaxDiscount;
-  //   item.befTaxDiscountType = befTaxType;
-  //   item.afTaxDiscountType = afTaxType;
-  //   item.befTaxDiscountAmount = befTaxDiscAmount;
-  //   item.afTaxDiscountAmount = afTaxDiscAmount;
-  //   item.taxPercentage = taxPercentage;
-  //   item.taxAmount = taxAmount;
-  //   item.totalPrice = baseAmount;
-  //   item.finalPrice = finalPrice;
-  //   item.pendingCount = pendingCount;
-  //   item.pendingQuantity = quantity / pendingCount;
-  //   item.pendingTotalQuantity = quantity;
-  //   item.pendingBefTaxDiscountAmount = befTaxDiscAmount;
-  //   item.pendingAfTaxDiscountAmount = afTaxDiscAmount;
-  //   item.pendingTaxAmount = taxAmount;
-  //   item.pendingFinalPrice = finalPrice;
-  //   item.pendingTotalPrice = baseAmount;
-  //   item.pendingDiscountAmount = befTaxDiscAmount + afTaxDiscAmount;
-  //   if (_taxType == "igst") {
-  //     item.pendingIgst = taxAmount;
-  //     item.pendingCgst = 0;
-  //     item.pendingSgst = 0;
-  //   } else {
-  //     item.pendingCgst = taxAmount / 2;
-  //     item.pendingSgst = taxAmount / 2;
-  //     item.pendingIgst = 0;
-  //   }
-
-  //   print("✅ Item Updated Successfully!");
-  //   print("   Final Price: $finalPrice");
-
-  //   editingIndex = null;
-
-  //   _safeCalculateTotals();
-  // }
-
   void updateItemAtIndex(int index, Item updatedItem) {
     if (_disposed || index >= poItems.length) return;
     poItems[index] = updatedItem;
@@ -610,10 +514,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     if (_disposed) return;
 
     for (var item in poItems) {
-      // ✅ Store ONLY RAW VALUE
       item.afTaxDiscount = discountValue;
 
-      // ✅ Store correct type
       item.afTaxDiscountType = mode == DiscountMode.percentage
           ? "percentage"
           : "amount";
@@ -636,14 +538,28 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     for (final item in poItems) {
       subTotal += item.totalPrice ?? 0.0;
-      totalTax += item.taxAmount ?? 0.0;
-      totalFinal += item.finalPrice ?? 0.0;
+
+      // 🔥 CRITICAL FIX — sync pending tax fields
+      final double tax = item.pendingTaxAmount ?? item.taxAmount ?? 0.0;
+      item.pendingTaxAmount = tax;
+
+      if (item.taxType == 'igst') {
+        item.pendingIgst = tax;
+        item.pendingCgst = 0.0;
+        item.pendingSgst = 0.0;
+      } else {
+        item.pendingCgst = tax / 2;
+        item.pendingSgst = tax / 2;
+        item.pendingIgst = 0.0;
+      }
+
+      totalTax += tax;
+      totalFinal += item.pendingFinalPrice ?? item.finalPrice ?? 0.0;
 
       totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
       totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
 
-    // 🔥 CLASSIFY DISCOUNT CORRECTLY
     if (isOverallDiscountActive) {
       _itemWiseDiscount = totalBefTaxDiscount;
       _overallDiscountAmount = totalAfTaxDiscount;
@@ -665,9 +581,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
 
     print('✅ EDIT MODE TOTALS FIXED');
+    print('   Tax: $totalTax');
     print('   Final Amount: $totalOrderAmount');
 
-    safeNotify();
+    if (notify) safeNotify();
   }
 
   void clearSelectedItem() {
@@ -690,8 +607,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void removeItem(Item item) {
     if (_disposed) return;
 
+    print('🗑 Removing item: ${item.itemName}');
+
     poItems.remove(item);
-    _safeCalculateTotals();
+    calculateTotals();
+    safeNotify();
   }
 
   void setSelectedPaymentTerm(String? term) {
@@ -704,41 +624,68 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void setSelectedItem(String itemName) {
     if (_disposed) return;
 
-    final item = purchaseItems.firstWhere(
-      (item) => item.itemName == itemName,
-      orElse: () => PurchaseItem(
-        itemName: '',
-        purchasePrice: 0,
-        purchasetaxName: 0,
-        uom: '',
-        purchaseItemId: '',
-        purchasecategoryName: '',
-        purchasesubcategoryName: '',
-        hsnCode: '',
-      ),
+    print('🎯 setSelectedItem called: $itemName');
+
+    PurchaseItem foundItem = PurchaseItem(
+      itemName: itemName,
+      purchasePrice: 0,
+      purchasetaxName: 0,
+      uom: '',
+      purchaseItemId: '',
+      purchasecategoryName: '',
+      purchasesubcategoryName: '',
+      hsnCode: '',
     );
 
-    _selectedItem = item;
-    itemController.text = item.itemName;
-    uomController.text = item.uom.toString();
-    existingPriceController.text = item.purchasePrice.toStringAsFixed(2);
-    newPriceController.text = item.purchasePrice.toStringAsFixed(2);
-    taxPercentageController.text = item.purchasetaxName.toStringAsFixed(2);
-    uomController.text = item.uom;
-    befTaxDiscountController.text = '0';
-    afTaxDiscountController.text = '0';
+    try {
+      final existingItem = purchaseItems.firstWhere(
+        (item) => item.itemName == itemName,
+      );
+
+      foundItem = existingItem;
+      print('✅ Found item in purchaseItems: $itemName');
+    } catch (e) {
+      print('⚠️ Item not found in purchaseItems, using default');
+
+      purchaseItems.add(foundItem);
+    }
+
+    _selectedItem = foundItem;
+
+    safeControllerAction(() {
+      itemController.text = itemName;
+      uomController.text = foundItem.uom.toString();
+
+      if (foundItem.purchasePrice > 0) {
+        existingPriceController.text = foundItem.purchasePrice.toStringAsFixed(
+          2,
+        );
+        newPriceController.text = foundItem.purchasePrice.toStringAsFixed(2);
+      }
+
+      if (foundItem.purchasetaxName >= 0) {
+        taxPercentageController.text = foundItem.purchasetaxName
+            .toStringAsFixed(2);
+      }
+
+      befTaxDiscountController.text = '0';
+      afTaxDiscountController.text = '0';
+    });
+
+    print('✅ Item set successfully:');
+    print('   UOM: ${foundItem.uom}');
+    print('   Price: ${foundItem.purchasePrice}');
+    print('   Tax: ${foundItem.purchasetaxName}');
 
     safeNotify();
   }
 
   void setSelectedVendor(String? vendorName) {
-    // Check disposed first
     if (_disposed) {
       print('⚠️ setSelectedVendor: Notifier is disposed, skipping');
       return;
     }
 
-    print('🔄 Setting selected vendor: $vendorName');
     selectedVendor = vendorName;
 
     if (vendorName != null && vendorName.isNotEmpty) {
@@ -749,47 +696,25 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
         selectedVendorDetails = vendor;
 
-        // Safe setting of controller values
-        if (vendorContactController.hasListeners) {
-          vendorContactController.text = vendor.contactpersonPhone;
-        }
-        if (paymentTermsController.hasListeners) {
-          paymentTermsController.text = vendor.paymentTerms;
-        }
-        if (creditLimitController.hasListeners) {
-          creditLimitController.text = vendor.creditLimit.toString();
-        }
-        if (addressController.hasListeners) {
-          addressController.text = vendor.address;
-        }
-        if (cityController.hasListeners) {
-          cityController.text = vendor.city;
-        }
-        if (stateController.hasListeners) {
-          stateController.text = vendor.state;
-        }
-        if (countryController.hasListeners) {
-          countryController.text = vendor.country;
-        }
-        if (postalCodeController.hasListeners) {
-          postalCodeController.text = vendor.postalCode.toString();
-        }
-        if (gstNumberController.hasListeners) {
-          gstNumberController.text = vendor.gstNumber;
-        }
-
-        print('✅ Vendor details updated in notifier:');
-        print('   Contact: ${vendor.contactpersonPhone}');
-        print('   Payment Terms: ${vendor.paymentTerms}');
-        print('   Credit Limit: ${vendor.creditLimit}');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_disposed) {
+            vendorContactController.text = vendor.contactpersonPhone;
+            paymentTermsController.text = vendor.paymentTerms;
+            creditLimitController.text = vendor.creditLimit.toString();
+            addressController.text = vendor.address;
+            cityController.text = vendor.city;
+            stateController.text = vendor.state;
+            countryController.text = vendor.country;
+            postalCodeController.text = vendor.postalCode.toString();
+            gstNumberController.text = vendor.gstNumber;
+          }
+        });
       } catch (e) {
         print('❌ Vendor not found in list: $vendorName');
         selectedVendorDetails = null;
       }
     } else {
-      print('🔄 Clearing vendor selection');
       selectedVendorDetails = null;
-      clearSelectedVendor();
     }
 
     safeNotify();
@@ -809,30 +734,37 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     safeNotify();
   }
 
-  void updateItemDetails(String? itemName) {
+  void updateItemDetailsFromCache(PurchaseItem item) {
     if (_disposed) return;
 
-    if (itemName != null) {
-      final item = purchaseItems.firstWhere(
-        (item) => item.itemName == itemName,
-        orElse: () => PurchaseItem(
-          itemName: '',
-          purchasePrice: 0.0,
-          purchasetaxName: 0.0,
-          purchaseItemId: '',
-          uom: '',
-          purchasecategoryName: '',
-          purchasesubcategoryName: '',
-          hsnCode: '',
-        ),
-      );
+    print('🎯 updateItemDetailsFromCache: ${item.itemName}');
+    print('   ID: ${item.purchaseItemId}');
 
+    _selectedItem = item;
+
+    safeControllerAction(() {
+      itemController.text = item.itemName;
       existingPriceController.text = item.purchasePrice.toStringAsFixed(2);
       newPriceController.text = item.purchasePrice.toStringAsFixed(2);
       taxPercentageController.text = item.purchasetaxName.toStringAsFixed(2);
       uomController.text = item.uom;
-      safeNotify();
+
+      befTaxDiscountController.text = '0';
+      afTaxDiscountController.text = '0';
+    });
+
+    updateVariance();
+
+    // Ensure item exists in purchaseItems list
+    final index = purchaseItems.indexWhere(
+      (e) => e.purchaseItemId == item.purchaseItemId,
+    );
+
+    if (index == -1) {
+      purchaseItems.add(item);
     }
+
+    safeNotify();
   }
 
   void calculateTotals({bool fromEditLoad = false}) {
@@ -858,10 +790,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
       totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
-
-    // ----------------------------------------
-    // DISCOUNT CLASSIFICATION
-    // ----------------------------------------
     if (isOverallDiscountActive) {
       _itemWiseDiscount = totalBefTaxDiscount;
       _overallDiscountAmount = totalAfTaxDiscount;
@@ -936,7 +864,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     selectedVendor = null;
     selectedVendorDetails = null;
 
-    // 🔥 LOCATION CLEAR FIX
     selectedLocation = null;
     selectedLocationName = null;
 
@@ -961,15 +888,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ✅ ADD THIS HELPER METHOD
   void _safeResetController(TextEditingController controller) {
     try {
-      // Check if controller is still valid by trying to access its text
       final currentText = controller.text;
-      // If we get here, controller is not disposed
       controller.clear();
     } catch (e) {
-      // Controller is disposed, create a new one
       print('⚠️ Controller disposed, skipping clear: $e');
     }
   }
@@ -977,132 +900,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void addItem(Item item) {
     if (_disposed) return;
     poItems.add(item);
+    calculateTotals();
     safeNotify();
   }
-
-  // void addItem() {
-  //   if (_disposed) return;
-
-  //   if (_selectedItem != null) {
-  //     final existingPrice =
-  //         double.tryParse(existingPriceController.text) ?? 0.0;
-  //     final befTaxDiscount =
-  //         double.tryParse(befTaxDiscountController.text) ?? 0.0;
-  //     final afTaxDiscount =
-  //         double.tryParse(afTaxDiscountController.text) ?? 0.0;
-  //     final newPrice = double.tryParse(newPriceController.text) ?? 0.0;
-  //     final count = double.tryParse(countController.text) ?? 0.0;
-  //     final eachQuantity = double.tryParse(eachQuantityController.text) ?? 0.0;
-  //     final taxPercentage =
-  //         double.tryParse(taxPercentageController.text) ?? 0.0;
-
-  //     final quantity = count * eachQuantity;
-
-  //     String befTaxDiscountType =
-  //         itemWiseDiscountMode == DiscountMode.percentage
-  //         ? 'percentage'
-  //         : 'amount';
-  //     String afTaxDiscountType = itemWiseDiscountMode == DiscountMode.percentage
-  //         ? 'percentage'
-  //         : 'amount';
-
-  //     print(
-  //       '🎯 Adding item with discount types - BefTax: $befTaxDiscountType, AfTax: $afTaxDiscountType',
-  //     );
-
-  //     double totalPriceBeforeDiscount = quantity * newPrice;
-  //     double befTaxDiscountAmount = 0.0;
-  //     double afTaxDiscountAmount = 0.0;
-
-  //     if (befTaxDiscountType == 'percentage') {
-  //       befTaxDiscountAmount =
-  //           (totalPriceBeforeDiscount * befTaxDiscount) / 100;
-  //     } else {
-  //       befTaxDiscountAmount = befTaxDiscount;
-  //     }
-
-  //     double priceAfterBefTaxDiscount =
-  //         totalPriceBeforeDiscount - befTaxDiscountAmount;
-  //     double taxAmount = priceAfterBefTaxDiscount * (taxPercentage / 100);
-  //     double priceAfterTax = priceAfterBefTaxDiscount + taxAmount;
-
-  //     if (afTaxDiscountType == 'percentage') {
-  //       afTaxDiscountAmount = (priceAfterTax * afTaxDiscount) / 100;
-  //     } else {
-  //       afTaxDiscountAmount = afTaxDiscount;
-  //     }
-
-  //     double finalPrice = priceAfterTax - afTaxDiscountAmount;
-
-  //     if (finalPrice < 0) finalPrice = 0;
-
-  //     final variance = newPrice - existingPrice;
-
-  //     final poItem = Item(
-  //       itemId: _selectedItem!.purchaseItemId,
-  //       itemName: _selectedItem!.itemName,
-  //       quantity: quantity,
-  //       existingPrice: existingPrice,
-  //       newPrice: newPrice,
-  //       count: count,
-  //       eachQuantity: eachQuantity,
-  //       taxPercentage: taxPercentage,
-  //       taxAmount: taxAmount,
-  //       befTaxDiscount: befTaxDiscount,
-  //       afTaxDiscount: afTaxDiscount,
-  //       befTaxDiscountAmount: befTaxDiscountAmount,
-  //       afTaxDiscountAmount: afTaxDiscountAmount,
-  //       befTaxDiscountType: befTaxDiscountType,
-  //       afTaxDiscountType: afTaxDiscountType,
-  //       totalPrice: totalPriceBeforeDiscount,
-  //       finalPrice: finalPrice,
-  //       variance: variance,
-  //       uom: _selectedItem!.uom,
-  //       taxType: _taxType,
-  //       pendingCount: count,
-  //       pendingQuantity: eachQuantity,
-  //       pendingTotalQuantity: quantity,
-  //       pendingBefTaxDiscountAmount: befTaxDiscountAmount,
-  //       pendingAfTaxDiscountAmount: afTaxDiscountAmount,
-  //       pendingTaxAmount: taxAmount,
-  //       pendingFinalPrice: finalPrice,
-  //       pendingTotalPrice: totalPriceBeforeDiscount,
-  //       pendingDiscountAmount: befTaxDiscountAmount + afTaxDiscountAmount,
-  //       pendingCgst: _taxType == 'igst' ? 0 : taxAmount / 2,
-  //       pendingSgst: _taxType == 'igst' ? 0 : taxAmount / 2,
-  //       pendingIgst: _taxType == 'igst' ? taxAmount : 0,
-  //       hsnCode: _selectedItem!.hsnCode,
-  //       purchasecategoryName: _selectedItem!.purchasecategoryName,
-  //       purchasesubcategoryName: _selectedItem!.purchasesubcategoryName,
-  //       expiryDate: '',
-  //     );
-
-  //     final existingItemIndex = poItems.indexWhere(
-  //       (item) =>
-  //           item.itemName?.toLowerCase() ==
-  //           _selectedItem!.itemName.toLowerCase(),
-  //     );
-
-  //     if (existingItemIndex != -1) {
-  //       poItems[existingItemIndex] = poItem;
-  //     } else {
-  //       poItems.add(poItem);
-  //     }
-
-  //     print('✅ Item added successfully:');
-  //     print('   BefTax Discount: $befTaxDiscount ($befTaxDiscountType)');
-  //     print('   AfTax Discount: $afTaxDiscount ($afTaxDiscountType)');
-
-  //     _safeCalculateTotals();
-  //     resetItemFields();
-  //     clearSelectedItem();
-  //   }
-  // }
 
   void resetItemFields() {
     if (_disposed) return;
 
-    // DON'T use clear() - use value = empty
     itemController.value = TextEditingValue.empty;
     uomController.value = TextEditingValue.empty;
     eachQuantityController.value = TextEditingValue.empty;
@@ -1114,7 +918,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     befTaxDiscountController.value = TextEditingValue.empty;
     afTaxDiscountController.value = TextEditingValue.empty;
 
-    // Keep count as '1'
     countController.value = TextEditingValue(text: '1');
 
     safeNotify();
@@ -1157,7 +960,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
 
     try {
-      // 🔴 VALIDATION — LOCATION (REQUIRED)
       if (selectedLocation == null || selectedLocation!.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1167,7 +969,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return false;
       }
 
-      // 🔴 VALIDATION — VENDOR
       final vendorDetails = selectedVendorDetails;
       if (vendorDetails == null) {
         if (context.mounted) {
@@ -1178,7 +979,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return false;
       }
 
-      // 🔐 SNAPSHOT CONTROLLERS (SAFE)
       final snapshot = {
         "vendorContact": _getControllerTextSafely(vendorContactController),
         "paymentTerms": _getControllerTextSafely(paymentTermsController),
@@ -1192,7 +992,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         "overallDiscount": _getControllerTextSafely(overallDiscountController),
       };
 
-      // 🔁 Recalculate before submit
       calculateTotals();
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
@@ -1222,9 +1021,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           ? double.tryParse(snapshot["overallDiscount"] ?? '') ?? 0.0
           : 0.0;
 
-      // =====================================================
-      // ✏️ UPDATE PO
-      // =====================================================
+      // UPDATE PO
       if (editingPO != null) {
         final updatedPO = editingPO!.copyWith(
           vendorName: selectedVendor,
@@ -1232,7 +1029,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           orderedDate: formattedOrderDate,
           expectedDeliveryDate: formattedExpectedDate,
 
-          // 🔥 LOCATION FIX
           location: selectedLocation,
           locationName: selectedLocationName,
 
@@ -1263,9 +1059,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
                 )
               : null,
 
-          poStatus: calculatedFinalAmount > vendorDetails.creditLimit
-              ? 'CreditLimit for Approve'
-              : 'Pending',
+          poStatus: editingPO!.poStatus,
         );
 
         await poProvider.updatePO(updatedPO);
@@ -1273,15 +1067,12 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return true;
       }
 
-      // =====================================================
-      // ➕ CREATE NEW PO
-      // =====================================================
+      //  CREATE NEW PO
       final newPO = PO(
         purchaseOrderId: '',
         randomId: '',
         vendorName: selectedVendor ?? '',
 
-        // 🔥 LOCATION FIX
         location: selectedLocation,
         locationName: selectedLocationName,
 
@@ -1338,8 +1129,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       return false;
     }
   }
-
-  // Add this method at the beginning of the class
 
   void calculateItemTotals() {
     if (_disposed) return;

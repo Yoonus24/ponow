@@ -48,6 +48,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   final ValueNotifier<bool> _refreshDataNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<int> _filteredCountNotifier = ValueNotifier<int>(0);
 
+  bool _initialLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -91,6 +93,20 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     }
   }
 
+  int _calculateDueDays(Outgoing outgoing) {
+    if (outgoing.invoiceDate == null) return 0;
+
+    // Extract days from "15 days"
+    final terms = outgoing.paymentTerms ?? '';
+    final match = RegExp(r'\d+').firstMatch(terms);
+    final int creditDays = match != null ? int.parse(match.group(0)!) : 0;
+
+    final dueDate = outgoing.invoiceDate!.add(Duration(days: creditDays));
+
+    final today = DateTime.now();
+    return dueDate.difference(today).inDays;
+  }
+
   void _updateSelection() {}
 
   bool get isMultipleSelected => _selectedIndicesNotifier.value.length > 1;
@@ -98,7 +114,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   Future<void> _loadInitialData() async {
     final provider = context.read<OutgoingPaymentProvider>();
 
+    provider.setLoadingOutgoings(true);
+
     try {
+      await provider.fetchApInvoices();
+      await provider.fetchGrnList();
+
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
         filterBy: 'invoiceDate',
@@ -515,7 +536,19 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     _scaffoldMessengerKey.currentState?.showSnackBar(
                       const SnackBar(content: Text('Payment Confirmed')),
                     );
-                    await _loadData();
+                    final provider = Provider.of<OutgoingPaymentProvider>(
+                      context,
+                      listen: false,
+                    );
+
+                    await provider.fetchApInvoices();
+                    await provider.fetchFilteredOutgoings(
+                      status: 'Pending',
+                      filterBy: 'invoiceDate',
+                      limit: 100,
+                    );
+
+                    _refreshDataNotifier.value = !_refreshDataNotifier.value;
                   }
                 } catch (e) {
                   if (context.mounted) {
@@ -1046,6 +1079,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     }
 
     final GlobalKey cellKey = GlobalKey();
+    final dueDays = _calculateDueDays(outgoing);
 
     return Row(
       children: [
@@ -1175,13 +1209,13 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         ),
 
         _buildContentCell(
-          (outgoing.intimationDays?.toInt() ?? 0).toString(),
+          dueDays.toString(),
           columnWidths[5],
           textStyle: TextStyle(
             fontSize: 12,
-            color: (outgoing.intimationDays?.toInt() ?? 0) < 5
+            color: dueDays < 0
                 ? Colors.red
-                : (outgoing.intimationDays?.toInt() ?? 0) < 10
+                : dueDays <= 3
                 ? Colors.orange
                 : Colors.green,
           ),
@@ -1324,6 +1358,10 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     }
   }
 
+  Future<void> _onRefresh() async {
+    await _loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -1341,108 +1379,65 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             builder: (context, refreshData, _) {
               return Consumer<OutgoingPaymentProvider>(
                 builder: (context, provider, child) {
-                  // Show loading state
+                  final List<Outgoing> filtered = List.from(provider.payments);
+                  final List<GRN> grnList = provider.grnList;
+                  final List<ApInvoice> apInvoices = provider.apInvoices;
+
+                  // ✅ Proper loading state
                   if (provider.isLoadingOutgoings) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  // Show error state
-                  if (provider.error.isNotEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Error: ${provider.error}'),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _loadData,
-                            child: const Text('Retry'),
-                          ),
-                        ],
+                  // ✅ Real empty state (after loading finished)
+                  if (!provider.isLoadingOutgoings && filtered.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No pending outgoing',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     );
                   }
 
-                  final grnList = provider.grnList;
-                  final apInvoices = provider.apInvoices;
-                  // ================= LOCAL SORT LOGIC =================
-
-                  // Always work on a copy – never mutate provider list
-                  final List<Outgoing> filtered = List.from(provider.payments);
-
-                  // Read current sort state
+                  // ================= SORT LOGIC =================
                   final String sortColumn = _sortColumnNotifier.value;
                   final bool ascending = _sortAscendingNotifier.value;
 
-                  // Apply local sort
                   filtered.sort((a, b) {
                     int result = 0;
 
                     switch (sortColumn) {
                       case 'dueDays':
-                        final int aVal = a.intimationDays ?? 0;
-                        final int bVal = b.intimationDays ?? 0;
-                        result = aVal.compareTo(bVal);
+                        result = (a.intimationDays ?? 0).compareTo(
+                          b.intimationDays ?? 0,
+                        );
                         break;
 
                       case 'paymentTerms':
-                        final String aVal = a.paymentTerms ?? '';
-                        final String bVal = b.paymentTerms ?? '';
-                        result = aVal.compareTo(bVal);
+                        result = (a.paymentTerms ?? '').compareTo(
+                          b.paymentTerms ?? '',
+                        );
                         break;
 
                       case 'invoiceDate':
-                        final DateTime aVal = a.invoiceDate ?? DateTime(1970);
-                        final DateTime bVal = b.invoiceDate ?? DateTime(1970);
-                        result = aVal.compareTo(bVal);
+                        result = (a.invoiceDate ?? DateTime(1970)).compareTo(
+                          b.invoiceDate ?? DateTime(1970),
+                        );
                         break;
 
                       default:
                         result = 0;
                     }
 
-                    // Ascending / Descending toggle
                     return ascending ? result : -result;
                   });
 
                   debugPrint(
-                    '🏗️ Building UI with ${filtered.length} filtered payments (from backend)',
+                    '🏗️ Building UI with ${filtered.length} filtered payments',
                   );
-
-                  // Show empty state
-                  if (filtered.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'No pending payments found.',
-                            style: TextStyle(fontSize: 17, color: Colors.grey),
-                          ),
-                          if (provider.allPayments.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Total payments in system: ${provider.allPayments.length}',
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          IconButton(
-                            onPressed: _loadData,
-                            icon: const Icon(
-                              Icons.refresh,
-                              color: Colors.blueAccent,
-                              size: 22,
-                            ),
-                            tooltip: 'Refresh',
-                          ),
-                        ],
-                      ),
-                    );
-                  }
 
                   const columnWidths = <double>[
                     45,
@@ -1466,108 +1461,59 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   ];
                   final totalWidth = columnWidths.reduce((a, b) => a + b);
 
-                  return Scrollbar(
-                    controller: _mainScrollController,
-                    thumbVisibility: true,
-                    child: SingleChildScrollView(
+                  return RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    displacement: 60,
+                    color: Colors.blueAccent,
+                    child: Scrollbar(
                       controller: _mainScrollController,
-                      scrollDirection: Axis.vertical,
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'PENDING OUTGOING',
-                                  style: TextStyle(
-                                    fontSize: 25,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _mainScrollController,
+                        physics:
+                            const AlwaysScrollableScrollPhysics(), // 🔥 IMPORTANT
+                        scrollDirection: Axis.vertical,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'PENDING OUTGOING',
+                                    style: TextStyle(
+                                      fontSize: 25,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.red,
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.red,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
 
-                                LayoutBuilder(
-                                  builder: (context, constraints) {
-                                    if (constraints.maxWidth > 600) {
-                                      return Row(
-                                        children: [
-                                          _buildVendorFilterField(provider),
-                                          const SizedBox(width: 8),
-                                          _buildInvoiceSearchField(provider),
-                                          const SizedBox(width: 8),
-                                          _buildMultiplePaymentButton(filtered),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: ValueListenableBuilder<Set<int>>(
-                                              valueListenable:
-                                                  _selectedIndicesNotifier,
-                                              builder: (context, selectedIndices, _) {
-                                                if (selectedIndices.length >
-                                                    1) {
-                                                  final amount = selectedIndices
-                                                      .fold(
-                                                        0.0,
-                                                        (sum, index) =>
-                                                            sum +
-                                                            (filtered[index]
-                                                                    .totalPayableAmount ??
-                                                                0.0),
-                                                      );
-                                                  return Text(
-                                                    'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                    style: const TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: Colors.black,
-                                                    ),
-                                                  );
-                                                }
-                                                return const SizedBox();
-                                              },
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    }
-                                    return Column(
-                                      children: [
-                                        Row(
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      if (constraints.maxWidth > 600) {
+                                        return Row(
                                           children: [
-                                            Expanded(
-                                              child: _buildVendorFilterField(
-                                                provider,
-                                              ),
-                                            ),
+                                            _buildVendorFilterField(provider),
                                             const SizedBox(width: 8),
-                                            Expanded(
-                                              child: _buildInvoiceSearchField(
-                                                provider,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
+                                            _buildInvoiceSearchField(provider),
+                                            const SizedBox(width: 8),
                                             _buildMultiplePaymentButton(
                                               filtered,
                                             ),
@@ -1603,222 +1549,280 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ],
+                                        );
+                                      }
+                                      return Column(
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _buildVendorFilterField(
+                                                  provider,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: _buildInvoiceSearchField(
+                                                  provider,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              _buildMultiplePaymentButton(
+                                                filtered,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: ValueListenableBuilder<Set<int>>(
+                                                  valueListenable:
+                                                      _selectedIndicesNotifier,
+                                                  builder: (context, selectedIndices, _) {
+                                                    if (selectedIndices.length >
+                                                        1) {
+                                                      final amount =
+                                                          selectedIndices.fold(
+                                                            0.0,
+                                                            (sum, index) =>
+                                                                sum +
+                                                                (filtered[index]
+                                                                        .totalPayableAmount ??
+                                                                    0.0),
+                                                          );
+                                                      return Text(
+                                                        'Selected Amount: ${amount.toStringAsFixed(2)}',
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors.black,
+                                                        ),
+                                                      );
+                                                    }
+                                                    return const SizedBox();
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
 
-                          ValueListenableBuilder<String?>(
-                            valueListenable: _selectedVendorNotifier,
-                            builder: (context, selectedVendor, _) {
-                              return ValueListenableBuilder<String?>(
-                                valueListenable: _selectedInvoiceNotifier,
-                                builder: (context, selectedInvoice, _) {
-                                  return Container(
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Scrollbar(
-                                          controller:
-                                              _horizontalScrollController,
-                                          thumbVisibility: true,
-                                          child: SingleChildScrollView(
+                            ValueListenableBuilder<String?>(
+                              valueListenable: _selectedVendorNotifier,
+                              builder: (context, selectedVendor, _) {
+                                return ValueListenableBuilder<String?>(
+                                  valueListenable: _selectedInvoiceNotifier,
+                                  builder: (context, selectedInvoice, _) {
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Scrollbar(
                                             controller:
                                                 _horizontalScrollController,
-                                            scrollDirection: Axis.horizontal,
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Container(
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                        gradient:
-                                                            LinearGradient(
-                                                              colors: [
-                                                                Color.fromARGB(
-                                                                  255,
-                                                                  74,
-                                                                  122,
-                                                                  227,
-                                                                ),
-                                                                Color.fromARGB(
-                                                                  255,
-                                                                  100,
-                                                                  140,
-                                                                  240,
-                                                                ),
-                                                              ],
-                                                              begin: Alignment
-                                                                  .topLeft,
-                                                              end: Alignment
-                                                                  .bottomRight,
-                                                            ),
-                                                      ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        vertical: 16,
-                                                      ),
-                                                  child: SizedBox(
-                                                    width: totalWidth,
-                                                    child: Row(
-                                                      children: [
-                                                        _buildHeaderCell(
-                                                          'No',
-                                                          columnWidths[0],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Select',
-                                                          columnWidths[1],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'View',
-                                                          columnWidths[2],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Action',
-                                                          columnWidths[3],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Pdf',
-                                                          columnWidths[4],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Due Days',
-                                                          columnWidths[5],
-                                                          sortColumn: 'dueDays',
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Vendor Name',
-                                                          columnWidths[6],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Invoice No',
-                                                          columnWidths[7],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Invoice Date',
-                                                          columnWidths[8],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'GRN No',
-                                                          columnWidths[9],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'AP No',
-                                                          columnWidths[10],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Total Amount',
-                                                          columnWidths[11],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Tax',
-                                                          columnWidths[12],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Discount',
-                                                          columnWidths[13],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Total',
-                                                          columnWidths[14],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Paid Amount',
-                                                          columnWidths[15],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Remaining',
-                                                          columnWidths[16],
-                                                        ),
-                                                        _buildHeaderCell(
-                                                          'Payment Terms',
-                                                          columnWidths[17],
-                                                          sortColumn:
-                                                              'paymentTerms',
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                                SizedBox(
-                                                  height: 360,
-                                                  child: Scrollbar(
-                                                    controller:
-                                                        _verticalScrollController, // ✅ ADD THIS LINE
-                                                    thumbVisibility: true,
-                                                    child: SingleChildScrollView(
-                                                      controller:
-                                                          _verticalScrollController, // ✅ SAME CONTROLLER
-                                                      child: SizedBox(
-                                                        width: totalWidth,
-                                                        child: Column(
-                                                          children: [
-                                                            for (
-                                                              var index = 0;
-                                                              index <
-                                                                  filtered
-                                                                      .length;
-                                                              index++
-                                                            )
-                                                              ValueListenableBuilder<
-                                                                List<bool>
-                                                              >(
-                                                                valueListenable:
-                                                                    _selectedRowsNotifier,
-                                                                builder:
-                                                                    (
-                                                                      context,
-                                                                      selectedRows,
-                                                                      _,
-                                                                    ) {
-                                                                      return Container(
-                                                                        height:
-                                                                            60.0,
-                                                                        color:
-                                                                            selectedRows.isNotEmpty &&
-                                                                                index <
-                                                                                    selectedRows.length &&
-                                                                                selectedRows[index]
-                                                                            ? Colors.blue.shade50
-                                                                            : (index.isEven
-                                                                                  ? Colors.white
-                                                                                  : Colors.grey.shade50),
-                                                                        child: _buildDataRow(
-                                                                          index,
-                                                                          filtered[index],
-                                                                          grnList,
-                                                                          apInvoices,
-                                                                          columnWidths,
-                                                                        ),
-                                                                      );
-                                                                    },
+                                            thumbVisibility: true,
+                                            child: SingleChildScrollView(
+                                              controller:
+                                                  _horizontalScrollController,
+                                              scrollDirection: Axis.horizontal,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          gradient: LinearGradient(
+                                                            colors: [
+                                                              Color.fromARGB(
+                                                                255,
+                                                                74,
+                                                                122,
+                                                                227,
                                                               ),
-                                                          ],
+                                                              Color.fromARGB(
+                                                                255,
+                                                                100,
+                                                                140,
+                                                                240,
+                                                              ),
+                                                            ],
+                                                            begin: Alignment
+                                                                .topLeft,
+                                                            end: Alignment
+                                                                .bottomRight,
+                                                          ),
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 16,
+                                                        ),
+                                                    child: SizedBox(
+                                                      width: totalWidth,
+                                                      child: Row(
+                                                        children: [
+                                                          _buildHeaderCell(
+                                                            'No',
+                                                            columnWidths[0],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Select',
+                                                            columnWidths[1],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'View',
+                                                            columnWidths[2],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Action',
+                                                            columnWidths[3],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Pdf',
+                                                            columnWidths[4],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Due Days',
+                                                            columnWidths[5],
+                                                            sortColumn:
+                                                                'dueDays',
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Vendor Name',
+                                                            columnWidths[6],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Invoice No',
+                                                            columnWidths[7],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Invoice Date',
+                                                            columnWidths[8],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'GRN No',
+                                                            columnWidths[9],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'AP No',
+                                                            columnWidths[10],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Total Amount',
+                                                            columnWidths[11],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Tax',
+                                                            columnWidths[12],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Discount',
+                                                            columnWidths[13],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Total',
+                                                            columnWidths[14],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Paid Amount',
+                                                            columnWidths[15],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Remaining',
+                                                            columnWidths[16],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Payment Terms',
+                                                            columnWidths[17],
+                                                            sortColumn:
+                                                                'paymentTerms',
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    height: 360,
+                                                    child: Scrollbar(
+                                                      controller:
+                                                          _verticalScrollController, // ✅ ADD THIS LINE
+                                                      thumbVisibility: true,
+                                                      child: SingleChildScrollView(
+                                                        controller:
+                                                            _verticalScrollController, // ✅ SAME CONTROLLER
+                                                        child: SizedBox(
+                                                          width: totalWidth,
+                                                          child: Column(
+                                                            children: [
+                                                              for (
+                                                                var index = 0;
+                                                                index <
+                                                                    filtered
+                                                                        .length;
+                                                                index++
+                                                              )
+                                                                ValueListenableBuilder<
+                                                                  List<bool>
+                                                                >(
+                                                                  valueListenable:
+                                                                      _selectedRowsNotifier,
+                                                                  builder:
+                                                                      (
+                                                                        context,
+                                                                        selectedRows,
+                                                                        _,
+                                                                      ) {
+                                                                        return Container(
+                                                                          height:
+                                                                              60.0,
+                                                                          color:
+                                                                              selectedRows.isNotEmpty &&
+                                                                                  index <
+                                                                                      selectedRows.length &&
+                                                                                  selectedRows[index]
+                                                                              ? Colors.blue.shade50
+                                                                              : (index.isEven
+                                                                                    ? Colors.white
+                                                                                    : Colors.grey.shade50),
+                                                                          child: _buildDataRow(
+                                                                            index,
+                                                                            filtered[index],
+                                                                            grnList,
+                                                                            apInvoices,
+                                                                            columnWidths,
+                                                                          ),
+                                                                        );
+                                                                      },
+                                                                ),
+                                                            ],
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                              ],
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                        ],
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );

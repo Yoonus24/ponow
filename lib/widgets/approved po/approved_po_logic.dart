@@ -859,8 +859,10 @@ class ApprovedPOLogic {
         return;
       }
 
+      // 🔹 Loading dialog
       showDialog(
         context: context,
+        useRootNavigator: true,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
@@ -945,22 +947,43 @@ class ApprovedPOLogic {
       await poProvider.applyCurrentFilters();
       await grnProvider.fetchFilteredGRNs();
 
-      if (context.mounted) Navigator.of(context).pop();
-      if (context.mounted) Navigator.of(context).pop(true);
+      // 🔹 Close loading dialog
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      dialogMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text("PO converted to GRN successfully"),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), // 👈 move up
+        ),
+      );
+
+      // 🔹 Small delay so user can see snackbar
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // 🔹 Close Approved PO dialog
+      if (context.mounted) {
+        Navigator.of(context).pop(true);
+      }
     } catch (e, stack) {
       debugPrint("❌ Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
 
-      if (context.mounted) Navigator.of(context).pop();
-
+      // 🔹 Close loader if open
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Failed to convert PO to GRN"),
-            backgroundColor: Colors.red,
-          ),
-        );
+        Navigator.of(context, rootNavigator: true).pop();
       }
+
+      dialogMessengerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text("Failed to convert PO to GRN"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), // 👈 move up
+        ),
+      );
     } finally {
       isSaving.value = false;
     }

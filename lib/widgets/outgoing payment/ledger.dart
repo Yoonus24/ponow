@@ -60,12 +60,9 @@ class _LedgerState extends State<Ledger> {
       listen: false,
     );
 
-    await provider.fetchFilteredOutgoings(
-      status: null,
-      filterByAmount: false,
+    await provider.fetchAllOutgoings(
       fromDate: widget.fromDate,
       toDate: widget.toDate,
-      filterBy: 'invoiceDate',
     );
   }
 
@@ -141,6 +138,16 @@ class _LedgerState extends State<Ledger> {
 
       return matchesSearch && matchesVendor;
     }).toList();
+  }
+
+  double _calculateRemainingAmount(Outgoing p) {
+    final original =
+        p.originalTotalPayableAmount ??
+        ((p.totalPaidAmount ?? 0) + (p.totalPayableAmount ?? 0));
+
+    final paid = p.totalPaidAmount ?? 0;
+
+    return (original - paid).clamp(0, double.infinity);
   }
 
   double _calculatePaidAmount(Outgoing payment) {
@@ -347,9 +354,10 @@ class _LedgerState extends State<Ledger> {
                                           ),
                                           DataCell(
                                             Text(
-                                              (payment.payableAmount ??
+                                              (payment.originalTotalPayableAmount ??
                                                       payment
                                                           .totalPayableAmount ??
+                                                      payment.payableAmount ??
                                                       0)
                                                   .toStringAsFixed(2),
                                             ),
@@ -363,9 +371,11 @@ class _LedgerState extends State<Ledger> {
                                           ),
                                           DataCell(
                                             Text(
-                                              (payment.remainingPayableAmount ??
-                                                      0)
-                                                  .toStringAsFixed(2),
+                                              payment.status == 'Partially Paid'
+                                                  ? _calculateRemainingAmount(
+                                                      payment,
+                                                    ).toStringAsFixed(2)
+                                                  : '-',
                                             ),
                                           ),
                                         ],
