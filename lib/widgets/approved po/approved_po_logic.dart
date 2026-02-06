@@ -859,9 +859,9 @@ class ApprovedPOLogic {
         return;
       }
 
-      // 🔹 Loading dialog
       showDialog(
-        context: context,
+        context: Navigator.of(context, rootNavigator: true).context,
+
         useRootNavigator: true,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()),
@@ -951,12 +951,14 @@ class ApprovedPOLogic {
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
-      dialogMessengerKey.currentState?.showSnackBar(
+      ScaffoldMessenger.of(
+        Navigator.of(context, rootNavigator: true).context,
+      ).showSnackBar(
         const SnackBar(
-          content: Text("PO converted to GRN successfully"),
+          content: Text("PO converted to GRN successfully!"),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), // 👈 move up
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
         ),
       );
 

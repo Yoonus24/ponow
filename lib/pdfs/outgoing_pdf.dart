@@ -9,11 +9,11 @@ import 'package:flutter/services.dart' show rootBundle;
 
 /// Outgoing PDF generator
 class OutgoingPdf {
-  static const String baseUrl = 'https://yenerp.com/nextjstestapi';
+  static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   static const String businessUrl =
-      'https://yenerp.com/nextjstestapi/pobusiness';
+      'http://192.168.29.252:8000/nextjstestapi/pobusiness';
   static const String vendorByNameUrl =
-      'https://yenerp.com/nextjstestapi/purchas/vendors/exact-name/';
+      'http://192.168.29.252:8000/nextjstestapi/purchas/vendors/exact-name/';
 
   /// Fetch single Outgoing by id
   Future<Map<String, dynamic>> fetchFilteredOutgoings(String outgoingId) async {

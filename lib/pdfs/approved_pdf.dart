@@ -16,11 +16,11 @@ import 'package:flutter/services.dart' show rootBundle;
 /// - Safe date handling
 /// - Graceful fallback for missing logo asset
 class PurchaseOrderService {
-  static const String baseUrl = 'https://yenerp.com/nextjstestapi';
+  static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   static const String businessUrl =
       'http://yenerp.com/purchaseapi/pobusiness/'; // kept as-is
   static const String vendorBaseUrl =
-      'https://yenerp.com/nextjstestapi/vendors/';
+      'http://192.168.29.252:8000/nextjstestapi/vendors/';
 
   /// Fetch a single purchase order by id
   Future<Map<String, dynamic>> fetchPurchaseOrder(

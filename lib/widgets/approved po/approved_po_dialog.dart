@@ -111,9 +111,12 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
 
     if (!mounted) return;
 
-    if (confirmed == true) {
-      await _logic.convertPoToGRN(context);
-    }
+   if (confirmed == true && mounted) {
+  Future.microtask(() {
+    _logic.convertPoToGRN(context);
+  });
+}
+
   }
 
   @override

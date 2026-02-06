@@ -31,7 +31,7 @@ class APInvoiceProvider extends ChangeNotifier {
 
   String? get error => _error;
 
-  final String baseUrl = 'https://yenerp.com/nextjstestapi';
+  final String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
   // Single Dio instance for all requests
   late Dio _dio;

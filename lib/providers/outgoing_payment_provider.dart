@@ -14,7 +14,7 @@ import 'package:purchaseorders2/models/outgoing.dart';
 
 class OutgoingPaymentProvider extends ChangeNotifier {
   final Dio dio = Dio();
-  final String _baseUrl = 'https://yenerp.com/nextjstestapi';
+  final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];

@@ -345,15 +345,23 @@ class _GRNModalState extends State<GRNModal> {
   }
 
   Map<String, double> _recalculateGRNTotal() {
+    double itemTotal = 0.0;
+
+    for (final item in grn.itemDetails ?? []) {
+      itemTotal += item.finalPrice ?? 0.0;
+    }
+
+    final double roundOff = grn.roundOffAdjustment ?? 0.0;
+    final double finalTotal = itemTotal + roundOff;
+
+    // 🔥 update GRN live
+    grn.grnAmount = finalTotal;
+
     return {
-      'totalItemsAmount': grn.totalAmountBeforeRoundOff ?? 0.0,
+      'totalItemsAmount': itemTotal,
       'totalDiscount': grn.totalDiscount ?? 0.0,
-      'totalSGST': (grn.totalTax ?? 0.0) / 2,
-      'totalCGST': (grn.totalTax ?? 0.0) / 2,
-      'totalIGST': 0.0,
-      'totalTax': grn.totalTax ?? 0.0,
-      'roundOff': grn.roundOffAdjustment ?? 0.0,
-      'totalReceivedAmount': grn.grnAmount ?? 0.0,
+      'roundOff': roundOff,
+      'totalReceivedAmount': finalTotal,
     };
   }
 
@@ -639,9 +647,7 @@ class _GRNModalState extends State<GRNModal> {
         (sum, item) => sum + (item.finalPrice ?? 0.0),
       );
       final double grnFinalAmount = grn.grnAmount ?? itemTotal;
-      final double apRoundOff = double.parse(
-        (grnFinalAmount - itemTotal).toStringAsFixed(2),
-      );
+      final double apRoundOff = grn.roundOffAdjustment ?? 0.0;
 
       print('🧮 Item Total      : $itemTotal');
       print('🧮 GRN Amount     : $grnFinalAmount');
@@ -672,7 +678,7 @@ class _GRNModalState extends State<GRNModal> {
       if (result['success'] == true && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('GRN converted to AP successfully'),
+            content: Text('converted AP + Outgoing successfully'),
             backgroundColor: Colors.green,
           ),
         );

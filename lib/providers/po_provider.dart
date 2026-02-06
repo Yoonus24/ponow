@@ -18,12 +18,12 @@ import 'package:purchaseorders2/models/branchlocation.dart';
 
 class POProvider extends ChangeNotifier {
   static const String cloudBaseUrl = 'https://yenerp.com';
-  static const String localBaseUrl = 'https://yenerp.com/nextjstestapi';
+  static const String localBaseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
   final Dio _dio =
       Dio(
           BaseOptions(
-            baseUrl: 'https://yenerp.com/nextjstestapi',
+            baseUrl: 'http://192.168.29.252:8000/nextjstestapi',
             connectTimeout: const Duration(seconds: 60),
             receiveTimeout: const Duration(seconds: 30),
             sendTimeout: const Duration(seconds: 30),
