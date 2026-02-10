@@ -77,7 +77,6 @@ class ItemDetail {
     this.finalPrice,
     this.returnHistory,
   }) {
-    // Set taxType based on sgst, cgst, and igst values
     taxType ??= (sgst != null && sgst! > 0) || (cgst != null && cgst! > 0)
           ? 'cgst_sgst'
           : (igst != null && igst! > 0)
@@ -245,7 +244,7 @@ class ReturnItem {
 class ItemDetails {
   final String? itemId;
   final String? itemName;
-  final String noteType; // "debit" or "credit"
+  final String noteType; 
   final double quantity;
   final double unitPrice;
   final double totalPrice;

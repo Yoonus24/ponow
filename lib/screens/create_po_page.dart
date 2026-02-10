@@ -77,7 +77,10 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
-      Provider.of<POProvider>(context, listen: false).fetchBranches();
+      Provider.of<POProvider>(
+        context,
+        listen: false,
+      ).fetchBranches(force: true);
       if (widget.editingPO == null) {
         print('🧹 Clearing old notifier data for NEW PO');
 
@@ -319,7 +322,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
           ),
         ),
 
-        // Dropdown items
         itemBuilder: (context) => [
           PopupMenuItem<String>(
             value: 'create_new',
@@ -365,7 +367,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
           ),
         ],
 
-        // Menu actions
         onSelected: (value) async {
           if (value == 'create_new') {
             await _navigateToTemplateCreateScreen();
@@ -395,14 +396,12 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       print('⚠️ Error in safe clear: $e');
     }
 
-    // Close dialog
     if (mounted) {
       Navigator.of(context).pop();
     }
   }
 
   Future<void> _navigateToTemplateCreateScreen() async {
-    // 🔥 CLEAR OLD PO DATA
     logic.resetAllFields();
     notifier.poItems.clear();
     notifier.clearSelectedVendor();
@@ -973,15 +972,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(height: isTablet ? 10 : 16),
                                 ],
 
-                                // Column(
-                                //   crossAxisAlignment: CrossAxisAlignment.start,
-                                //   children: [
-                                //     const SizedBox(height: 0),
-                                //     LocationDropdown(
-                                //       inputDecoration: _inputDecoration,
-                                //     ),
-                                //   ],
-                                // ),
+                               
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 1.0,

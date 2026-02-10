@@ -186,8 +186,8 @@ class _GRNWidgetState extends State<GRNWidget> {
                           style: TextStyle(
                             color: grn.hasDebitCreditNotes == true
                                 ? Colors
-                                      .white // text enabled
-                                : Colors.grey, // text disabled
+                                      .white 
+                                : Colors.grey,
                             fontSize: 11,
                           ),
                         ),

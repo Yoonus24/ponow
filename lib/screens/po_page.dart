@@ -39,12 +39,10 @@ class _POPageState extends State<POPage> {
         onRefresh: _refreshPOs,
         child: Consumer<POProvider>(
           builder: (context, poProvider, _) {
-            // 🔄 Loading
             if (poProvider.isLoading) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            // ❌ Error
             if (poProvider.error != null) {
               return ListView(
                 children: [
@@ -59,14 +57,12 @@ class _POPageState extends State<POPage> {
               );
             }
 
-            // 📦 Filter pending POs
             final pendingOrders = poProvider.pos.where((po) {
               return po.poStatus == 'Pending' ||
                   po.poStatus == 'Pending for Approve' ||
                   po.poStatus == 'CreditLimit for Approve';
             }).toList();
 
-            // 📭 EMPTY STATE — ORIGINAL STYLE
             if (pendingOrders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(), 

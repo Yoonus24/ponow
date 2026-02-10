@@ -18,7 +18,6 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
   late ScrollController _leftVertical;
   late ScrollController _rightVertical;
 
-  // ⭐ NEW: Horizontal scroll controller
   late ScrollController _rightHorizontal;
 
   bool _syncing = false;
@@ -30,9 +29,8 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
     _leftVertical = ScrollController();
     _rightVertical = ScrollController();
 
-    _rightHorizontal = ScrollController(); // ⭐ IMPORTANT FIX
+    _rightHorizontal = ScrollController(); 
 
-    // Sync vertical scroll
     _leftVertical.addListener(() {
       if (_syncing) return;
       _syncing = true;
@@ -52,7 +50,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
   void dispose() {
     _leftVertical.dispose();
     _rightVertical.dispose();
-    _rightHorizontal.dispose(); // ⭐ DISPOSE FIX
+    _rightHorizontal.dispose(); 
     super.dispose();
   }
 
@@ -92,9 +90,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
     );
   }
 
-  // ===========================================================
-  // STICKY HEADER
-  // ===========================================================
+  
   Widget _buildStickyHeader(DebitCreditNote grn, GRN grns) {
     return Container(
       width: double.infinity,
@@ -173,16 +169,13 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
 
     return Column(
       children: [
-        // ⭐ Wrap HEADER + BODY right side in ONE horizontal scroll
         Expanded(
           child: Row(
             children: [
-              // ---------------- LEFT FIXED SIDE ----------------
               SizedBox(
                 width: noColWidth + nameColWidth,
                 child: Column(
                   children: [
-                    // Header left
                     Container(
                       height: 40,
                       color: Colors.grey.shade300,
@@ -209,7 +202,6 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                       ),
                     ),
 
-                    // Body left
                     Expanded(
                       child: ListView.builder(
                         controller: _leftVertical,
@@ -239,7 +231,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                                     maxLines: 2,
                                     softWrap: true,
                                     overflow: TextOverflow
-                                        .visible, // important for wrapping
+                                        .visible, 
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
@@ -253,7 +245,6 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                 ),
               ),
 
-              // ---------------- RIGHT SCROLLABLE SIDE ----------------
               Expanded(
                 child: SingleChildScrollView(
                   controller: _rightHorizontal,
@@ -338,9 +329,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
     );
   }
 
-  // ===========================================================
-  // SUMMARY
-  // ===========================================================
+
   Widget _buildSummarySection(DebitCreditNote grn) {
     double totalWithoutTax = grn.itemDetails.fold(
       0.0,

@@ -7,11 +7,10 @@ class ShippingAddress {
     required this.address,
   });
 
-  // Add fromJson factory method with null checks
   factory ShippingAddress.fromJson(Map<String, dynamic> json) {
     return ShippingAddress(
-      shippingId: json['shippingId'] ?? '', // Handle null values
-      address: json['address'] ?? '', // Handle null values
+      shippingId: json['shippingId'] ?? '', 
+      address: json['address'] ?? '', 
     );
   }
 }
@@ -28,10 +27,9 @@ class BillingAddress {
     required this.address2,
   });
 
-  // Add fromJson factory method with null checks
   factory BillingAddress.fromJson(Map<String, dynamic> json) {
     return BillingAddress(
-      businessId: json['businessId'] ?? '', // Handle null values
+      businessId: json['businessId'] ?? '', 
      
       address1: json['address1']?? '',
       address2: json['address2'] ?? '',

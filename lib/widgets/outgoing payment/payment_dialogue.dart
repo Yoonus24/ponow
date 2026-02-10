@@ -63,7 +63,6 @@ class PaymentDialog extends StatelessWidget {
                         const SizedBox(height: 16),
                         _buildPaymentModeDropdown(provider),
 
-                        // Show fields based on selected payment mode
                         if (provider.selectedPaymentMode == 'Cash') ...[
                           const SizedBox(height: 16),
                           _buildCashTypeDropdown(provider),
@@ -142,7 +141,7 @@ class PaymentDialog extends StatelessWidget {
 
     return GestureDetector(
       onTap: isFullPayment
-          ? null // 🔒 Full payment → no calculator
+          ? null
           : () {
               showNumericCalculator(
                 context: context,
@@ -152,7 +151,6 @@ class PaymentDialog extends StatelessWidget {
                   final double entered =
                       double.tryParse(provider.amountController.text) ?? 0.0;
 
-                  // 🔥 HARD STOP: Partial payment cannot exceed total
                   if (provider.selectedPaymentType == 'partial' &&
                       entered > totalPayableAmount) {
                     provider.amountController.text = totalPayableAmount
@@ -509,70 +507,6 @@ class PaymentDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildTransactionField(
-    BuildContext context,
-    PaymentDialogProvider provider,
-  ) {
-    final bool isUPI = provider.selectedBankPaymentMethod == 'upi';
-
-    if (isUPI) {
-      return TextFormField(
-        controller: provider.transactionController,
-        keyboardType: TextInputType.text,
-        decoration: InputDecoration(
-          labelText: 'UPI Reference / UTR',
-          border: OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey[400]!),
-          ),
-          enabledBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.black54),
-          ),
-          focusedBorder: const OutlineInputBorder(
-            borderSide: BorderSide(color: Colors.blueAccent, width: 2),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        validator: (value) => value == null || value.isEmpty
-            ? 'Please enter UPI reference'
-            : null,
-      );
-    }
-
-    return GestureDetector(
-      onTap: () {
-        showNumericCalculator(
-          context: context,
-          controller: provider.transactionController,
-          varianceName: 'Enter Reference Number',
-          onValueSelected: () {},
-          fieldType: '',
-        );
-      },
-      child: AbsorbPointer(
-        child: TextFormField(
-          controller: provider.transactionController,
-          decoration: InputDecoration(
-            labelText: provider.getTransactionLabel(),
-            border: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey[400]!),
-            ),
-            enabledBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.black54),
-            ),
-            focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.blueAccent, width: 2),
-            ),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-          validator: (value) => value == null || value.isEmpty
-              ? 'Please enter reference number'
-              : null,
-        ),
-      ),
-    );
-  }
 
   Widget _buildConfirmButton(
     BuildContext context,
@@ -623,13 +557,12 @@ class PaymentDialog extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
 
-                          // ✅ CONFIRM (Blue Accent Filled, White Text)
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () => Navigator.of(context).pop(true),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blueAccent,
-                                foregroundColor: Colors.white, // ✅ Text white
+                                foregroundColor: Colors.white, 
                               ),
                               child: const Text('Confirm'),
                             ),
@@ -695,7 +628,7 @@ class PaymentDialog extends StatelessWidget {
           foregroundColor: Colors.white,
           elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25), // ✅ modern look
+            borderRadius: BorderRadius.circular(25), 
           ),
         ),
         child: provider.isSubmitting
@@ -710,9 +643,9 @@ class PaymentDialog extends StatelessWidget {
             : Center(
                 child: Text(
                   isBulkPayment ? 'Confirm Bulk Payment' : 'Confirm Payment',
-                  textAlign: TextAlign.center, // ✅ CENTER ALIGN
-                  softWrap: true, // ✅ ALLOW WRAP
-                  maxLines: 2, // ✅ NO CUT
+                  textAlign: TextAlign.center,
+                  softWrap: true, 
+                  maxLines: 2,
                   overflow: TextOverflow.visible,
                   style: const TextStyle(
                     fontSize: 13,

@@ -9,7 +9,6 @@ import 'package:purchaseorders2/widgets/outgoing payment/pre_outgoing.dart';
 import 'package:purchaseorders2/widgets/outgoing payment/partial_payment.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common_app_bar.dart';
-import '../widgets/common_bottom_nav.dart';
 import '../providers/outgoing_payment_provider.dart';
 import 'package:dio/dio.dart';
 
@@ -83,24 +82,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
     }
   }
 
-  // List<Outgoing> filterPayments(List<Outgoing> allPayments, String uiStatus) {
-  //   return allPayments.where((payment) {
-  //     final status = payment.status?.toLowerCase() ?? '';
-
-  //     switch (uiStatus) {
-  //       case 'active':
-  //         return status == 'pending';
-  //       case 'partially_paid':
-  //         return status == 'partially paid';
-  //       case 'payment_done':
-  //         return status == 'fully paid';
-  //       case 'ledger':
-  //         return true;
-  //       default:
-  //         return status == uiStatus;
-  //     }
-  //   }).toList();
-  // }
 
   void debugFiltering() {
     final provider = context.read<OutgoingPaymentProvider>();
@@ -135,7 +116,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
         }
       }
     } on DioException catch (e) {
-      // 🌐 Internet illa → silent fail (UI already handles date logic)
       debugPrint('Server datetime fetch failed: ${e.type}');
     } catch (e) {
       debugPrint('Server datetime fetch failed: $e');
@@ -145,8 +125,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   Future<void> _fetchDataForStatus(String status) async {
     final provider = context.read<OutgoingPaymentProvider>();
 
-    // ❌ DO NOTHING for pending
-    // PendingOutgoing widget handles its own fetch
     if (status == 'pending') return;
 
     if (status == 'payment_done') {
@@ -173,7 +151,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isFromDate) async {
-    // ✅ Always refresh server time first
     await _fetchServerDateTime();
 
     final DateTime serverDate = _serverNow ?? DateTime.now();
@@ -196,14 +173,13 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
         return true;
       },
 
-      // 🎨 Custom theme: white bg, black text, blue accent
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color.fromARGB(255, 38, 89, 198), // blue accent
+              primary: Color.fromARGB(255, 38, 89, 198), 
               onPrimary: Colors.white,
-              onSurface: Colors.black, // date text
+              onSurface: Colors.black, 
             ),
             dialogBackgroundColor: Colors.white,
             dialogTheme: DialogThemeData(

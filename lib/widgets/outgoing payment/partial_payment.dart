@@ -190,7 +190,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
                     return Column(
                       children: [
-                        // Header Section: Title + Search in same row
                         Container(
                           color: Colors.white,
                           padding: const EdgeInsets.symmetric(
@@ -585,14 +584,14 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: Colors.white, // ✅ force white
+        backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), // ✅ more curved edges
+          borderRadius: BorderRadius.circular(20), 
         ),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20), // ✅ match curve
+            borderRadius: BorderRadius.circular(20), 
           ),
           padding: const EdgeInsets.all(16),
           constraints: const BoxConstraints(maxWidth: 420),
@@ -601,7 +600,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 🔹 Header: centered title + right close
+              
                 SizedBox(
                   height: 40,
                   child: Stack(

@@ -141,8 +141,6 @@ class Outgoing {
     this.apRandomId,
     this.poRandomId,
     this.hoCash,
-
-    // ✅ NEW
     this.totalPaidAmount,
     this.remainingPayableAmount,
     this.paymentHistory,
@@ -245,7 +243,6 @@ class Outgoing {
     }
   }
 
-  // ----------------- HELPERS -----------------
 
   static String? _parseString(dynamic value) {
     if (value == null) return null;
@@ -295,7 +292,6 @@ class Outgoing {
     }
   }
 
-  // ✅ ✅ ✅ RESTORED toJson() (FIXES YOUR PROVIDER ERROR)
   Map<String, dynamic> toJson() {
     return {
       'outgoingId': outgoingId,
@@ -360,8 +356,6 @@ class Outgoing {
       'grnRandomId': grnRandomId,
       'apRandomId': apRandomId,
       'poRandomId': poRandomId,
-
-      // ✅ PAYMENT SUMMARY
       'totalPaidAmount': totalPaidAmount,
       'remainingPayableAmount': remainingPayableAmount,
       'paymentHistory': paymentHistory?.map((e) => e.toJson()).toList(),
@@ -450,7 +444,6 @@ class Outgoing {
   }
 }
 
-// ✅ ✅ ✅ PAYMENT HISTORY MODEL
 class PaymentHistory {
   final double? amount;
   final String? paymentType;
@@ -487,7 +480,6 @@ class PaymentHistory {
   }
 }
 
-// ✅ ✅ ✅ BULK PAYMENT MODEL (UNCHANGED)
 class BulkPayment {
   String? outgoingId;
   String? paymentMode;

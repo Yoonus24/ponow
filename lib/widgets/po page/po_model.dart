@@ -50,9 +50,7 @@ class _POModalState extends State<POModal> {
   void initState() {
     super.initState();
 
-    // ===============================
-    // INIT CONTROLLERS FROM PO ITEMS
-    // ===============================
+   
     countControllers = widget.po.items
         .map(
           (item) =>
@@ -76,9 +74,7 @@ class _POModalState extends State<POModal> {
         )
         .toList();
 
-    // ===============================
-    // 🔥 DISCOUNT FIX (MAIN PART)
-    // ===============================
+   
     befTaxDiscountControllers = [];
     afTaxDiscountControllers = [];
 
@@ -89,12 +85,10 @@ class _POModalState extends State<POModal> {
       double befAmount = 0.0;
       double afAmount = 0.0;
 
-      // 👉 Overall discount comes only as pendingDiscountAmount
       if (totalDiscount > 0 && totalPrice > 0) {
         afAmount = totalDiscount;
       }
 
-      // 🔒 Sync back to model (VERY IMPORTANT)
       item.pendingBefTaxDiscountAmount = befAmount;
       item.pendingAfTaxDiscountAmount = afAmount;
 
@@ -109,9 +103,6 @@ class _POModalState extends State<POModal> {
 
     initializeTaxFromBackend();
 
-    // ===============================
-    // COLUMN SETUP
-    // ===============================
     columnsNotifier = ValueNotifier<List<String>>([
       'Item Name',
       'UOM',
@@ -148,9 +139,6 @@ class _POModalState extends State<POModal> {
       'igst': false,
     });
 
-    // ===============================
-    // SYNC SCROLL (LEFT ↔ RIGHT)
-    // ===============================
     _leftVerticalController.addListener(() {
       if (_rightVerticalController.hasClients &&
           _rightVerticalController.offset != _leftVerticalController.offset) {
@@ -206,9 +194,7 @@ class _POModalState extends State<POModal> {
 
     final item = widget.po.items[index];
 
-    // -----------------------------
-    // PARSE INPUTS
-    // -----------------------------
+ 
     final pendingCount = double.tryParse(countControllers[index].text) ?? 0.0;
 
     final eachQuantity =
@@ -224,31 +210,23 @@ class _POModalState extends State<POModal> {
 
     final taxPercentage = item.taxPercentage ?? 0.0;
 
-    // -----------------------------
-    // CALCULATIONS
-    // -----------------------------
+  
     final totalQuantity = pendingCount * eachQuantity;
     final totalPrice = totalQuantity * unitPrice;
 
-    // BEFORE TAX DISCOUNT (AMOUNT)
     final befTaxDiscountAmount = (totalPrice * befTaxDiscountPercent) / 100;
 
     final priceAfterBefDiscount = totalPrice - befTaxDiscountAmount;
 
-    // TAX
     final taxAmount =
         item.pendingTaxAmount ?? (priceAfterBefDiscount * taxPercentage) / 100;
 
-    // AFTER TAX DISCOUNT (AMOUNT)
     final afTaxDiscountAmount =
         (priceAfterBefDiscount + taxAmount) * (afTaxDiscountPercent / 100);
 
-    // FINAL PRICE
     final finalPrice = priceAfterBefDiscount + taxAmount - afTaxDiscountAmount;
 
-    // -----------------------------
-    // TAX SPLIT
-    // -----------------------------
+   
     double cgst = 0.0;
     double sgst = 0.0;
     double igst = 0.0;
@@ -258,9 +236,7 @@ class _POModalState extends State<POModal> {
       sgst = taxAmount / 2;
     }
 
-    // -----------------------------
-    // UPDATE MODEL (🔥 AMOUNTS ONLY)
-    // -----------------------------
+   
     item.pendingCount = pendingCount;
     item.pendingQuantity = eachQuantity;
     item.pendingTotalQuantity = totalQuantity;
@@ -281,9 +257,7 @@ class _POModalState extends State<POModal> {
     item.pendingSgst = sgst;
     item.pendingIgst = igst;
 
-    // -----------------------------
-    // SYNC CONTROLLERS FROM MODEL
-    // -----------------------------
+  
     befTaxDiscountControllers[index].text = befTaxDiscountAmount
         .toStringAsFixed(2);
 
@@ -293,16 +267,10 @@ class _POModalState extends State<POModal> {
 
     newPriceControllers[index].text = unitPrice.toStringAsFixed(2);
 
-    // -----------------------------
-    // UPDATE PO TOTALS
-    // -----------------------------
     widget.po.pendingDiscountAmount = getTotalDiscountAmount();
     widget.po.pendingTaxAmount = getTotalTaxAmount();
     widget.po.pendingOrderAmount = getTotalOrderAmount();
 
-    // -----------------------------
-    // NOTIFY UI
-    // -----------------------------
     poModalProvider.notifyListeners();
   }
 
@@ -430,7 +398,6 @@ class _POModalState extends State<POModal> {
           ),
           content: Text(message, style: const TextStyle(fontSize: 14)),
           actions: [
-            // CANCEL BUTTON
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text(
@@ -442,7 +409,6 @@ class _POModalState extends State<POModal> {
               ),
             ),
 
-            // APPROVE / REJECT BUTTON
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: isApprove
@@ -524,8 +490,8 @@ class _POModalState extends State<POModal> {
           item.itemName ?? '',
           textAlign: TextAlign.left,
 
-          maxLines: 3, // Changed from 1 to 2
-          softWrap: true, // Changed from false to true
+          maxLines: 3, 
+          softWrap: true,
           style: const TextStyle(fontSize: 12),
         );
 
@@ -561,13 +527,11 @@ class _POModalState extends State<POModal> {
                   listen: false,
                 );
 
-                // First update raw values
                 provider.updateItemRaw(
                   index,
                   count: double.tryParse(countControllers[index].text),
                 );
 
-                // Then ask backend to calculate
                 await provider.calculateAndUpdateItem(index);
               },
             );
@@ -645,7 +609,6 @@ class _POModalState extends State<POModal> {
                 final value =
                     double.tryParse(newPriceControllers[index].text) ?? 0;
 
-                // ✅ CORRECT: update newPrice
                 provider.updateItemRaw(index, newPrice: value);
 
                 await provider.calculateAndUpdateItem(index);
@@ -679,13 +642,11 @@ class _POModalState extends State<POModal> {
                   listen: false,
                 );
 
-                // First update raw values
                 provider.updateItemRaw(
                   index,
                   count: double.tryParse(countControllers[index].text),
                 );
 
-                // Then ask backend to calculate
                 await provider.calculateAndUpdateItem(index);
               },
             );
@@ -716,13 +677,11 @@ class _POModalState extends State<POModal> {
                   listen: false,
                 );
 
-                // First update raw values
                 provider.updateItemRaw(
                   index,
                   count: double.tryParse(countControllers[index].text),
                 );
 
-                // Then ask backend to calculate
                 await provider.calculateAndUpdateItem(index);
               },
             );
@@ -799,7 +758,7 @@ class _POModalState extends State<POModal> {
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero, // ✅ REMOVE CURVE
+        borderRadius: BorderRadius.zero, 
       ),
       child: ValueListenableBuilder<List<String>>(
         valueListenable: columnsNotifier,
@@ -823,7 +782,6 @@ class _POModalState extends State<POModal> {
 
                     return Column(
                       children: [
-                        // ✅ HEADER (STATIC) - TOP SECTION
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Row(
@@ -868,18 +826,15 @@ class _POModalState extends State<POModal> {
                           ),
                         ),
 
-                        // ✅ TABLE SECTION WITH FIXED HEIGHT THAT SCROLLS
                         Expanded(
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             child: Row(
                               children: [
-                                // LEFT FIXED COLUMN (Item Names)
                                 SizedBox(
                                   width: 120,
                                   child: Column(
                                     children: [
-                                      // FIXED HEADER
                                       Container(
                                         height: 33,
                                         alignment: Alignment.centerLeft,
@@ -893,7 +848,6 @@ class _POModalState extends State<POModal> {
                                           ),
                                         ),
                                       ),
-                                      // SCROLLABLE ITEM NAMES
                                       Expanded(
                                         child: ListView.builder(
                                           controller: _leftVerticalController,
@@ -917,9 +871,7 @@ class _POModalState extends State<POModal> {
                                                 ),
                                                 child: Text(
                                                   item.itemName ?? '',
-                                                  // overflow:
-                                                  //     TextOverflow.ellipsis,
-                                                  // maxLines: 2,
+                                               
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                   ),
@@ -933,7 +885,6 @@ class _POModalState extends State<POModal> {
                                   ),
                                 ),
 
-                                // RIGHT SCROLLABLE COLUMNS
                                 Expanded(
                                   child: SingleChildScrollView(
                                     controller: _rightHorizontalController,
@@ -943,9 +894,7 @@ class _POModalState extends State<POModal> {
                                           .clamp(300.0, 1500),
                                       child: Column(
                                         children: [
-                                          // FIXED HEADER ROW
                                           _buildHeaderRow(rightColumns),
-                                          // SCROLLABLE CONTENT
                                           Expanded(
                                             child: ListView.builder(
                                               controller:
@@ -971,7 +920,6 @@ class _POModalState extends State<POModal> {
                           ),
                         ),
 
-                        // ✅ BOTTOM STATIC SUMMARY SECTION (WITH ROUND OFF)
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             vertical: 8.0,
@@ -994,12 +942,10 @@ class _POModalState extends State<POModal> {
                                 "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
                               ),
 
-                              // ✅ SHOW ROUND OFF
                               Text(
                                 "Round Off: ${(po.roundOffAdjustment ?? 0.0).toStringAsFixed(2)}",
                               ),
 
-                              // ✅ FINAL TOTAL WITH ROUND OFF
                               Text(
                                 "Total Order Amount: ${getFinalTotalWithRoundOff().toStringAsFixed(2)}",
                                 style: const TextStyle(
@@ -1011,13 +957,11 @@ class _POModalState extends State<POModal> {
                           ),
                         ),
 
-                        // ✅ BOTTOM STATIC BUTTONS SECTION
                         Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              // CLOSE BUTTON
                               ElevatedButton(
                                 onPressed: () => Navigator.of(context).pop(),
                                 style: ElevatedButton.styleFrom(
@@ -1029,7 +973,6 @@ class _POModalState extends State<POModal> {
 
                               const SizedBox(width: 12),
 
-                              // SAVE BUTTON
                               ElevatedButton(
                                 onPressed: isSaving.value
                                     ? null
@@ -1044,7 +987,7 @@ class _POModalState extends State<POModal> {
                                           Provider.of<POProvider>(
                                             context,
                                             listen: false,
-                                          ).fetchPOs(); // 🔄 background refresh
+                                          ).fetchPOs();
 
                                           if (context.mounted) {
                                             Navigator.of(context).pop();
@@ -1080,7 +1023,6 @@ class _POModalState extends State<POModal> {
                                 ),
                               ),
 
-                              // ⭐⭐⭐ APPROVE BUTTON (ONLY IF ENABLED)
                               if (widget.showApproveButton) ...[
                                 const SizedBox(width: 12),
                                 ElevatedButton(
@@ -1148,7 +1090,6 @@ class _POModalState extends State<POModal> {
                                 ),
                               ],
 
-                              // ⭐⭐⭐ REJECT BUTTON (ONLY IF ENABLED)
                               if (widget.showRejectButton) ...[
                                 const SizedBox(width: 12),
                                 ElevatedButton(

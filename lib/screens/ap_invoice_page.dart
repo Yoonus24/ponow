@@ -4,10 +4,8 @@ import '../models/ap.dart';
 import '../providers/ap_invoice_provider.dart';
 import '../providers/po_provider.dart';
 import '../widgets/ap invoice/ap_invoice_widget.dart';
-import '../widgets/ap invoice/ap_viewinvoice_widget.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/grn/grid_view_widget.dart';
-import '../widgets/common_bottom_nav.dart';
 
 class APInvoicePage extends StatefulWidget {
   const APInvoicePage({super.key});
@@ -57,9 +55,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
     super.dispose();
   }
 
-  // ──────────────────────────────────────────────
-  //               SAME LOGIC - NO CHANGE
-  // ──────────────────────────────────────────────
+
 
   Future<DateTime> _getServerDate() async {
     final provider = Provider.of<POProvider>(context, listen: false);
@@ -187,9 +183,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
     _vendorNotifier.value = '';
   }
 
-  // ──────────────────────────────────────────────
-  //             IMPROVED UI - FILTER SECTION
-  // ──────────────────────────────────────────────
 
   Widget _buildVendorField() {
     return Consumer<POProvider>(
@@ -394,7 +387,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
                       color: hasCustomFilter
                           ? Colors
                                 .grey
-                                .shade200 // 🔘 soft grey background
+                                .shade200 
                           : null,
                       borderRadius: BorderRadius.circular(20),
                     ),
@@ -411,7 +404,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         children: [
                           Icon(
                             Icons.filter_list_rounded,
-                            color: Colors.blueGrey[700], // always same color
+                            color: Colors.blueGrey[700], 
                             size: 28,
                           ),
                         ],
@@ -485,9 +478,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
   }
 
-  // ──────────────────────────────────────────────
-  //               FILTER LOGIC - UNCHANGED
-  // ──────────────────────────────────────────────
+
 
   List<ApInvoice> _filterInvoices(List<ApInvoice> list) {
     return list.where((inv) {
@@ -565,7 +556,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                                   var list = provider.apInvoices;
 
-                                  // Invoice Type filter
                                   list = list.where((inv) {
                                     if (_invoiceType.value == "Goods") {
                                       return isGoodsInvoice(inv);
@@ -574,7 +564,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                     }
                                   }).toList();
 
-                                  // Status filter
                                   if (_statusFilters.value.isEmpty) {
                                     list = list
                                         .where(
@@ -591,7 +580,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                         .toList();
                                   }
 
-                                  // Vendor + Date filter
                                   list = _filterInvoices(list);
 
                                   if (list.isEmpty) {

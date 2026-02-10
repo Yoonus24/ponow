@@ -33,7 +33,6 @@ class APInvoiceProvider extends ChangeNotifier {
 
   final String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
 
-  // Single Dio instance for all requests
   late Dio _dio;
 
   APInvoiceProvider() {
@@ -50,7 +49,6 @@ class APInvoiceProvider extends ChangeNotifier {
       ),
     );
 
-    // Add retry interceptor
     _dio.interceptors.add(
       RetryInterceptor(
         dio: _dio,
@@ -64,7 +62,6 @@ class APInvoiceProvider extends ChangeNotifier {
     );
   }
 
-  // Fetch AP Invoices
   Future<void> fetchAPInvoices({String? status}) async {
     print("🚀 fetchAPInvoices CALLED");
     _setLoading(true);
@@ -169,11 +166,9 @@ class APInvoiceProvider extends ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
-        // Remove AP from UI
         _apInvoices.removeWhere((inv) => inv.invoiceId == invoiceId);
         notifyListeners();
 
-        // Refresh related lists
         final grnProvider = Provider.of<GRNProvider>(context, listen: false);
         final outgoingProvider = Provider.of<OutgoingPaymentProvider>(
           context,
@@ -208,19 +203,16 @@ class APInvoiceProvider extends ChangeNotifier {
     }
   }
 
-  // Set loading state
   void _setLoading(bool isLoading) {
     _loading = isLoading;
     notifyListeners();
   }
 
-  // Set error state
   void _setError(String? error) {
     _error = error;
     notifyListeners();
   }
 
-  // This method appears unused - consider removing if not needed
   void postOutgoingAndUpdateStatus(String s) {}
 }
 

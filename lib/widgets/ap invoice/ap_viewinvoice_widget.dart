@@ -77,9 +77,7 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
     );
   }
 
-  // ============================================
-  // TOP BLUE CARD
-  // ============================================
+ 
   Widget _buildInvoiceCard(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -126,9 +124,6 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
     );
   }
 
-  // ============================================
-  // MAIN TABLE WITH SCROLL SYNC
-  // ============================================
   Widget _buildItemDetailsTable() {
     final items = apinvoice.itemDetails ?? [];
 
@@ -153,14 +148,11 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
       constraints: const BoxConstraints(maxHeight: 170),
       child: Row(
         children: [
-          // ===========================================
-          // LEFT FIXED COLUMN
-          // ===========================================
+      
           SizedBox(
             width: 150,
             child: Column(
               children: [
-                // HEADER
                 Container(
                   height: 40,
                   width: double.infinity,
@@ -176,7 +168,6 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
                   ),
                 ),
 
-                // BODY (SYNCED)
                 Expanded(
                   child: ListView.builder(
                     controller: _leftController,
@@ -184,7 +175,7 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
                     itemBuilder: (_, index) {
                       final item = items[index];
                       return Container(
-                        height: 40, // FIXED ROW HEIGHT
+                        height: 40,
                         alignment: Alignment.centerLeft,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
@@ -204,9 +195,6 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
             ),
           ),
 
-          // ===========================================
-          // RIGHT SCROLLABLE COLUMNS
-          // ===========================================
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -237,7 +225,6 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
                       ),
                     ),
 
-                    // BODY (SYNCED)
                     Expanded(
                       child: ListView.builder(
                         controller: _rightController,
@@ -245,7 +232,7 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
                         itemBuilder: (_, index) {
                           final item = items[index];
                           return Container(
-                            height: 40, // FIXED ROW HEIGHT
+                            height: 40,
                             decoration: BoxDecoration(
                               border: Border(
                                 bottom: BorderSide(color: Colors.grey.shade300),
@@ -280,9 +267,6 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
     );
   }
 
-  // ============================================
-  // CELL VALUE HANDLER
-  // ============================================
   String _getCellValue(String col, dynamic item) {
     switch (col) {
       case "UOM":
@@ -316,9 +300,7 @@ class _APViewInvoiceWidgetState extends State<APViewInvoiceWidget> {
   }
 }
 
-// =======================
-// DATE FORMAT
-// =======================
+
 String _formatDate(String? dateStr) {
   if (dateStr == null || dateStr.isEmpty) return 'N/A';
   try {

@@ -4,42 +4,35 @@ class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  _LoginPageState createState() => _LoginPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _usernameController = TextEditingController(text: '');
-  final _passwordController = TextEditingController(text: '');
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  bool _obscurePassword = true;
+
+  final ValueNotifier<bool> _isLoading = ValueNotifier(false);
+  final ValueNotifier<bool> _obscurePassword = ValueNotifier(true);
 
   Future<void> _login() async {
     if (_formKey.currentState?.validate() ?? false) {
-      setState(() {
-        _isLoading = true;
-      });
+      _isLoading.value = true;
 
-      // Simulate API call with delay
-      await Future.delayed(const Duration(seconds: 0));
+      await Future.delayed(const Duration(seconds: 1));
 
-      setState(() {
-        _isLoading = false;
-      });
+      _isLoading.value = false;
 
-      // Example authentication logic
       final username = _usernameController.text;
       final password = _passwordController.text;
 
       if (username.isEmpty && password.isEmpty) {
-        // Navigate to home
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        // Show error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
-              children: [
+              children: const [
                 Icon(Icons.error_outline, color: Colors.white),
                 SizedBox(width: 10),
                 Expanded(
@@ -62,9 +55,16 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _togglePasswordVisibility() {
-    setState(() {
-      _obscurePassword = !_obscurePassword;
-    });
+    _obscurePassword.value = !_obscurePassword.value;
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _isLoading.dispose();
+    _obscurePassword.dispose();
+    super.dispose();
   }
 
   @override
@@ -90,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
             child: Padding(
               padding: EdgeInsets.all(isSmallScreen ? 20.0 : 40.0),
               child: Container(
-                constraints: BoxConstraints(maxWidth: 500),
+                constraints: const BoxConstraints(maxWidth: 500),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
@@ -99,7 +99,7 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.black.withOpacity(0.1),
                       blurRadius: 30,
                       spreadRadius: 5,
-                      offset: Offset(0, 10),
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),
@@ -108,7 +108,6 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo
                       Container(
                         height: 100,
                         child: Image.asset(
@@ -117,38 +116,23 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
 
-                      // Welcome Text
-                      Column(
-                        children: [
-                          Text(
-                            'Purchase Order',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade900,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          // Text(
-                          //   'Please login to your account',
-                          //   style: TextStyle(
-                          //     fontSize: 16,
-                          //     color: Colors.grey.shade600,
-                          //   ),
-                          // ),
-                        ],
+                      Text(
+                        'Purchase Order',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900,
+                        ),
                       ),
 
-                      SizedBox(height: 30),
+                      const SizedBox(height: 30),
 
-                      // Login Form
                       Form(
                         key: _formKey,
                         child: Column(
                           children: [
-                            // Username Field
                             Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
@@ -167,12 +151,9 @@ class _LoginPageState extends State<LoginPage> {
                                   labelStyle: TextStyle(
                                     color: Colors.blue.shade700,
                                   ),
-                                  prefixIcon: Container(
-                                    width: 50,
-                                    child: Icon(
-                                      Icons.person_outline,
-                                      color: Colors.blue.shade700,
-                                    ),
+                                  prefixIcon: Icon(
+                                    Icons.person_outline,
+                                    color: Colors.blue.shade700,
                                   ),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -180,13 +161,13 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                   filled: true,
                                   fillColor: Colors.white,
-                                  contentPadding: EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                     vertical: 18,
                                     horizontal: 20,
                                   ),
                                   focusedBorder: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
+                                    borderSide: const BorderSide(
                                       color: Colors.blueAccent,
                                       width: 2,
                                     ),
@@ -199,9 +180,8 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
 
-                            SizedBox(height: 20),
+                            const SizedBox(height: 20),
 
-                            // Password Field
                             Container(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
@@ -213,60 +193,60 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ],
                               ),
-                              child: TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                decoration: InputDecoration(
-                                  labelText: 'Password',
-                                  labelStyle: TextStyle(
-                                    color: Colors.blue.shade700,
-                                  ),
-                                  prefixIcon: Container(
-                                    width: 50,
-                                    child: Icon(
-                                      Icons.lock_outline,
-                                      color: Colors.blue.shade700,
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _obscurePassword,
+                                builder: (context, obscure, _) {
+                                  return TextFormField(
+                                    controller: _passwordController,
+                                    obscureText: obscure,
+                                    decoration: InputDecoration(
+                                      labelText: 'Password',
+                                      labelStyle: TextStyle(
+                                        color: Colors.blue.shade700,
+                                      ),
+                                      prefixIcon: Icon(
+                                        Icons.lock_outline,
+                                        color: Colors.blue.shade700,
+                                      ),
+                                      suffixIcon: IconButton(
+                                        onPressed: _togglePasswordVisibility,
+                                        icon: Icon(
+                                          obscure
+                                              ? Icons.visibility_off
+                                              : Icons.visibility,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 18,
+                                            horizontal: 20,
+                                          ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(
+                                          color: Colors.blueAccent,
+                                          width: 2,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  suffixIcon: IconButton(
-                                    onPressed: _togglePasswordVisibility,
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_off
-                                          : Icons.visibility,
-                                      color: Colors.blue.shade700,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.blue.shade900,
                                     ),
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    vertical: 18,
-                                    horizontal: 20,
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: Colors.blueAccent,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.blue.shade900,
-                                ),
+                                  );
+                                },
                               ),
                             ),
 
-                            SizedBox(height: 10),
+                            const SizedBox(height: 30),
 
-                            SizedBox(height: 30),
-
-                            // Login Button
                             Container(
                               width: 220,
                               height: 56,
@@ -277,8 +257,6 @@ class _LoginPageState extends State<LoginPage> {
                                     Colors.blue.shade700,
                                     Colors.blueAccent,
                                   ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
@@ -288,27 +266,31 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ],
                               ),
-                              child: _isLoading
-                                  ? const Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 3,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _isLoading,
+                                builder: (context, loading, _) {
+                                  return loading
+                                      ? const Center(
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 3,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                          ),
+                                        )
+                                      : Material(
+                                          color: Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
                                             ),
-                                      ),
-                                    )
-                                  : Material(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: InkWell(
-                                        borderRadius: BorderRadius.circular(12),
-                                        onTap: _login,
-                                        child: Center(
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: const [
-                                              Text(
+                                            onTap: _login,
+                                            child: const Center(
+                                              child: Text(
                                                 'Log In',
                                                 style: TextStyle(
                                                   fontSize: 18,
@@ -316,12 +298,11 @@ class _LoginPageState extends State<LoginPage> {
                                                   color: Colors.white,
                                                 ),
                                               ),
-                                              SizedBox(width: 10),
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                    ),
+                                        );
+                                },
+                              ),
                             ),
                           ],
                         ),

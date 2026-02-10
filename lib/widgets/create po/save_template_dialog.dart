@@ -27,18 +27,17 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Dialog(
-      backgroundColor: Colors.white, // ✅ White dialog
+      backgroundColor: Colors.white, 
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(20),
-        width: isMobile ? double.infinity : 420, // ✅ Responsive width
+        width: isMobile ? double.infinity : 420, 
         child: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ✅ HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -61,7 +60,6 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
 
               const SizedBox(height: 14),
 
-              // ✅ DESCRIPTION
               const Text(
                 'Save this purchase order as a reusable template.',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -69,27 +67,24 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
 
               const SizedBox(height: 20),
 
-              // ✅ TEMPLATE NAME FIELD (BLUE BORDER)
               TextFormField(
                 controller: _templateNameController,
                 decoration: InputDecoration(
                   labelText: 'Template Name *',
 
-                  // ✅ Center position (light)
                   labelStyle: TextStyle(
-                    color: Colors.grey.shade400, // Light when not focused
+                    color: Colors.grey.shade400, 
                     fontWeight: FontWeight.w500,
                   ),
 
-                  // ✅ Floating position (blue)
                   floatingLabelStyle: const TextStyle(
-                    color: Colors.orange, // Blue on focus
+                    color: Colors.orange, 
                     fontWeight: FontWeight.w600,
                   ),
 
                   hintText: 'e.g. Monthly Order',
                   hintStyle: TextStyle(
-                    color: Colors.grey.shade400, // Light hint
+                    color: Colors.grey.shade400, 
                     fontSize: 13,
                   ),
 
@@ -128,11 +123,9 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
 
               const SizedBox(height: 24),
 
-              // ✅ BUTTONS (SAME THEME)
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // ✅ CANCEL BUTTON
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: TextButton.styleFrom(
@@ -147,7 +140,6 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
 
                   const SizedBox(width: 12),
 
-                  // ✅ SAVE BUTTON
                   ElevatedButton(
                     onPressed: _saveTemplate,
                     style: ElevatedButton.styleFrom(

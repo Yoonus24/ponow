@@ -7,7 +7,6 @@ import '../providers/po_provider.dart';
 import '../widgets/approved po/approved_po_widget.dart';
 import '../widgets/approved po/gridview_approve_widget.dart';
 import '../widgets/common_app_bar.dart';
-import '../widgets/common_bottom_nav.dart';
 
 class ApprovedPOPage extends StatefulWidget {
   const ApprovedPOPage({super.key});
@@ -17,11 +16,9 @@ class ApprovedPOPage extends StatefulWidget {
 }
 
 class _ApprovedPOPageState extends State<ApprovedPOPage> {
-  // ---------------- CONTROLLERS ----------------
   final TextEditingController vendorCtrl = TextEditingController();
   final TextEditingController dateCtrl = TextEditingController();
 
-  // ---------------- VALUE NOTIFIERS ----------------
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
   final ValueNotifier<DateTime?> selectedDate = ValueNotifier(null);
   final ValueNotifier<String> vendorName = ValueNotifier("");
@@ -64,7 +61,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     super.dispose();
   }
 
-  // ---------------- APPLY FILTERS ----------------
   Future<void> _applyFilters() async {
     final provider = Provider.of<POProvider>(context, listen: false);
 
@@ -86,7 +82,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     );
   }
 
-  // ---------------- DATE PICKER ----------------
   Future<void> _pickDate() async {
     final provider = Provider.of<POProvider>(context, listen: false);
 
@@ -94,7 +89,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     try {
       final serverDate = await provider.getServerDate();
       if (serverDate != null && serverDate.isNotEmpty) {
-        final parts = serverDate.split("-"); // dd-mm-yyyy
+        final parts = serverDate.split("-"); 
         initialDate = DateTime(
           int.parse(parts[2]),
           int.parse(parts[1]),
@@ -114,14 +109,14 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
             colorScheme: const ColorScheme.light(
               background: Colors.white,
               surface: Colors.white,
-              primary: Colors.blueAccent, // header & selected date
-              onPrimary: Colors.white, // header text
-              onSurface: Colors.black, // date numbers
+              primary: Colors.blueAccent,
+              onPrimary: Colors.white, 
+              onSurface: Colors.black, 
             ),
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent, // OK / CANCEL
+                foregroundColor: Colors.blueAccent, 
               ),
             ),
           ),
@@ -162,7 +157,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   String _fmt(DateTime d) =>
       "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}";
 
-  // ---------------- UI BUILDERS ----------------
 
   Widget _buildVendorField() {
     return Consumer<POProvider>(
@@ -191,7 +185,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                 fieldViewBuilder: (context, ctrl, fn, _) {
                   _autoVendorCtrl = ctrl;
-                  // ✅ Sync ONLY when selecting from dropdown
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (vendorCtrl.text.isNotEmpty &&
                         ctrl.text != vendorCtrl.text) {
@@ -333,7 +326,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                 ),
               ),
 
-              // 👇 icon behaviour SAME as AP
               suffixIconConstraints: const BoxConstraints(
                 minWidth: 40,
                 minHeight: 40,
@@ -372,7 +364,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     );
   }
 
-  // ---------------- MAIN BUILD ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -388,7 +379,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
               physics: const AlwaysScrollableScrollPhysics(),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight, // 🔥 FULL SCREEN
+                  minHeight: constraints.maxHeight,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -442,13 +433,11 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                             }
 
                             final list = provider.pos.where((po) {
-                              // ✅ SHOW ONLY APPROVED
                               if (po.poStatus != 'Approved' &&
                                   po.poStatus != 'PartiallyReceived') {
                                 return false;
                               }
 
-                              // ---------- VENDOR FILTER ----------
                               if (vendorName.value.isNotEmpty) {
                                 final vendorMatch =
                                     po.vendorName?.toLowerCase().contains(
@@ -459,7 +448,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                 if (!vendorMatch) return false;
                               }
 
-                              // ---------- DATE FILTER (APPROVED DATE) ----------
                               if (selectedDate.value != null) {
                                 final approvedDateStr = po.approvedDate;
                                 if (approvedDateStr == null ||
@@ -510,7 +498,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                             "Clear Filters",
                                             style: TextStyle(
                                               color: Colors
-                                                  .blueAccent, // ✅ TEXT COLOR
+                                                  .blueAccent,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
@@ -521,7 +509,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                               );
                             }
 
-                            // ✅ GridView inside scroll → shrinkWrap true
                             return GridViewApproveWidget<PO>(
                               items: list,
                               shrinkWrap: true,

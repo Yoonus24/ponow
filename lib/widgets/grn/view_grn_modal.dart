@@ -61,7 +61,7 @@ class _GRNViewModalState extends State<GRNViewModal> {
   Widget build(BuildContext context) {
     final rows = _collectReturnEntries();
     final size = MediaQuery.of(context).size;
-    final isMobile = size.width < 650; // 🔥 RESPONSIVE SWITCH
+    final isMobile = size.width < 650;
 
     return Dialog.fullscreen(
       backgroundColor: Colors.white,
@@ -344,7 +344,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
     }
   }
 
-  //──────────────── TABLET / LARGE SCREEN TABLE (YOUR ORIGINAL FIXED LAYOUT) ────────────────
 
   Widget _buildTabletTable(List<Map<String, dynamic>> rows) {
     return ValueListenableBuilder(
@@ -443,7 +442,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
                 ),
               ),
 
-              // 🔥 Add spacing right after Vendor column
               if (c == 'Vendor') const SizedBox(width: 10),
             ],
           );
@@ -469,7 +467,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
               ),
             ),
 
-            // 🔥 Add spacing ONLY between Vendor → Quantity
             if (c == 'Vendor') const SizedBox(width: 10),
           ],
         );
@@ -490,7 +487,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
     }
   }
 
-  //──────────────── SUMMARY ────────────────
 
   Widget _buildSummarySection(bool isMobile) {
     return Padding(
@@ -533,7 +529,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
     );
   }
 
-  //──────────────── DATA PARSER ────────────────
 
   List<Map<String, dynamic>> _collectReturnEntries() {
     final list = <Map<String, dynamic>>[];
@@ -560,8 +555,7 @@ class _GRNViewModalState extends State<GRNViewModal> {
 
   String _getCellValue(String col, Map<String, dynamic> r) {
     switch (col) {
-      // case 'No':
-      //   return '${r["index"]}';
+     
       case 'Item Name':
         return r["itemName"];
       case 'Vendor':

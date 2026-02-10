@@ -64,7 +64,6 @@ class RightSideCalculator extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // ---------------- HEADER ----------------
             Container(
               padding: const EdgeInsets.all(12.0),
               decoration: BoxDecoration(
@@ -86,7 +85,6 @@ class RightSideCalculator extends StatelessWidget {
               ),
             ),
 
-            // ---------------- DISPLAY ----------------
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16.0,
@@ -113,7 +111,6 @@ class RightSideCalculator extends StatelessWidget {
               ),
             ),
 
-            // ---------------- KEYPAD ----------------
             Expanded(
               child: GridView.count(
                 crossAxisCount: 3,
@@ -176,7 +173,6 @@ class RightSideCalculator extends StatelessWidget {
               ),
             ),
 
-            // ---------------- BUTTONS ----------------
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(

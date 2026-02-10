@@ -119,8 +119,6 @@ class ApInvoice {
       apDiscountPrice: (json['apDiscountPrice'] as num?)?.toDouble(),
       shippingAddress: json['shippingAddress'] as String?,
       billingAddress: json['billingAddress'] as String?,
-
-      // ✅ FIX: Prefer apRoundOff, fallback to roundOffAdjustment
       roundOffAdjustment:
           (json['apRoundOff'] as num?)?.toDouble() ??
           (json['roundOffAdjustment'] as num?)?.toDouble() ??
@@ -166,8 +164,6 @@ class ApInvoice {
       'apDiscountPrice': apDiscountPrice,
       'shippingAddress': shippingAddress,
       'billingAddress': billingAddress,
-
-      // ✅ Send as apRoundOff (and keep old key for safety)
       'apRoundOff': roundOffAdjustment ?? 0.0,
       'roundOffAdjustment': roundOffAdjustment ?? 0.0,
     };

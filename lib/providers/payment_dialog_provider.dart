@@ -8,42 +8,22 @@ import 'package:purchaseorders2/models/bankdetails_models.dart';
 class PaymentDialogProvider with ChangeNotifier {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
 
-  // Base values (normal fields)
   final double _totalPayableAmount;
   final bool _isBulkPayment;
-
-  // --- Reactive state using ValueNotifier ---
-  // (Use these in UI with ValueListenableBuilder)
-
-  /// 'full' | 'partial'
   final ValueNotifier<String> paymentType = ValueNotifier<String>('full');
-
-  /// 'Cash' | 'Bank'
   final ValueNotifier<String> paymentMode = ValueNotifier<String>('Cash');
-
-  /// 'petty_cash' | 'ho_cash'
   final ValueNotifier<String> cashType = ValueNotifier<String>('petty_cash');
-
-  /// 'neft' | 'rtgs' | 'imps' | 'upi'
   final ValueNotifier<String> bankPaymentMethod = ValueNotifier<String>('neft');
-
-  /// Selected bank name (nullable)
   final ValueNotifier<String?> bankName = ValueNotifier<String?>(null);
-
-  /// Amount selected/entered
   final ValueNotifier<double> amountNotifier = ValueNotifier<double>(0.0);
-
-  // Controllers (for TextFormFields)
   final TextEditingController amountController = TextEditingController();
   final TextEditingController bankNameController = TextEditingController();
   final TextEditingController transactionController = TextEditingController();
 
-  // Bank list
   List<Bank> _banks = [];
   bool _isLoadingBanks = false;
   String? _bankError;
   bool _isSubmitting = false;
-
   bool get isSubmitting => _isSubmitting;
 
   PaymentDialogProvider({
@@ -51,7 +31,6 @@ class PaymentDialogProvider with ChangeNotifier {
     required bool isBulkPayment,
   }) : _totalPayableAmount = totalPayableAmount,
        _isBulkPayment = isBulkPayment {
-    // Initial state → full payment
     amountNotifier.value = _totalPayableAmount;
     amountController.text = _totalPayableAmount.toStringAsFixed(2);
 
@@ -61,20 +40,14 @@ class PaymentDialogProvider with ChangeNotifier {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // GETTERS (read-only for external usage)
-  // ---------------------------------------------------------------------------
 
   double get totalPayableAmount => _totalPayableAmount;
   bool get isBulkPayment => _isBulkPayment;
-
-  // For backward compatibility if somewhere you used provider.selectedPaymentType
   String get selectedPaymentType => paymentType.value;
   String get selectedPaymentMode => paymentMode.value;
   String get selectedCashType => cashType.value;
   String get selectedBankPaymentMethod => bankPaymentMethod.value;
   String? get selectedBankName => bankName.value;
-
   List<Bank> get banks => _banks;
   bool get isLoadingBanks => _isLoadingBanks;
   String? get bankError => _bankError;
@@ -86,10 +59,6 @@ class PaymentDialogProvider with ChangeNotifier {
     return amt <= 0 ? 0 : (_totalPayableAmount / amt).ceil();
   }
 
-  // ---------------------------------------------------------------------------
-  // STATE MUTATORS – all via ValueNotifier
-  // ---------------------------------------------------------------------------
-
   void setPaymentType(String value) {
     if (paymentType.value == value) return;
 
@@ -97,11 +66,9 @@ class PaymentDialogProvider with ChangeNotifier {
     print('Set payment type: ${paymentType.value}');
 
     if (value == 'full') {
-      // Full payment = total payable
       amountNotifier.value = _totalPayableAmount;
       amountController.text = _totalPayableAmount.toStringAsFixed(2);
     } else {
-      // Partial → amount user-entered / from calculator
       amountNotifier.value = 0.0;
       amountController.clear();
     }
@@ -121,19 +88,15 @@ class PaymentDialogProvider with ChangeNotifier {
     print('Set payment mode: ${paymentMode.value}');
 
     if (value == 'Bank') {
-      // Load bank list (can call notifyListeners inside)
       fetchBanks();
 
-      // Clear cash type fields when switching to Bank
-      cashType.value = 'petty_cash'; // Reset to default
+      cashType.value = 'petty_cash'; 
     } else {
-      // Cash → reset bank related fields
       bankName.value = null;
       bankNameController.clear();
       transactionController.clear();
-      bankPaymentMethod.value = 'neft'; // Reset to default
+      bankPaymentMethod.value = 'neft'; 
 
-      // Clear any existing bank error
       _bankError = null;
     }
 
@@ -170,7 +133,6 @@ class PaymentDialogProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// When user selects amount from numeric keypad / text field
   void setAmount(double value) {
     amountNotifier.value = value;
     amountController.text = value == 0 ? '' : value.toStringAsFixed(2);
@@ -179,7 +141,6 @@ class PaymentDialogProvider with ChangeNotifier {
   }
 
   double getAmount() {
-    // Prefer notifier; fallback to controller if needed
     if (amountNotifier.value > 0) return amountNotifier.value;
 
     final parsed = double.tryParse(amountController.text) ?? 0.0;
@@ -218,7 +179,6 @@ class PaymentDialogProvider with ChangeNotifier {
     bankNameController.clear();
     transactionController.clear();
 
-    // Reset bank-related states
     _bankError = null;
     _isLoadingBanks = false;
     _isSubmitting = false;
@@ -227,12 +187,8 @@ class PaymentDialogProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  // ---------------------------------------------------------------------------
-  // BANK FETCH
-  // ---------------------------------------------------------------------------
 
   Future<void> fetchBanks() async {
-    // Don't fetch if already loading or already fetched
     if (_isLoadingBanks || _banks.isNotEmpty) {
       return;
     }
@@ -240,7 +196,7 @@ class PaymentDialogProvider with ChangeNotifier {
     _isLoadingBanks = true;
     _bankError = null;
     print('Fetching banks...');
-    notifyListeners(); // UI for loader
+    notifyListeners(); 
 
     try {
       final dio = Dio()
@@ -273,13 +229,10 @@ class PaymentDialogProvider with ChangeNotifier {
     } finally {
       _isLoadingBanks = false;
       print('Bank fetch completed, isLoadingBanks: $_isLoadingBanks');
-      notifyListeners(); // to rebuild loader/bank list
+      notifyListeners();
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // DISPOSE
-  // ---------------------------------------------------------------------------
 
   @override
   void dispose() {

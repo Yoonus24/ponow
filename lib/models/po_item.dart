@@ -56,6 +56,13 @@ class Item {
   bool isDiscountPercentage;
   String befTaxDiscountType;
   String afTaxDiscountType;
+  double? poQuantityTaxAmount;
+  double? poQuantityDiscountAmount;
+  double? poQuantitypendingTotalPrice;
+  double? poQuantitypendingFinalPrice;
+  double? poQuantitysgst;
+  double? poQuantitycgst;
+  double? poQuantityigst;
 
   Item({
     this.itemId,
@@ -98,6 +105,14 @@ class Item {
     this.damagedQuantity,
     this.quantity,
     this.poQuantity,
+    this.poQuantityTaxAmount,
+    this.poQuantityDiscountAmount,
+    this.poQuantitypendingTotalPrice,
+    this.poQuantitypendingFinalPrice,
+    this.poQuantitysgst,
+    this.poQuantitycgst,
+    this.poQuantityigst,
+
     this.uom,
     this.discount,
     this.purchasetaxName,
@@ -116,9 +131,6 @@ class Item {
     this.isDiscountPercentage = false,
   });
 
-  // -------------------------------------------------------
-  // ✅ copyWith METHOD (fully merged)
-  // -------------------------------------------------------
   Item copyWith({
     String? itemId,
     String? itemCode,
@@ -161,6 +173,14 @@ class Item {
     double? damagedQuantity,
     double? quantity,
     double? poQuantity,
+    double? poQuantityTaxAmount,
+    double? poQuantityDiscountAmount,
+    double? poQuantitypendingTotalPrice,
+    double? poQuantitypendingFinalPrice,
+    double? poQuantitysgst,
+    double? poQuantitycgst,
+    double? poQuantityigst,
+
     String? uom,
     double? discount,
     double? purchasetaxName,
@@ -223,6 +243,17 @@ class Item {
       damagedQuantity: damagedQuantity ?? this.damagedQuantity,
       quantity: quantity ?? this.quantity,
       poQuantity: poQuantity ?? this.poQuantity,
+      poQuantityTaxAmount: poQuantityTaxAmount ?? this.poQuantityTaxAmount,
+      poQuantityDiscountAmount:
+          poQuantityDiscountAmount ?? this.poQuantityDiscountAmount,
+      poQuantitypendingTotalPrice:
+          poQuantitypendingTotalPrice ?? this.poQuantitypendingTotalPrice,
+      poQuantitypendingFinalPrice:
+          poQuantitypendingFinalPrice ?? this.poQuantitypendingFinalPrice,
+      poQuantitysgst: poQuantitysgst ?? this.poQuantitysgst,
+      poQuantitycgst: poQuantitycgst ?? this.poQuantitycgst,
+      poQuantityigst: poQuantityigst ?? this.poQuantityigst,
+
       uom: uom ?? this.uom,
       discount: discount ?? this.discount,
       purchasetaxName: purchasetaxName ?? this.purchasetaxName,
@@ -242,9 +273,7 @@ class Item {
     );
   }
 
-  // -------------------------------------------------------
-  // validateForSubmission
-  // -------------------------------------------------------
+  
   void validateForSubmission() {
     if (befTaxDiscountType.isEmpty) befTaxDiscountType = 'percentage';
     if (afTaxDiscountType.isEmpty) afTaxDiscountType = 'percentage';
@@ -262,9 +291,6 @@ class Item {
     finalPrice ??= 0.0;
   }
 
-  // -------------------------------------------------------
-  // fromJson
-  // -------------------------------------------------------
   factory Item.fromJson(Map<String, dynamic> json) {
     return Item(
       itemId: json['itemId'] as String? ?? '',
@@ -324,12 +350,38 @@ class Item {
       variance: (json['variance'] as num?)?.toDouble() ?? 0.0,
       expiryDate: json['expiryDate']?.toString() ?? '',
       isDiscountPercentage: json['isDiscountPercentage'] as bool? ?? false,
+      poQuantityTaxAmount: json.containsKey('poQuantityTaxAmount')
+          ? (json['poQuantityTaxAmount'] as num?)?.toDouble()
+          : null,
+
+      poQuantityDiscountAmount: json.containsKey('poQuantityDiscountAmount')
+          ? (json['poQuantityDiscountAmount'] as num?)?.toDouble()
+          : null,
+
+      poQuantitypendingTotalPrice:
+          json.containsKey('poQuantitypendingTotalPrice')
+          ? (json['poQuantitypendingTotalPrice'] as num?)?.toDouble()
+          : null,
+
+      poQuantitypendingFinalPrice:
+          json.containsKey('poQuantitypendingFinalPrice')
+          ? (json['poQuantitypendingFinalPrice'] as num?)?.toDouble()
+          : null,
+
+      poQuantitysgst: json.containsKey('poQuantitysgst')
+          ? (json['poQuantitysgst'] as num?)?.toDouble()
+          : null,
+
+      poQuantitycgst: json.containsKey('poQuantitycgst')
+          ? (json['poQuantitycgst'] as num?)?.toDouble()
+          : null,
+
+      poQuantityigst: json.containsKey('poQuantityigst')
+          ? (json['poQuantityigst'] as num?)?.toDouble()
+          : null,
     );
   }
 
-  // -------------------------------------------------------
-  // toJson
-  // -------------------------------------------------------
   Map<String, dynamic> toJson() {
     return {
       'itemId': itemId ?? '',
@@ -386,55 +438,16 @@ class Item {
       'variance': variance ?? 0.0,
       'expiryDate': expiryDate.isNotEmpty ? expiryDate : null,
       'isDiscountPercentage': isDiscountPercentage,
+      'poQuantityTaxAmount': poQuantityTaxAmount ?? 0.0,
+      'poQuantityDiscountAmount': poQuantityDiscountAmount ?? 0.0,
+      'poQuantitypendingTotalPrice': poQuantitypendingTotalPrice ?? 0.0,
+      'poQuantitypendingFinalPrice': poQuantitypendingFinalPrice ?? 0.0,
+      'poQuantitysgst': poQuantitysgst ?? 0.0,
+      'poQuantitycgst': poQuantitycgst ?? 0.0,
+      'poQuantityigst': poQuantityigst ?? 0.0,
     };
   }
-
-  // -------------------------------------------------------
-  // calculateTotals
-  // -------------------------------------------------------
-  // void calculateTotals() {
-  //   final quantity = this.quantity ?? 0.0;
-  //   final newPrice = this.newPrice ?? 0.0;
-  //   final befTaxDiscount = this.befTaxDiscount ?? 0.0;
-  //   final afTaxDiscount = this.afTaxDiscount ?? 0.0;
-  //   final taxPercentage = this.taxPercentage ?? 0.0;
-
-  //   totalPrice = quantity * newPrice;
-
-  //   if (isDiscountPercentage) {
-  //     befTaxDiscountAmount = (totalPrice! * befTaxDiscount) / 100;
-  //   } else {
-  //     befTaxDiscountAmount = befTaxDiscount;
-  //   }
-
-  //   final priceAfterBefTaxDiscount = totalPrice! - befTaxDiscountAmount!;
-
-  //   if (isDiscountPercentage) {
-  //     afTaxDiscountAmount = (priceAfterBefTaxDiscount * afTaxDiscount) / 100;
-  //   } else {
-  //     afTaxDiscountAmount = afTaxDiscount;
-  //   }
-
-  //   final priceAfterAllDiscounts =
-  //       priceAfterBefTaxDiscount - afTaxDiscountAmount!;
-
-  //   taxAmount = (priceAfterAllDiscounts * taxPercentage) / 100;
-
-  //   finalPrice = priceAfterAllDiscounts + taxAmount!;
-
-  //   variance = (newPrice - (existingPrice ?? 0.0));
-
-  //   if (taxType == 'igst') {
-  //     pendingIgst = taxAmount;
-  //     pendingCgst = 0;
-  //     pendingSgst = 0;
-  //   } else {
-  //     pendingCgst = taxAmount! / 2;
-  //     pendingSgst = taxAmount! / 2;
-  //     pendingIgst = 0;
-  //   }
-  // }
-
+  
   double get totalItemDiscount {
     return (befTaxDiscountAmount ?? 0.0) + (afTaxDiscountAmount ?? 0.0);
   }

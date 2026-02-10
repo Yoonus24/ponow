@@ -563,11 +563,9 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       ),
       child: Column(
         children: [
-          // 🔹 RIGHT ALIGNED SINGLE ROW (LIGHT SPACE)
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // ===== TOGGLE =====
               ValueListenableBuilder<bool>(
                 valueListenable: _logic.isBefTaxDiscount,
                 builder: (context, isBefTax, _) {

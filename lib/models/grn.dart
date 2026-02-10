@@ -1,6 +1,5 @@
 import 'package:purchaseorders2/models/grnitem.dart';
 
-// models/grn.dart
 class GRN {
   final String? grnId;
   final String? purchaseOrderId;
@@ -26,7 +25,7 @@ class GRN {
   final double? totalReturnedTax;
   final double? totalReturnedDiscount;
   double? discountPrice;
-  double? roundOffAdjustment; // ADD THIS FIELD
+  double? roundOffAdjustment; 
   String? comments;
   final String? attachments;
   final String? createdDate;
@@ -74,7 +73,7 @@ class GRN {
     this.totalReturnedTax,
     this.totalReturnedDiscount,
     this.discountPrice,
-    this.roundOffAdjustment, // ADD THIS PARAMETER
+    this.roundOffAdjustment, 
     this.comments,
     this.attachments,
     this.createdDate,
@@ -125,14 +124,13 @@ class GRN {
       totalReturnedDiscount: (json['totalReturnedDiscount'] as num?)
           ?.toDouble(),
       discountPrice: (json['discountPrice'] as num?)?.toDouble(),
-      totalAmountBeforeRoundOff: // ✅ ADD
+      totalAmountBeforeRoundOff: 
       (json['totalAmountBeforeRoundOff'] as num?)
           ?.toDouble(),
 
-      grnRoundOffAmount: // ✅ ADD
+      grnRoundOffAmount:
       (json['grnRoundOffAmount'] as num?)
           ?.toDouble(),
-      // FIX: Load from grnRoundOffAmount field, not roundOffAdjustment
       roundOffAdjustment:
           (json['grnRoundOffAmount'] as num?)?.toDouble() ??
           (json['roundOffAdjustment'] as num?)?.toDouble() ??
@@ -163,13 +161,10 @@ class GRN {
 
   Map<String, dynamic> toJson() {
     return {
-      // ================= IDS =================
       'grnId': grnId,
       'purchaseOrderId': purchaseOrderId,
       'poRandomID': poRandomID ?? '',
       'randomId': randomId,
-
-      // ================= BASIC INFO =================
       'vendorName': vendorName,
       'grnDate': grnDate,
       'grnVerifiedDate': grnVerifiedDate,
@@ -179,25 +174,14 @@ class GRN {
       'invoiceDate': invoiceDate,
       'invoiceNo': invoiceNo,
       'receivingLocation': receivingLocation,
-
-      // ================= ITEMS =================
       'itemDetails': itemDetails?.map((e) => e.toJson()).toList(),
-
-      // ================= STATUS =================
       'inspectionStatus': inspectionStatus,
       'receivedBy': receivedBy,
       'status': status,
-
-      // ================= AMOUNTS (VERY IMPORTANT) =================
-      // 🔒 Backend-calculated values (SOURCE OF TRUTH)
       'totalAmountBeforeRoundOff': totalAmountBeforeRoundOff,
       'grnRoundOffAmount': grnRoundOffAmount,
       'grnAmount': grnAmount,
-
-      // 👤 User-entered (manual input only)
       'roundOffAdjustment': roundOffAdjustment,
-
-      // ================= OTHER TOTALS =================
       'totalReceivedAmount': totalReceivedAmount,
       'totalDiscount': totalDiscount,
       'totalTax': totalTax,
@@ -205,8 +189,6 @@ class GRN {
       'totalReturnedTax': totalReturnedTax,
       'totalReturnedDiscount': totalReturnedDiscount,
       'discountPrice': discountPrice,
-
-      // ================= META =================
       'comments': comments ?? '',
       'attachments': attachments,
       'createdDate': createdDate,
@@ -221,8 +203,6 @@ class GRN {
       'gstNumber': gstNumber,
       'shippingAddress': shippingAddress,
       'billingAddress': billingAddress,
-
-      // ================= EXTRA =================
       'grnVerifiedPerson': grnVerifiedPerson,
       'grnReturnedPerson': grnReturnedPerson,
       'totalDebitAmount': totalDebitAmount,
@@ -266,7 +246,7 @@ class DebitCreditNote {
   final DateTime createdDate;
   final String createdBy;
   final DateTime? lastUpdatedDate;
-  final double? roundOffAdjustment; // Consider adding this for consistency
+  final double? roundOffAdjustment;
 
   DebitCreditNote({
     this.noteId,
@@ -351,7 +331,7 @@ class DebitCreditNote {
           : DateTime.now(),
       createdBy: 'user123',
       lastUpdatedDate: null,
-      roundOffAdjustment: grn.roundOffAdjustment, // Pass round off adjustment
+      roundOffAdjustment: grn.roundOffAdjustment, 
     );
   }
 }

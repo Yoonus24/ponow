@@ -1,4 +1,3 @@
-// Simple Vendor class with only name and ID
 class Vendor {
   final String vendorName;
   final String vendorId;
@@ -17,7 +16,6 @@ class Vendor {
   }
 }
 
-// Full VendorAll class with all details
 class VendorAll {
   final String vendorName;
   final String contactpersonPhone;
@@ -81,7 +79,6 @@ class VendorAll {
     };
   }
 
-  // Convert VendorAll to simple Vendor
   Vendor toVendor() {
     return Vendor(vendorName: vendorName, vendorId: vendorId);
   }
@@ -119,7 +116,6 @@ class PurchaseItem {
   final String hsnCode;
   final String purchaseItemId;
   final String uom;
-  //final String expiryDate;
 
   PurchaseItem({
     required this.itemName,
@@ -130,13 +126,11 @@ class PurchaseItem {
     required this.purchasecategoryName,
     required this.purchasesubcategoryName,
     required this.hsnCode,
-    // required this.expiryDate,
   });
 
-  // Add fromJson factory method with null checks
   factory PurchaseItem.fromJson(Map<String, dynamic> json) {
     return PurchaseItem(
-      itemName: json['itemName'] ?? '', // Handle null values
+      itemName: json['itemName'] ?? '',
       purchasePrice: json['purchasePrice']?.toDouble() ?? 0.0,
       purchasetaxName: json['purchasetaxName']?.toDouble() ?? 0.0,
       purchaseItemId: json['purchaseItemId'] ?? json['purchaseitemId'] ?? '',
@@ -145,7 +139,6 @@ class PurchaseItem {
       purchasecategoryName: json['purchasecategoryName'] ?? '',
       purchasesubcategoryName: json['purchasesubcategoryName'] ?? '',
       hsnCode: json['hsnCode'] ?? '',
-      //   expiryDate: json['expiryDate'] ?? '',
     );
   }
 }

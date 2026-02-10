@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
-import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/widgets/numeric_Calculator.dart';
 import 'package:provider/provider.dart';
@@ -103,11 +102,9 @@ class _GRNModalState extends State<GRNModal> {
     'igst',
   ];
 
-  // Scroll controllers for horizontal synchronization
   final ScrollController _headerScrollController = ScrollController();
   final ScrollController _contentScrollController = ScrollController();
 
-  // Fixed row height to keep left & right perfectly aligned
   static const double _rowHeight = 52.0;
   static const double _headerHeight = 42.0;
 
@@ -121,7 +118,6 @@ class _GRNModalState extends State<GRNModal> {
     );
     commonDiscountNotifier.value = grn.discountPrice ?? 0.0;
 
-    // Start with GRN's round off
     roundOffController.text = (grn.roundOffAdjustment ?? 0.0).toStringAsFixed(
       2,
     );
@@ -175,15 +171,11 @@ class _GRNModalState extends State<GRNModal> {
       }
     }
 
-    // Fetch PO round off and apply it
-    // _fetchAndApplyPORoundOff();
-
-    // Initialize totals
+  
     WidgetsBinding.instance.addPostFrameCallback((_) {
       totalsNotifier.value = _recalculateGRNTotal();
     });
 
-    // Synchronize horizontal scrolling: content → header
     _contentScrollController.addListener(() {
       if (_contentScrollController.hasClients &&
           _headerScrollController.hasClients) {
@@ -194,52 +186,6 @@ class _GRNModalState extends State<GRNModal> {
     });
   }
 
-  // Add this method to fetch PO round off
-  // Future<void> _fetchAndApplyPORoundOff() async {
-  //   print('=== Checking Round Off in GRN Modal ===');
-  //   print('GRN Round Off: ${grn.roundOffAdjustment}');
-  //   print('GRN ID: ${grn.grnId}');
-  //   print('PO ID: ${grn.purchaseOrderId}');
-
-  //   // Check if GRN already has round-off
-  //   if ((grn.roundOffAdjustment ?? 0) != 0) {
-  //     print('GRN already has round-off: ${grn.roundOffAdjustment}');
-  //     roundOffController.text = grn.roundOffAdjustment!.toStringAsFixed(2);
-  //     roundOffNotifier.value = grn.roundOffAdjustment!;
-  //     return;
-  //   }
-
-  //   // Only fetch from PO if GRN doesn't have round-off
-  //   if (grn.purchaseOrderId != null && grn.purchaseOrderId!.isNotEmpty) {
-  //     try {
-  //       final poProvider = context.read<GRNProvider>();
-  //       final poData = await poProvider.fetchPODetails(grn.purchaseOrderId!);
-
-  //       if (poData != null) {
-  //         // Check multiple possible field names
-  //         final poRoundOff =
-  //             (poData['grnRoundOffAmount'] as num?)?.toDouble() ??
-  //             (poData['roundOffAdjustment'] as num?)?.toDouble() ??
-  //             (poData['poRoundOffAdjustment'] as num?)?.toDouble() ??
-  //             0.0;
-
-  //         print('Found PO round-off: $poRoundOff');
-
-  //         if (poRoundOff != 0) {
-  //           grn.roundOffAdjustment = poRoundOff;
-  //           roundOffController.text = poRoundOff.toStringAsFixed(2);
-  //           roundOffNotifier.value = poRoundOff;
-
-  //           // Recalculate totals
-  //           // totalsNotifier.value = _recalculateGRNTotal();
-  //           print('Applied PO round-off to GRN');
-  //         }
-  //       }
-  //     } catch (e) {
-  //       print('Error fetching PO round-off: $e');
-  //     }
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -290,7 +236,7 @@ class _GRNModalState extends State<GRNModal> {
   Future<DateTime> _getServerDate() async {
     try {
       final poProvider = Provider.of<POProvider>(context, listen: false);
-      final serverDateString = await poProvider.getServerDate(); // "25-11-2025"
+      final serverDateString = await poProvider.getServerDate(); 
 
       if (serverDateString != null && serverDateString.contains("-")) {
         final parts = serverDateString.split("-");
@@ -354,7 +300,6 @@ class _GRNModalState extends State<GRNModal> {
     final double roundOff = grn.roundOffAdjustment ?? 0.0;
     final double finalTotal = itemTotal + roundOff;
 
-    // 🔥 update GRN live
     grn.grnAmount = finalTotal;
 
     return {
@@ -379,7 +324,6 @@ class _GRNModalState extends State<GRNModal> {
         final doubleVal = double.tryParse(roundOffController.text) ?? 0.0;
 
         if (!_validateRoundOff(doubleVal)) {
-          // ❌ Invalid → don’t apply
           return;
         }
 
@@ -436,7 +380,6 @@ class _GRNModalState extends State<GRNModal> {
                 Text(message, style: const TextStyle(fontSize: 16)),
                 const SizedBox(height: 16),
 
-                // Round Off Display
                 if (roundOff != 0)
                   Column(
                     children: [
@@ -567,32 +510,31 @@ class _GRNModalState extends State<GRNModal> {
   void _showColumnFilterDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => ColumnFilterDialog(
-        columns: allColumns,
-        columnVisibility: columnVisibilityNotifier.value,
-        onApply: (updatedColumns, updatedVisibility) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            visibleColumnsNotifier.value = updatedColumns
-                .where((col) => updatedVisibility[col] ?? false)
-                .toList();
-            columnVisibilityNotifier.value = updatedVisibility;
-          });
-        },
+      builder: (context) => Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: Colors.blueAccent,
+          highlightColor: Colors.blueAccent.withOpacity(0.2),
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: Colors.blueAccent),
+        ),
+        child: ColumnFilterDialog(
+          columns: allColumns,
+          columnVisibility: columnVisibilityNotifier.value,
+          onApply: (updatedColumns, updatedVisibility) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              visibleColumnsNotifier.value = updatedColumns
+                  .where((col) => updatedVisibility[col] ?? false)
+                  .toList();
+              columnVisibilityNotifier.value = updatedVisibility;
+            });
+          },
+        ),
       ),
     );
   }
 
-  // double _calculateApRoundOff() {
-  //   double itemSum = 0.0;
-
-  //   for (final item in grn.itemDetails ?? []) {
-  //     itemSum += item.finalPrice ?? 0.0;
-  //   }
-
-  //   final grnAmount = grn.grnAmount ?? 0.0;
-
-  //   return double.parse((grnAmount - itemSum).toStringAsFixed(2));
-  // }
+ 
 
   Future<void> _convertToAP(BuildContext context) async {
     if (isConverting.value) return;
@@ -758,7 +700,6 @@ class _GRNModalState extends State<GRNModal> {
               : 0.0,
           onValueSelected: (double value) {
             if (controller != null) {
-              // ✅ Update immediately (no post-frame)
               controller.text = value.toStringAsFixed(2);
             }
             onValueSelected?.call();
@@ -831,7 +772,7 @@ class _GRNModalState extends State<GRNModal> {
       backgroundColor: Colors.white,
       insetPadding: EdgeInsets.zero,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero, // ✅ removes curve
+        borderRadius: BorderRadius.zero, 
       ),
       child: SizedBox(
         width: size.width,
@@ -840,7 +781,6 @@ class _GRNModalState extends State<GRNModal> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              // ================= HEADER =================
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -848,7 +788,6 @@ class _GRNModalState extends State<GRNModal> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Row 1: PO No → GRN No
                         Row(
                           children: [
                             Expanded(
@@ -886,7 +825,6 @@ class _GRNModalState extends State<GRNModal> {
 
                         const SizedBox(height: 6),
 
-                        // Row 2: Vendor
                         Text(
                           'Vendor: ${grn.vendorName ?? 'Unknown Vendor'}',
                           style: const TextStyle(
@@ -926,7 +864,6 @@ class _GRNModalState extends State<GRNModal> {
 
                         const SizedBox(height: 6),
 
-                        // Row 4: Date + Filter
                         Row(
                           children: [
                             Expanded(
@@ -951,7 +888,6 @@ class _GRNModalState extends State<GRNModal> {
 
               const SizedBox(height: 8.0),
 
-              // ================= TABLE =================
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -980,7 +916,6 @@ class _GRNModalState extends State<GRNModal> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ---------- HEADER ----------
                               Container(
                                 width: maxTableWidth,
                                 height: _headerHeight,
@@ -1203,7 +1138,6 @@ class _GRNModalState extends State<GRNModal> {
 
               const SizedBox(height: 8),
 
-              // ================= SUMMARY WITH ROUND OFF =================
               ValueListenableBuilder<Map<String, dynamic>>(
                 valueListenable: totalsNotifier,
                 builder: (context, totals, _) {
@@ -1216,7 +1150,6 @@ class _GRNModalState extends State<GRNModal> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Show items total
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2.0),
                         child: Row(
@@ -1271,8 +1204,7 @@ class _GRNModalState extends State<GRNModal> {
                         compact: true,
                       ),
 
-                      // Round Off Adjustment - Clickable field
-                      // ✅ Round Off Adjustment with validation UI
+                
                       ValueListenableBuilder<String?>(
                         valueListenable: roundOffErrorNotifier,
                         builder: (context, error, _) {
@@ -1365,7 +1297,6 @@ class _GRNModalState extends State<GRNModal> {
 
               const SizedBox(height: 12),
 
-              // ================= BUTTONS =================
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

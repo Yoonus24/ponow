@@ -23,7 +23,6 @@ class _PreOutgoingState extends State<PreOutgoing> {
   final int _skip = 0;
   final int _limit = 50;
 
-  // 🔹 Called when user types in vendor field
   void _onVendorSearchChanged(String value) {
     context.read<POProvider>().fetchingVendors(
       vendorName: value.trim(),
@@ -37,9 +36,6 @@ class _PreOutgoingState extends State<PreOutgoing> {
     super.initState();
 
     final poProvider = context.read<POProvider>();
-    // poProvider.initVendorScrollListener();
-
-    // ✅ SAFE: call provider AFTER first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       poProvider.fetchingVendors(vendorName: '', skip: _skip, limit: _limit);
@@ -185,7 +181,6 @@ class _PreOutgoingState extends State<PreOutgoing> {
                       ),
                       const SizedBox(width: 16),
 
-                      /// 🔹 VENDOR AUTOCOMPLETE
                       Expanded(
                         child: Autocomplete<String>(
                           optionsBuilder: (TextEditingValue textEditingValue) {
@@ -211,7 +206,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
                                   controller: controller,
                                   focusNode: _vendorFocusNode,
                                   onChanged:
-                                      _onVendorSearchChanged, // ✅ CORRECT PLACE
+                                      _onVendorSearchChanged,
                                   decoration: const InputDecoration(
                                     labelText: 'Search Vendor',
                                     border: OutlineInputBorder(),

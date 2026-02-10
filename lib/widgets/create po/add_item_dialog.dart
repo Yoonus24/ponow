@@ -42,6 +42,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
   final FocusNode _eachQtyFocusNode = FocusNode();
   final ValueNotifier<bool> _isEachQtyFocused = ValueNotifier(false);
   ValueNotifier<List<String>> _filteredItemOptions = ValueNotifier([]);
+
   bool _itemsPreloaded = false;
 
   @override
@@ -53,18 +54,11 @@ class _AddItemDialogState extends State<AddItemDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      final notifier = Provider.of<PurchaseOrderNotifier>(
-        context,
-        listen: false,
-      );
+      final poProvider = Provider.of<POProvider>(context, listen: false);
 
       if (!_itemsPreloaded) {
-        await notifier.preloadItems();
+        await poProvider.preloadAllPurchaseItems();
         _itemsPreloaded = true;
-
-        _filteredItemOptions.value = notifier.purchaseItems
-            .map((e) => e.itemName)
-            .toList();
       }
     });
   }
@@ -232,20 +226,20 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       labelStyle: TextStyle(
         fontSize: isMobile ? 13 : 14,
-        color: Colors.grey.shade800, // 🔥 darker label
+        color: Colors.grey.shade800, 
       ),
 
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
         borderSide: BorderSide(
-          color: Colors.grey.shade500, // 🔥 darker border
+          color: Colors.grey.shade500, 
         ),
       ),
 
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
         borderSide: BorderSide(
-          color: Colors.grey.shade500, // 🔥 consistent
+          color: Colors.grey.shade500, 
         ),
       ),
 
@@ -263,7 +257,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       fillColor: isReadOnly
           ? Colors
                 .grey
-                .shade300 // 🔥 darker readonly bg
+                .shade300 
           : Colors.white,
 
       suffixIconConstraints: BoxConstraints(minWidth: 48, minHeight: 40),
@@ -445,7 +439,6 @@ class _AddItemDialogState extends State<AddItemDialog> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           twoCol(
-                            // LEFT: ItemAutocomplete (already fixed)
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -473,9 +466,8 @@ class _AddItemDialogState extends State<AddItemDialog> {
                               ],
                             ),
 
-                            // RIGHT: 🔥 FIXED UOM FIELD
                             SizedBox(
-                              height: 60, // ⭐ SAME HEIGHT AS ItemAutocomplete
+                              height: 60, 
                               child: TextFormField(
                                 controller: notifier.uomController,
                                 readOnly: true,
@@ -1082,7 +1074,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       final poProvider = Provider.of<POProvider>(context, listen: false);
       final result = await poProvider.calculateItemTotalsBackend(
         pendingTotalQuantity: totalQuantity,
-        poQuantity: totalQuantity,
+        poQuantity: widget.editingItem?.poQuantity ?? totalQuantity,
         newPrice: newPrice,
         befTaxDiscount: isAmountMode ? 0.0 : befTaxDiscount,
         afTaxDiscount: isAmountMode ? 0.0 : afTaxDiscount,

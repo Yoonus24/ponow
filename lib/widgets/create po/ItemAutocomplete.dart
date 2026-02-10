@@ -50,48 +50,25 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   Future<void> _loadInitialItems() async {
-    _isLoadingNotifier.value = true;
+    final items = widget.poProvider.purchaseItems;
 
-    _skip = 0;
-    _hasMore = true;
+    _allPurchaseItems = List.from(items);
 
-    await widget.poProvider.searchPurchaseItems(
-      query: '',
-      skip: _skip,
-      limit: _limit,
-      append: false,
-    );
-
-    final fetched = widget.poProvider.purchaseItems;
-
-    _allPurchaseItems = List.from(fetched);
-
-    _allItemNames = _allPurchaseItems
+    _allItemNames = items
         .map((e) => e.itemName ?? '')
         .where((e) => e.isNotEmpty)
         .toList();
 
-    _cacheItems(_allPurchaseItems);
+    _cacheItems(items);
 
     _displayedItemsNotifier.value = _allItemNames;
-
-    _skip += fetched.length;
-
-    // If server returned less than limit → no more data
-    _hasMore = fetched.length == _limit;
-
-    _isLoadingNotifier.value = false;
-
-    print("✅ Initial page loaded: ${fetched.length}");
   }
 
   void _updateNotifierWithItemDetails(String itemName, PurchaseItem item) {
-    // First, ensure the item is in the notifier's purchaseItems list
     if (!widget.notifier.purchaseItems.contains(item)) {
       widget.notifier.purchaseItems.add(item);
     }
 
-    // Now call setSelectedItem
     widget.notifier.setSelectedItem(itemName);
   }
 
@@ -107,14 +84,23 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     _debounceTimer?.cancel();
 
     _debounceTimer = Timer(const Duration(milliseconds: 200), () {
+      final allItems = widget.poProvider.purchaseItems;
+
       final filtered = query.isEmpty
-          ? _allItemNames
-          : _allItemNames.where((name) {
-              return name.toLowerCase().contains(query.toLowerCase());
+          ? allItems
+          : allItems.where((item) {
+              final name = item.itemName?.toLowerCase() ?? '';
+              return name.contains(query.toLowerCase());
             }).toList();
 
-      _displayedItemsNotifier.value = filtered;
-      _currentQuery = query;
+      _allPurchaseItems = filtered;
+
+      _allItemNames = filtered
+          .map((e) => e.itemName ?? '')
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      _displayedItemsNotifier.value = _allItemNames;
     });
   }
 
@@ -184,17 +170,14 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     print('🔍 Cache has ${_itemCache.length} items');
     print('🔍 All items count: ${_allPurchaseItems.length}');
 
-    // First try cache
     if (_itemCache.containsKey(itemName)) {
       print('✅ Found in cache');
       return _itemCache[itemName];
     }
 
-    // Search in loaded items
     for (var item in _allPurchaseItems) {
       if (item.itemName == itemName) {
         print('✅ Found in loaded items');
-        // Cache it for next time
         _itemCache[itemName] = item;
         return item;
       }
@@ -219,13 +202,11 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
           return _displayedItemsNotifier.value;
         },
 
-        // In ItemAutocomplete.dart - Update onSelected method
         onSelected: (selectedItemName) async {
           print('🎯 Item selected: "$selectedItemName"');
 
           widget.controller.text = selectedItemName;
 
-          // Find item details
           final selectedItem = _findItemByName(selectedItemName);
 
           if (selectedItem != null) {
@@ -236,12 +217,10 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
 
             widget.notifier.updateItemDetailsFromCache(selectedItem);
 
-            // Also update form fields directly as backup
             _updateItemDetailsDirectly(selectedItem);
           } else {
             print('⚠️ Item not found in cache or loaded items');
 
-            // Try to search for this specific item from server
             try {
               print('🔍 Searching specifically for: "$selectedItemName"');
 
@@ -252,7 +231,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                 append: false,
               );
 
-              // Check if the item is in the results
               final foundItem = widget.poProvider.purchaseItems.firstWhere(
                 (item) =>
                     item.itemName?.toLowerCase() ==
@@ -273,7 +251,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               );
 
               if (foundItem.itemName?.isNotEmpty ?? false) {
-                // Cache it
                 _itemCache[selectedItemName] = foundItem;
                 _allPurchaseItems.add(foundItem);
 
@@ -288,10 +265,8 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
             }
           }
 
-          // Call the callback
           widget.onItemSelected(selectedItemName);
 
-          // Close keyboard
           Future.microtask(() {
             FocusManager.instance.primaryFocus?.unfocus();
           });
@@ -318,13 +293,13 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
 
                     labelStyle: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey.shade800, // darker label like dialog
+                      color: Colors.grey.shade800, 
                     ),
 
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),
                       borderSide: BorderSide(
-                        color: Colors.grey.shade500, // darker border
+                        color: Colors.grey.shade500, 
                       ),
                     ),
 
@@ -414,7 +389,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                             itemCount:
                                 displayedItems.length + (isLoadingMore ? 1 : 0),
                             itemBuilder: (context, index) {
-                              // ✅ Normal item
                               if (index < displayedItems.length) {
                                 final option = displayedItems[index];
 
@@ -444,7 +418,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                                 );
                               }
 
-                              // ✅ Loading spinner at bottom
                               return const Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(8.0),
@@ -469,9 +442,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   void _updateItemDetailsDirectly(PurchaseItem item) {
     print('🔄 Updating form fields for: ${item.itemName}');
 
-    // Directly update the controllers in the notifier
     widget.notifier.safeControllerAction(() {
-      // Get the controllers from notifier
       widget.notifier.existingPriceController.text = item.purchasePrice
           .toStringAsFixed(2);
       widget.notifier.newPriceController.text = item.purchasePrice
@@ -485,7 +456,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       print('   Tax: ${item.purchasetaxName}');
       print('   UOM: ${item.uom}');
 
-      // Reset discount fields
       if (widget.notifier.befTaxDiscountController.text.isEmpty ||
           widget.notifier.befTaxDiscountController.text == '0') {
         widget.notifier.befTaxDiscountController.text = '0';
@@ -497,7 +467,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       }
     });
 
-    // Update variance
     widget.notifier.updateVariance();
   }
 
@@ -508,7 +477,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     return ValueListenableBuilder<bool>(
       valueListenable: _isLoadingNotifier,
       builder: (context, isLoading, _) {
-        // ✅ Show loading spinner
         if (isLoading) {
           return const Padding(
             padding: EdgeInsets.all(8.0),
@@ -520,7 +488,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
           );
         }
 
-        // ✅ Listen to text changes
         return ValueListenableBuilder<TextEditingValue>(
           valueListenable: textEditingController,
           builder: (context, value, __) {
@@ -528,26 +495,16 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               return const SizedBox.shrink();
             }
 
-            // ✅ X Clear Button
             return IconButton(
               icon: Icon(Icons.clear, size: 20, color: Colors.grey[600]),
               tooltip: "Clear",
               onPressed: () {
-                // Clear text
                 textEditingController.clear();
                 widget.controller.clear();
-
-                // Reset query state
                 _queryNotifier.value = '';
                 _currentQuery = '';
-
-                // Reset dropdown list
                 _displayedItemsNotifier.value = _allItemNames;
-
-                // Notify parent
                 widget.onItemSelected('');
-
-                // Focus back to field
                 focusNode.requestFocus();
               },
             );

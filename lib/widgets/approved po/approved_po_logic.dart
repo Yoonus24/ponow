@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:math';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -49,12 +47,7 @@ class ApprovedPOLogic {
     null,
   );
   final ValueNotifier<bool> isSaving = ValueNotifier(false);
-
-  // Use the round off adjustment value from PO
   final ValueNotifier<double> roundOffAmount;
-
-  // Received summary ValueNotifier
-
   late final GlobalKey<ScaffoldMessengerState> _dialogMessengerKey;
   final ScrollController _orderedHorizontalController = ScrollController();
   final ScrollController _receivedHorizontalController = ScrollController();
@@ -62,8 +55,6 @@ class ApprovedPOLogic {
   final ScrollController _orderedRightVertical = ScrollController();
   final ScrollController _receivedLeftVertical = ScrollController();
   final ScrollController _receivedRightVertical = ScrollController();
-
-  // Constants
   static const double _rowHeight = 30.0;
   static const int _minVisibleRows = 7;
   bool isTablet = false;
@@ -114,7 +105,6 @@ class ApprovedPOLogic {
     );
   }
 
-  // Getters for constants
   double get rowHeight => _rowHeight;
   int get minVisibleRows => _minVisibleRows;
 
@@ -139,13 +129,10 @@ class ApprovedPOLogic {
     }
 
     _approvedExtraDiscount = 0.0;
-
-    // ---------------- ROUND OFF ----------------
     final double ro = po.roundOffAdjustment ?? 0.0;
     roundOffAmount.value = ro;
     discountPriceController.text = ro.toStringAsFixed(2);
 
-    // ---------------- INIT RECEIVED QTY ----------------
     for (var item in po.items) {
       final qty =
           item.poQuantity ??
@@ -160,7 +147,6 @@ class ApprovedPOLogic {
   bool validateRoundOff() {
     final value = roundOffAmount.value;
 
-    // Example rule: must be between -2 and +2
     if (value < -2 || value > 2) {
       roundOffErrorNotifier.value = "Round off must be between -2 and +2";
       return false;
@@ -252,7 +238,7 @@ class ApprovedPOLogic {
   }
 
   double get orderedDiscount {
-    return _poBaseDiscount; // original PO discount only
+    return _poBaseDiscount; 
   }
 
   double get orderedFinalAmount {
@@ -349,7 +335,6 @@ class ApprovedPOLogic {
       sharedColumns.value.map((column) => MapEntry(column, true)),
     );
 
-    // Update tablet-specific columns
     allColumns['Price'] = isTablet;
     allColumns['BefTax'] = isTablet;
     allColumns['AfTax'] = isTablet;
@@ -449,7 +434,6 @@ class ApprovedPOLogic {
       }
     });
 
-    // ORDERED ↔ RECEIVED — HORIZONTAL SYNC
     _orderedHorizontalController.addListener(() {
       if (_receivedHorizontalController.offset !=
           _orderedHorizontalController.offset) {
@@ -470,7 +454,6 @@ class ApprovedPOLogic {
   }
 
   void _initializeControllers() {
-    // Clear existing
     receivedQtyController.clear();
     pendingCountController.clear();
     eachQtyControllers.clear();
@@ -484,10 +467,8 @@ class ApprovedPOLogic {
           (item.pendingCount ?? item.count ?? 0) *
           (item.pendingQuantity ?? item.eachQuantity ?? 0);
 
-      // ---------------- Expiry Date ----------------
       String formattedExpiry = '';
 
-      // show expiry ONLY if nothing is received yet
       if ((item.receivedQuantity ?? 0) == 0) {
         formattedExpiry = '';
       }
@@ -502,10 +483,8 @@ class ApprovedPOLogic {
 
       expiryDateErrors[item] = ValueNotifier<String?>(null);
 
-      // ---------------- Default Received Qty ----------------
       double defaultReceived = 0.0;
 
-      // Priority: received > pending total > ordered
       if ((item.receivedQuantity ?? 0) > 0) {
         defaultReceived = item.receivedQuantity ?? 0.0;
       } else if ((item.pendingTotalQuantity ?? 0) > 0) {
@@ -518,24 +497,20 @@ class ApprovedPOLogic {
         text: defaultReceived.toStringAsFixed(2),
       );
 
-      // ---------------- Pending Count ----------------
       pendingCountController[item] = TextEditingController(
         text: (item.pendingCount ?? item.count ?? 0).toStringAsFixed(2),
       );
 
-      // ---------------- Pending Each Qty ----------------
       eachQtyControllers[item] = TextEditingController(
         text: (item.pendingQuantity ?? item.eachQuantity ?? 0).toStringAsFixed(
           2,
         ),
       );
 
-      // ---------------- Before Tax Discount ----------------
       befTaxControllers[item] = TextEditingController(
         text: (item.befTaxDiscount ?? 0.0).toStringAsFixed(2),
       );
 
-      // ---------------- After Tax Discount ----------------
       afTaxControllers[item] = TextEditingController(
         text: (item.pendingAfTaxDiscountAmount ?? item.afTaxDiscountAmount ?? 0)
             .toStringAsFixed(2),
@@ -679,9 +654,9 @@ class ApprovedPOLogic {
     roundOffAmount.value = roundOffValue;
     discountPriceController.text = value;
 
-    recalculateFinalAmountAfterDiscount(); // ✅ THIS IS THE KEY
+    recalculateFinalAmountAfterDiscount(); 
 
-    onUpdated(); // ✅ forces UI rebuild
+    onUpdated(); 
 
     debugPrint('Round off updated: $roundOffValue');
   }
@@ -947,7 +922,6 @@ class ApprovedPOLogic {
       await poProvider.applyCurrentFilters();
       await grnProvider.fetchFilteredGRNs();
 
-      // 🔹 Close loading dialog
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
@@ -962,10 +936,8 @@ class ApprovedPOLogic {
         ),
       );
 
-      // 🔹 Small delay so user can see snackbar
       await Future.delayed(const Duration(milliseconds: 300));
 
-      // 🔹 Close Approved PO dialog
       if (context.mounted) {
         Navigator.of(context).pop(true);
       }
@@ -973,7 +945,6 @@ class ApprovedPOLogic {
       debugPrint("❌ Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
 
-      // 🔹 Close loader if open
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
       }
@@ -983,7 +954,7 @@ class ApprovedPOLogic {
           content: Text("Failed to convert PO to GRN"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), // 👈 move up
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), 
         ),
       );
     } finally {
@@ -1095,7 +1066,6 @@ class ApprovedPOLogic {
     }
   }
 
-  // Getters for table widget
   ScrollController get orderedHorizontalController =>
       _orderedHorizontalController;
   ScrollController get receivedHorizontalController =>
@@ -1105,7 +1075,6 @@ class ApprovedPOLogic {
   ScrollController get receivedLeftVertical => _receivedLeftVertical;
   ScrollController get receivedRightVertical => _receivedRightVertical;
 
-  // Getters for controllers and value notifiers
   Map<Item, TextEditingController> get receivedQtyControllers =>
       receivedQtyController;
   Map<Item, TextEditingController> get expiryDateControllersMap =>

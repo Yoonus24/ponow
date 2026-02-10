@@ -11,7 +11,6 @@ class PendingOutgoingDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final dialogWidth = MediaQuery.of(context).size.width * 0.85;
 
-    // ✅ TRUST BACKEND VALUES (same as list screen)
     final paidAmount = outgoing.totalPaidAmount ?? 0.0;
     final remainingAmount = outgoing.totalPayableAmount ?? 0.0;
 

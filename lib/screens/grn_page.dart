@@ -6,7 +6,6 @@ import '../widgets/grn/grn_widget.dart';
 import '../widgets/grn/grn_return_widget.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/grn/grid_view_widget.dart';
-import '../widgets/common_bottom_nav.dart';
 import '../providers/po_provider.dart';
 
 class GRNPage extends StatefulWidget {
@@ -22,7 +21,6 @@ class _GRNPageState extends State<GRNPage> {
   final TextEditingController _vendorSearchController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   final ValueNotifier<int> _uiRefresh = ValueNotifier(0);
-  // 🔹 REQUIRED for AP-style UI
   TextEditingController? _autoController;
   final TextEditingController _vendorController = TextEditingController();
 
@@ -36,7 +34,6 @@ class _GRNPageState extends State<GRNPage> {
   final int _skip = 0;
   final int _limit = 50;
 
-  // ✅ SAFE refresh
   void _refresh() {
     if (!mounted) return;
     _uiRefresh.value++;
@@ -52,7 +49,6 @@ class _GRNPageState extends State<GRNPage> {
       final grnProvider = Provider.of<GRNProvider>(context, listen: false);
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-      // Set default filter
       grnProvider.setFilterStatus('active');
 
       await grnProvider.fetchFilteredGRNs();
@@ -96,7 +92,6 @@ class _GRNPageState extends State<GRNPage> {
     _refresh();
   }
 
-  // ------------------- Vendor Field -------------------
   Widget _buildVendorField() {
     return Consumer<POProvider>(
       builder: (context, poProvider, _) {
@@ -169,8 +164,8 @@ class _GRNPageState extends State<GRNPage> {
                       : Icon(Icons.search, color: Colors.grey[600], size: 22),
                 ),
                 onChanged: (v) {
-                  _vendorNotifier.value = v; // UI
-                  _selectedVendorNotifier.value = v; // 🔥 FILTER
+                  _vendorNotifier.value = v; 
+                  _selectedVendorNotifier.value = v; 
                   _refresh();
                 },
               );
@@ -356,14 +351,12 @@ class _GRNPageState extends State<GRNPage> {
   Widget _buildContent() {
     return Consumer<GRNProvider>(
       builder: (context, provider, _) {
-        // 🔹 Loading state
         if (!_isInitialized || provider.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
 
         final list = _getFilteredGRNs(provider);
 
-        // 🔹 EMPTY STATE → MUST BE SCROLLABLE
         if (list.isEmpty) {
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -379,7 +372,6 @@ class _GRNPageState extends State<GRNPage> {
           );
         }
 
-        // 🔹 DATA STATE → GRID (already scrollable)
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: GridViewWidget<GRN>(
@@ -408,13 +400,12 @@ class _GRNPageState extends State<GRNPage> {
               _buildFilterRow(),
               _buildStatusButtons(),
 
-              // ✅ FULL SCREEN PULL-TO-REFRESH
               Expanded(
                 child: RefreshIndicator(
-                  color: Colors.blueAccent, // ✅ LOADER COLOR
-                  backgroundColor: Colors.white, // ✅ BG COLOR
-                  displacement: 40, // optional (nice spacing)
-                  strokeWidth: 3, // optional (thickness)
+                  color: Colors.blueAccent,
+                  backgroundColor: Colors.white, 
+                  displacement: 40, 
+                  strokeWidth: 3, 
 
                   onRefresh: () async {
                     final grnProvider = Provider.of<GRNProvider>(
@@ -495,7 +486,6 @@ class _GRNPageState extends State<GRNPage> {
     return grnProvider.grns.where((grn) {
       final filter = grnProvider.filterStatus;
 
-      // -------- STATUS FILTER --------
       if (filter == 'active') {
         final s = grn.status?.toLowerCase() ?? '';
         if (!(s == 'active' || s.contains('partial'))) return false;
@@ -505,7 +495,6 @@ class _GRNPageState extends State<GRNPage> {
         }
       }
 
-      // -------- VENDOR FILTER --------
       if (_selectedVendorNotifier.value.isNotEmpty) {
         final vendorMatch =
             grn.vendorName?.toLowerCase().contains(
@@ -515,7 +504,6 @@ class _GRNPageState extends State<GRNPage> {
         if (!vendorMatch) return false;
       }
 
-      // -------- DATE FILTER --------
       if (_selectedDate != null) {
         if (grn.grnDate == null || grn.grnDate!.isEmpty) return false;
 

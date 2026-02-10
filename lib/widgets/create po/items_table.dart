@@ -35,7 +35,6 @@ class _ItemsTableState extends State<ItemsTable> {
   final ScrollController leftVertical = ScrollController();
   final ScrollController rightVertical = ScrollController();
 
-  // ✅ FIXED: Direct discount display methods
   String _getBefTaxDiscountDisplay(Item item) {
     try {
       // Debug print
@@ -108,7 +107,6 @@ class _ItemsTableState extends State<ItemsTable> {
     final purchaseNotifier =
         widget.notifier ?? Provider.of<PurchaseOrderNotifier>(context);
 
-    // ✅ DEBUG: Print items when table builds
     print(
       '📋 ItemsTable building with ${purchaseNotifier.poItems.length} items',
     );
@@ -263,7 +261,6 @@ class _ItemsTableState extends State<ItemsTable> {
                                         final index = entry.key;
                                         final item = entry.value;
 
-                                        // ✅ FIXED: Direct property access
                                         final quantity = item.quantity ?? 0.0;
                                         final count = item.count ?? 0.0;
                                         final uom = item.uom ?? '';
@@ -277,7 +274,6 @@ class _ItemsTableState extends State<ItemsTable> {
                                         final finalPrice =
                                             item.finalPrice ?? 0.0;
 
-                                        // ✅ FIXED: Use direct display methods
                                         final befTaxDisplay =
                                             _getBefTaxDiscountDisplay(item);
                                         final afTaxDisplay =
@@ -294,57 +290,47 @@ class _ItemsTableState extends State<ItemsTable> {
                                           ),
                                           child: Row(
                                             children: [
-                                              // QTY - FIXED ✅
                                               CustomTableCell(
                                                 text: quantity.toStringAsFixed(
                                                   2,
                                                 ),
                                               ),
 
-                                              // COUNT - FIXED ✅
                                               CustomTableCell(
                                                 text: count.toStringAsFixed(2),
                                               ),
 
-                                              // UOM - FIXED ✅
                                               CustomTableCell(text: uom),
 
-                                              // EACH QUANTITY - FIXED ✅
                                               CustomTableCell(
                                                 text: eachQuantity
                                                     .toStringAsFixed(2),
                                               ),
 
-                                              // EXISTING PRICE - FIXED ✅
                                               CustomTableCell(
                                                 text: existingPrice
                                                     .toStringAsFixed(2),
                                               ),
 
-                                              // NEW PRICE - FIXED ✅
                                               CustomTableCell(
                                                 text: newPrice.toStringAsFixed(
                                                   2,
                                                 ),
                                               ),
 
-                                              // BEF TAX DISCOUNT - FIXED ✅
                                               CustomTableCell(
                                                 text: befTaxDisplay,
                                               ),
 
-                                              // AF TAX DISCOUNT - FIXED ✅
                                               CustomTableCell(
                                                 text: afTaxDisplay,
                                               ),
 
-                                              // TAX % - FIXED ✅
                                               CustomTableCell(
                                                 text: taxPercentage
                                                     .toStringAsFixed(2),
                                               ),
 
-                                              // TOTAL PRICE - FIXED ✅
                                               CustomTableCell(
                                                 text:
                                                     "₹${finalPrice.toStringAsFixed(2)}",

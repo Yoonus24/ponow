@@ -156,7 +156,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
           await _saveTemplate();
         },
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.orange, // Changed to orange for Template
+          backgroundColor: Colors.orange,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30.0),
@@ -170,10 +170,8 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
     );
   }
 
-  // In the _saveTemplate method of TemplateCreationScreen
 
   Future<void> _saveTemplate() async {
-    // 1️⃣ Validate form
     if (!_formKey.currentState!.validate()) {
       _showValidationError('Please fill all required fields');
       return;
@@ -185,7 +183,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 2️⃣ Validate vendor
     if (_vendorAutocompleteController.text.isEmpty ||
         notifier.selectedVendor == null ||
         notifier.selectedVendor!.isEmpty) {
@@ -196,7 +193,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 3️⃣ Validate billing address
     if (notifier.billingController.text.isEmpty) {
       _showValidationError(
         'Please enter billing address',
@@ -205,7 +201,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 4️⃣ Validate items
     if (notifier.poItems.isEmpty) {
       _showValidationError(
         'Please add at least one item',
@@ -214,24 +209,20 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       return;
     }
 
-    // 5️⃣ Validate location (IMPORTANT)
     if (notifier.selectedLocation == null ||
         notifier.selectedLocation!.isEmpty) {
       _showValidationError('Please select location');
       return;
     }
 
-    // 6️⃣ Ask template name
     final templateName = await _showTemplateNameDialog();
     if (templateName == null || templateName.isEmpty) return;
 
-    // 7️⃣ Create PO snapshot from current UI state
     final poSnapshot = _createPOFromCurrentData(notifier).copyWith(
       location: notifier.selectedLocation,
       locationName: notifier.selectedLocationName,
     );
 
-    // 8️⃣ Save template
     final success = await templateProvider.createTemplate(
       poSnapshot,
       templateName,
@@ -290,12 +281,12 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   }
 
   Future<String?> _showTemplateNameDialog() async {
-    final controller = TextEditingController(); // ❌ no auto-generate
+    final controller = TextEditingController(); 
 
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white, // ✅ dialog white
+        backgroundColor: Colors.white, 
         title: const Text(
           'Template Name',
           style: TextStyle(color: Colors.black),
@@ -331,7 +322,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text(
               'CANCEL',
-              style: TextStyle(color: Colors.black54), // ✅ cancel grey
+              style: TextStyle(color: Colors.black54), 
             ),
           ),
           ElevatedButton(
@@ -343,7 +334,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             child: const Text(
               'SAVE',
-              style: TextStyle(color: Colors.white), // ✅ save white
+              style: TextStyle(color: Colors.white),
             ),
           ),
         ],
@@ -450,7 +441,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                   : 'Create Template',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.orange[700], // Changed to orange for Template
+                color: Colors.orange[700], 
                 fontSize: 20,
               ),
             ),
@@ -465,11 +456,9 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
               },
             ),
             actions: [
-              // Optional: Add template icon
               IconButton(
                 icon: Icon(Icons.description, color: Colors.orange[700]),
                 onPressed: () {
-                  // Show template info or help
                 },
                 tooltip: 'Template Information',
               ),
@@ -494,7 +483,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header Section
                             if (!isMobile) ...[
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,7 +545,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               const SizedBox(height: 1),
                             ],
 
-                            // Vendor Details Section
                             if (!isMobile) ...[
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,7 +582,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                              // Dates Section
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -638,8 +624,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                              // Credit Limit
-                              // Credit Limit + Location (MATCHES PurchaseOrderDialog)
+                           
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -669,7 +654,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               const SizedBox(height: 10),
                             ],
 
-                            // Address Section
                             if (!isMobile) ...[
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -692,7 +676,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               const SizedBox(height: 16),
                             ],
 
-                            // Total Amount Display
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 vertical: 4.0,
@@ -717,7 +700,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                           fontSize: 17,
                                           fontWeight: FontWeight.bold,
                                           color: Colors
-                                              .orange[700], // Changed to orange
+                                              .orange[700], 
                                         ),
                                       );
                                     },
@@ -726,7 +709,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                             ),
 
-                            // Items Table Section
                             Container(
                               key: _itemsSectionKey,
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -740,7 +722,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                   notifier.notifyListeners();
                                 },
 
-                                // ✅ SIMPLE DIRECT PROPERTY ACCESS (NO CALCULATION)
                                 getItemProperty: (item, String property) {
                                   switch (property) {
                                     case 'count':
@@ -766,7 +747,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                             ),
                             const SizedBox(height: 0),
 
-                            // Tax Section
                             const Text(
                               'Select Tax Type:',
                               style: TextStyle(
@@ -787,7 +767,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                         logic.onTaxTypeChanged(value, 1);
                                       },
                                       activeColor:
-                                          Colors.orange, // Changed to orange
+                                          Colors.orange, 
                                     ),
                                     const Text(
                                       "CGST/SGST",
@@ -801,7 +781,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                         logic.onTaxTypeChanged(value, 2);
                                       },
                                       activeColor:
-                                          Colors.orange, // Changed to orange
+                                          Colors.orange, 
                                     ),
                                     const Text(
                                       "IGST",
@@ -814,7 +794,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
 
                             const SizedBox(height: 2),
 
-                            // Discount Section
                             DiscountSection(
                               discountMode: _overallDiscountMode,
                               overallDiscountController:
@@ -842,7 +821,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                     ),
                   ),
 
-                  // Footer Section with SAVE TEMPLATE Button (REPLACED SAVE ORDER)
                   Container(
                     padding: const EdgeInsets.all(16.0),
                     decoration: BoxDecoration(
@@ -860,7 +838,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                         ? Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              // Cancel Button
                               Expanded(
                                 child: SizedBox(
                                   height: 45,
@@ -890,14 +867,12 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              // Save Template Button
                               Expanded(child: _buildSaveTemplateButton()),
                             ],
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              // Cancel Button
                               SizedBox(
                                 width: 130,
                                 height: 45,

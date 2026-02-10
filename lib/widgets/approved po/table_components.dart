@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
-// ------------------ COLUMN WIDTHS ------------------
 
-const double colItemName = 180; // Wider
+const double colItemName = 180; 
 const double colUOM = 70;
 const double colOrdered = 70;
 const double colReceived = 80;
@@ -13,22 +12,20 @@ const double colAfTax = 85;
 const double colExpiry = 90;
 const double colFinalPrice = 90;
 
-// ------------------ CONSTANT HEIGHT ------------------
 
 const double rowHeight = 48.0;
 
-// ------------------ HEADER CELL ------------------
 
 class TableHeaderCell extends StatelessWidget {
   final String text;
   final double width;
-  final Alignment alignment; // ⭐ NEW
+  final Alignment alignment; 
 
   const TableHeaderCell(
     this.text, {
     super.key,
     required this.width,
-    this.alignment = Alignment.center, // ⭐ default center
+    this.alignment = Alignment.center,
   });
 
   @override
@@ -39,7 +36,7 @@ class TableHeaderCell extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 3),
       color: Colors.grey[200],
       child: Align(
-        alignment: alignment, // ⭐ apply alignment
+        alignment: alignment, 
         child: Text(
           text,
           style: const TextStyle(
@@ -74,7 +71,7 @@ class CustomTableCell extends StatelessWidget {
       width: width,
       height: rowHeight,
       decoration: const BoxDecoration(
-        color: Colors.white, // FULL WHITE BACKGROUND
+        color: Colors.white, 
       ),
       child: Align(
         alignment: alignment,
@@ -89,7 +86,6 @@ class CustomTableCell extends StatelessWidget {
   }
 }
 
-// ------------------ TEXT FIELD CELL ------------------
 
 class CustomTableTextFieldCell extends StatelessWidget {
   final Widget child;
@@ -116,7 +112,6 @@ class CustomTableTextFieldCell extends StatelessWidget {
   }
 }
 
-// ------------------ EXAMPLE TABLE ------------------
 
 class ItemTableExample extends StatelessWidget {
   const ItemTableExample({super.key});
@@ -125,7 +120,6 @@ class ItemTableExample extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ----- HEADER ROW -----
         Row(
           children: const [
             TableHeaderCell("Item Name", width: colItemName),
@@ -141,7 +135,6 @@ class ItemTableExample extends StatelessWidget {
           ],
         ),
 
-        // ----- SAMPLE ROW -----
         Row(
           children: const [
             CustomTableCell(

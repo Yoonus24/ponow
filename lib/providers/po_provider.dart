@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import 'package:purchaseorders2/models/discount_model.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:purchaseorders2/models/po.dart';
@@ -42,10 +41,8 @@ class POProvider extends ChangeNotifier {
           ),
         );
 
-  // STATE VARIABLES
   List<PO> _pos = [];
   PO? _selectedPO;
-
   List<Vendor> _vendors = [];
   List<VendorAll> _vendorAllList = [];
   List<PurchaseItem> _purchaseItems = [];
@@ -67,20 +64,16 @@ class POProvider extends ChangeNotifier {
   List<Item> approvedItems = [];
   bool _branchesLoaded = false;
 
-  // PAGINATION
   int _skip = 0;
   bool _hasMore = true;
   int currentSkip = 0;
 
-  // FILTERED LISTS
   List<String> _filteredVendorNames = [];
   List<String> _filteredPurchaseItems = [];
   List<String> _filteredPurchaseOrder = [];
 
-  // PO list for widgets
   final List<PO> _poList = [];
 
-  // FILTER STATE
   String _currentFilterStatus = 'All';
   String? _selectedVendorFilter;
   DateTime? _selectedDateFilter;
@@ -88,7 +81,7 @@ class POProvider extends ChangeNotifier {
   String _searchQuery = '';
   String? _selectedItemNameFilter;
   String? _selectedRandomIdFilter;
-  String _filterBy = 'orderDate'; // 'orderDate', 'approvedDate', 'rejectedDate'
+  String _filterBy = 'orderDate';
   bool _includeInactive = false;
 
   List<BranchLocation> _branches = [];
@@ -97,13 +90,11 @@ class POProvider extends ChangeNotifier {
   bool _isBranchLoading = false;
   bool get isBranchLoading => _isBranchLoading;
 
-  // SCROLL CONTROLLERS
   final ScrollController vendorScrollController = ScrollController();
   final ScrollController vendorAllScrollController = ScrollController();
   final ScrollController itemScrollController = ScrollController();
   final ScrollController poScrollController = ScrollController();
 
-  // GETTERS
   List<PO> get pos => _pos;
   List<PO> get poList => _poList;
   PO? get selectedPO => _selectedPO;
@@ -121,12 +112,10 @@ class POProvider extends ChangeNotifier {
 
   List<Item> get items => _items;
 
-  // Filtered lists for auto-complete
   List<String> get filteredVendorNames => _filteredVendorNames;
   List<String> get filteredPurchaseItems => _filteredPurchaseItems;
   List<String> get filteredPurchaseOrder => _filteredPurchaseOrder;
 
-  // Filter getters
   String get currentFilterStatus => _currentFilterStatus;
   String? get selectedVendorFilter => _selectedVendorFilter;
   DateTime? get selectedDateFilter => _selectedDateFilter;
@@ -197,7 +186,6 @@ class POProvider extends ChangeNotifier {
     applyCurrentFilters();
   }
 
-  // CLEANUP (CURRENTLY NO-OP)
   void cleanupUnusedKeys(List<PO> currentPOs) {
     final currentRandomIds = currentPOs
         .map((po) => po.randomId)
@@ -205,7 +193,6 @@ class POProvider extends ChangeNotifier {
         .toSet();
   }
 
-  // FILTER MANAGEMENT
   Future<void> setFilterStatus(String status) async {
     _currentFilterStatus = status;
 
@@ -287,7 +274,6 @@ class POProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // BASIC STATE HELPERS
   void _setLoadingState(bool loading) {
     _isLoading = loading;
     notifyListeners();
@@ -321,16 +307,10 @@ class POProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ITEM MANAGEMENT
   void addItem(Item newItem) {
     _items.add(newItem);
     notifyListeners();
   }
-
-  // void removeItem(Item item) {
-  //   _items.remove(item);
-  //   notifyListeners();
-  // }
 
   void updateItem(
     int index, {
@@ -347,8 +327,6 @@ class POProvider extends ChangeNotifier {
     updateItemFromBackend(index, poId);
   }
 
-  // SCROLL LISTENERS
-  // In POProvider.dart - Fix scroll listener
   void initVendorScrollListener() {
     vendorScrollController.addListener(() {
       if (!_isFetching &&
@@ -386,21 +364,27 @@ class POProvider extends ChangeNotifier {
     });
   }
 
-  // SERVER TIME
-  Future<String?> getServerDate() async {
+  Future<String> getServerDate() async {
     try {
-      final response = await Dio().get("https://yenerp.com/liveapi/datetime");
+      final response = await _dio.get("https://yenerp.com/liveapi/datetime");
 
       if (response.statusCode == 200) {
-        return response.data["current_date"];
+        final date = response.data["current_date"];
+        final time = response.data["current_time"];
+
+        final combined = "$date $time";
+
+        final parsed = DateFormat("dd-MM-yyyy hh:mm a").parse(combined);
+
+        return parsed.toIso8601String();
       }
     } catch (e) {
-      print("❌ Error fetching server date: $e");
+      print("❌ Server time failed → fallback device time");
     }
-    return null;
+
+    return DateTime.now().toIso8601String();
   }
 
-  // BACKEND FILTERING METHODS
   Future<void> fetchPOsWithFilters({
     String? status,
     String? vendorName,
@@ -478,12 +462,12 @@ class POProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final List data = response.data;
-        final List<PO> fetchedPOs = data.map((e) => PO.fromJson(e)).toList();
+        final List<PO> fetchedPOs = data
+            .map((e) => _mergeWithExistingPO(PO.fromJson(e)))
+            .toList();
 
-        // ---------------- CREDIT LIMIT FIX ----------------
         final List<PO> fixedPOs = fetchedPOs;
 
-        // ---------------- 🔒 SAFETY FILTER (THE REAL FIX) ----------------
         final List<PO> filteredPOs = fetchedPOs.where((po) {
           switch (_currentFilterStatus) {
             case 'Pending':
@@ -495,7 +479,6 @@ class POProvider extends ChangeNotifier {
           }
         }).toList();
 
-        // ---------------- APPLY TO STATE ----------------
         if (clearExisting && !append) {
           _pos = filteredPOs;
           _poList
@@ -531,10 +514,9 @@ class POProvider extends ChangeNotifier {
     try {
       _isFetching = true;
 
-      // Load ALL vendors once (not paginated)
       final response = await _dio.get(
         '/vendors/limit',
-        queryParameters: {'limit': 1000}, // Get max at once
+        queryParameters: {'limit': 1000},
       );
 
       if (response.statusCode == 200) {
@@ -544,8 +526,6 @@ class POProvider extends ChangeNotifier {
             .toList();
 
         _filteredVendorNames = _vendors.map((v) => v.vendorName).toList();
-
-        // Save to local cache
       }
     } catch (e) {
       debugPrint('Preload vendors error: $e');
@@ -553,6 +533,53 @@ class POProvider extends ChangeNotifier {
       _isFetching = false;
       notifyListeners();
     }
+  }
+
+  Future<void> preloadAllPurchaseItems() async {
+    if (_purchaseItems.length > 1000) return;
+
+    int skip = 0;
+    const int limit = 100;
+    bool hasMore = true;
+
+    _purchaseItems.clear();
+
+    print("🚀 Loading ALL purchase items...");
+
+    while (hasMore) {
+      final response = await _dio.get(
+        '/rawMaterials/search',
+        queryParameters: {'skip': skip.toString(), 'limit': limit.toString()},
+      );
+
+      if (response.statusCode != 200) break;
+
+      List<dynamic> data = [];
+
+      if (response.data is Map && response.data['items'] != null) {
+        data = response.data['items'];
+      } else if (response.data is List) {
+        data = response.data;
+      }
+
+      final newItems = data
+          .map((e) => PurchaseItem.fromJson(e))
+          .where((i) => i.itemName?.isNotEmpty ?? false)
+          .toList();
+
+      _purchaseItems.addAll(newItems);
+
+      print("📦 Loaded: ${_purchaseItems.length}");
+
+      hasMore = newItems.length == limit;
+      skip += limit;
+    }
+
+    _filteredPurchaseItems = _purchaseItems.map((i) => i.itemName!).toList();
+
+    print("✅ All items loaded: ${_purchaseItems.length}");
+
+    notifyListeners();
   }
 
   void searchVendorsDebounced(String query) {
@@ -565,12 +592,10 @@ class POProvider extends ChangeNotifier {
 
   Future<void> _actualVendorSearch(String query) async {
     if (query.isEmpty || query.length < 1) {
-      // Show cached vendors
       notifyListeners();
       return;
     }
 
-    // Use cached data first
     final cachedResults = _vendors
         .where((v) => v.vendorName.toLowerCase().contains(query.toLowerCase()))
         .take(50)
@@ -581,11 +606,9 @@ class POProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    // Then fetch from API in background
     await fetchingVendors(vendorName: query);
   }
 
-  // APPLY CURRENT FILTERS
   Future<void> applyCurrentFilters() async {
     String? status;
     if (_currentFilterStatus != 'All') {
@@ -617,7 +640,6 @@ class POProvider extends ChangeNotifier {
     );
   }
 
-  // SPECIFIC FILTER METHODS
   Future<void> fetchAllPOs() async {
     await fetchPOsWithFilters(clearExisting: true);
   }
@@ -658,34 +680,6 @@ class POProvider extends ChangeNotifier {
     );
   }
 
-  Item _recalculatePending(Item item) {
-    final double qty = item.pendingTotalQuantity ?? item.quantity ?? 0.0;
-    final double price = item.newPrice ?? item.existingPrice ?? 0.0;
-
-    final double base = qty * price;
-
-    final double befAmt = item.befTaxDiscountType == 'amount'
-        ? (item.befTaxDiscountAmount ?? 0.0)
-        : base * (item.befTaxDiscount ?? 0.0) / 100;
-
-    final double afterBef = base - befAmt;
-
-    final double tax = afterBef * (item.taxPercentage ?? 0.0) / 100;
-
-    final double aftAmt = item.afTaxDiscountType == 'amount'
-        ? (item.afTaxDiscountAmount ?? 0.0)
-        : (afterBef + tax) * (item.afTaxDiscount ?? 0.0) / 100;
-
-    return item.copyWith(
-      pendingTotalPrice: base,
-      pendingBefTaxDiscountAmount: befAmt,
-      pendingAfTaxDiscountAmount: aftAmt,
-      pendingDiscountAmount: befAmt + aftAmt,
-      pendingTaxAmount: tax,
-      pendingFinalPrice: base - befAmt + tax - aftAmt,
-    );
-  }
-
   Future<void> fetchThisMonthPOs() async {
     final now = DateTime.now();
     final startOfMonth = DateTime(now.year, now.month, 1);
@@ -712,11 +706,10 @@ class POProvider extends ChangeNotifier {
   }
 
   Future<void> refreshPOList() async {
-    await fetchPOs(); // or fetchAllPOs()
-    notifyListeners(); // double-safe
+    await fetchPOs();
+    notifyListeners();
   }
 
-  // EXISTING FETCH METHODS
   Future<void> fetchPOs() async {
     _setLoadingState(true);
     _setError(null);
@@ -762,14 +755,12 @@ class POProvider extends ChangeNotifier {
     await fetchPOsWithFilters(status: status, clearExisting: true);
   }
 
-  // FETCH VENDORS
   Future<void> fetchingVendors({
     String vendorName = '',
     int skip = 0,
     int limit = 50,
     bool append = false,
   }) async {
-    // ✅ prevent duplicate / build-time calls
     if (_isFetching) return;
 
     _isFetching = true;
@@ -830,15 +821,13 @@ class POProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // In POProvider.dart - Update fetchingAllVendors method
   Future<void> fetchingAllVendors({
     String vendorName = '',
     int skip = 0,
-    int limit = 100, // ✅ Increase from 50 to 100
+    int limit = 100,
     bool append = false,
   }) async {
     try {
-      // Return early if already fetching
       if (_isFetching) return;
 
       _isFetching = true;
@@ -918,7 +907,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // SHIPPING / BILLING
   Future<void> fetchShippingaddress() async {
     _setLoadingState(true);
     _error = null;
@@ -967,8 +955,6 @@ class POProvider extends ChangeNotifier {
 
   Future<void> fetchBranches({bool force = false}) async {
     if (_isBranchLoading) return;
-
-    // 🔥 allow retry if list is empty
     if (_branches.isNotEmpty && !force) return;
 
     _isBranchLoading = true;
@@ -976,38 +962,30 @@ class POProvider extends ChangeNotifier {
 
     try {
       final dio = Dio(
-        BaseOptions(
-          baseUrl: 'https://yenerp.com/fluttertestapi',
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-        ),
+        BaseOptions(baseUrl: 'https://yenerp.com/masteradminapi'),
       );
 
-      final response = await dio.get('/branches/');
+      final response = await dio.get('/locations/');
 
       if (response.statusCode == 200 && response.data is List) {
         _branches = (response.data as List)
             .map((e) => BranchLocation.fromJson(e))
             .toList();
-      } else {
-        _branches = [];
       }
     } catch (e) {
-      debugPrint('❌ fetchBranches error: $e');
-      _branches = [];
-    } finally {
-      _isBranchLoading = false;
-      notifyListeners();
+      print("❌ Branch fetch error: $e");
     }
+
+    _isBranchLoading = false;
+    notifyListeners();
   }
 
   Future<void> preloadBranches() async {
-    await fetchBranches(force: true);
-    _branchesLoaded = true;
+    if (_branches.isEmpty) {
+      await fetchBranches(force: true);
+    }
   }
 
-  // In POProvider.dart - Fix the type cast error
-  // In POProvider.dart - Fix searchPurchaseItems method
   Future<bool> searchPurchaseItems({
     String query = '',
     int skip = 0,
@@ -1019,13 +997,11 @@ class POProvider extends ChangeNotifier {
         '🔍 searchPurchaseItems | query="$query", skip=$skip, limit=$limit, append=$append',
       );
 
-      // Build query parameters - all values should be strings for URL
       final Map<String, String> queryParameters = {
         'skip': skip.toString(),
         'limit': limit.toString(),
       };
 
-      // Only add q parameter if query is not empty
       if (query.isNotEmpty) {
         queryParameters['q'] = query;
       }
@@ -1044,7 +1020,6 @@ class POProvider extends ChangeNotifier {
 
       List<dynamic> data = [];
 
-      // Parse response based on structure
       if (decoded is Map) {
         if (decoded.containsKey('items')) {
           data = decoded['items'] ?? [];
@@ -1053,14 +1028,12 @@ class POProvider extends ChangeNotifier {
         } else if (decoded.containsKey('results')) {
           data = decoded['results'] ?? [];
         } else {
-          // Try to extract any list from the map
           data = decoded.values.whereType<List>().expand((x) => x).toList();
         }
       } else if (decoded is List) {
         data = decoded;
       }
 
-      // Parse items with better error handling
       final List<PurchaseItem> fetchedItems = [];
 
       for (var itemData in data) {
@@ -1075,7 +1048,6 @@ class POProvider extends ChangeNotifier {
         }
       }
 
-      // If backend doesn't filter properly, filter locally
       List<PurchaseItem> filteredItems = fetchedItems;
 
       if (query.isNotEmpty) {
@@ -1086,9 +1058,7 @@ class POProvider extends ChangeNotifier {
         }).toList();
       }
 
-      // Update purchaseItems list
       if (append) {
-        // Avoid duplicates when appending
         final existingIds = _purchaseItems.map((i) => i.purchaseItemId).toSet();
         final newItems = filteredItems.where(
           (i) => !existingIds.contains(i.purchaseItemId),
@@ -1098,7 +1068,6 @@ class POProvider extends ChangeNotifier {
         _purchaseItems = filteredItems;
       }
 
-      // Update filtered list for dropdown
       _filteredPurchaseItems = filteredItems
           .map((i) => i.itemName!)
           .where((name) => name.isNotEmpty)
@@ -1114,7 +1083,6 @@ class POProvider extends ChangeNotifier {
 
       notifyListeners();
 
-      // Return true if there might be more items
       return fetchedItems.length >= limit;
     } catch (e) {
       debugPrint('❌ searchPurchaseItems error: $e');
@@ -1123,8 +1091,7 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // Change return type
-  Future<bool> _fetchAllItems({
+  Future<bool> fetchAllItems({
     int skip = 0,
     int limit = 100,
     bool append = false,
@@ -1170,16 +1137,15 @@ class POProvider extends ChangeNotifier {
         );
         notifyListeners();
 
-        return newItems.length >= limit; // Return bool
+        return newItems.length >= limit;
       }
-      return false; // Return bool
+      return false;
     } catch (e) {
       print('❌ Fallback also failed: $e');
-      return false; // Return bool
+      return false;
     }
   }
 
-  // SEARCH FUNCTIONALITY
   Timer? _searchTimer;
 
   void searchPOs(String query) {
@@ -1192,52 +1158,32 @@ class POProvider extends ChangeNotifier {
     });
   }
 
-  // STATUS: APPROVE / REVERT
   Future<void> approvePo(String purchaseOrderId, String status, PO po) async {
     try {
+      final now = await getServerDate();
+
+      final Map<String, dynamic> body = {
+        "poStatus": status,
+        "approvedDate": status == "Approved" ? now : null,
+        "rejectedDate": status == "Rejected" ? now : null,
+      };
+
       final response = await _dio.patch(
         '/purchaseorders/$purchaseOrderId',
-        data: {'poStatus': status},
+        data: body,
       );
 
       if (response.statusCode == 200) {
-        final index = _pos.indexWhere(
-          (p) => p.purchaseOrderId == purchaseOrderId,
-        );
-        if (index != -1) {
-          _pos[index] = _pos[index].copyWith(poStatus: status);
-        }
-
-        final poListIndex = _poList.indexWhere(
-          (p) => p.purchaseOrderId == purchaseOrderId,
-        );
-        if (poListIndex != -1) {
-          _poList[poListIndex] = _poList[poListIndex].copyWith(
-            poStatus: status,
-          );
-        }
-
-        _pos.removeWhere((p) => p.purchaseOrderId == purchaseOrderId);
-        _poList.removeWhere((p) => p.purchaseOrderId == purchaseOrderId);
-
         await applyCurrentFilters();
-
         notifyListeners();
       } else {
-        throw DioException(
-          requestOptions: response.requestOptions,
-          response: response,
-          error: 'Failed to approve PO: ${response.statusCode}',
-        );
+        throw Exception("Failed to update PO status");
       }
-    } on DioException {
-      rethrow;
     } catch (e) {
       rethrow;
     }
   }
 
-  // Add this method to POProvider
   Future<void> approveAndRemovePO(String purchaseOrderId) async {
     try {
       _setLoadingState(true);
@@ -1282,7 +1228,7 @@ class POProvider extends ChangeNotifier {
         );
       }
     } finally {
-      _isRevertingPO = false; // ✅ RESET
+      _isRevertingPO = false;
       _setLoadingState(false);
     }
   }
@@ -1291,7 +1237,6 @@ class POProvider extends ChangeNotifier {
     await revertPOToPending(purchaseOrderId);
   }
 
-  // GRN CONVERSION
   Future<void> convertGrnPo(String poId, PO po) async {
     try {
       final pendingItems = po.items
@@ -1327,7 +1272,6 @@ class POProvider extends ChangeNotifier {
             ? 'GRNConverted'
             : 'PartiallyReceived';
 
-        // 🔥 UPDATE STATUS EXPLICITLY
         await _dio.patch(
           '/purchaseorders/$poId',
           data: {'poStatus': newStatus},
@@ -1361,9 +1305,7 @@ class POProvider extends ChangeNotifier {
       print('Round Off Adjustment: $roundOffAdjustment');
       print('===========================');
 
-      // IMPORTANT: Update the GRN with round-off adjustment
       final Map<String, dynamic> updateBody = {
-        // 'discountPrice': discount,
         'roundOffAdjustment': roundOffAdjustment ?? 0.0,
         'grnRoundOffAmount': roundOffAdjustment ?? 0.0,
       };
@@ -1371,14 +1313,11 @@ class POProvider extends ChangeNotifier {
       print("=== Updating GRN with round-off ===");
       print(jsonEncode(updateBody));
 
-      // Update the GRN record with round-off
       final response = await _dio.patch('/grns/$grnId', data: updateBody);
 
       if (response.statusCode == 200) {
-        // Success
         print('GRN updated successfully with round-off: $roundOffAdjustment');
 
-        // Refresh GRN list
         final grnProvider = Provider.of<GRNProvider>(context, listen: false);
         await grnProvider.fetchFilteredGRNs();
       } else {
@@ -1411,10 +1350,10 @@ class POProvider extends ChangeNotifier {
   Future<Map<String, dynamic>> calculateGrnOverallDiscount({
     required List<Map<String, dynamic>> items,
     required double discountAmount,
-    required String discountType, // "before" | "after"
+    required String discountType,
   }) async {
     final response = await _dio.post(
-      '/purchaseorders/items/grn/calculate-overall-discount', // ✅ CORRECT
+      '/purchaseorders/items/grn/calculate-overall-discount',
       data: {
         "applyOverallDiscount": true,
         "overallDiscountAmount": discountAmount,
@@ -1426,7 +1365,6 @@ class POProvider extends ChangeNotifier {
     return response.data;
   }
 
-  // In POProvider class
   Future<Map<String, dynamic>> calculateItemTotalsBackend({
     required double pendingTotalQuantity,
     required double poQuantity,
@@ -1441,7 +1379,6 @@ class POProvider extends ChangeNotifier {
     String taxType = 'cgst_sgst',
   }) async {
     try {
-      // ✅ VALIDATE INPUTS BEFORE API CALL
       if (pendingTotalQuantity <= 0 || newPrice <= 0) {
         print('⚠️ Invalid inputs for backend calculation');
         return {
@@ -1461,7 +1398,6 @@ class POProvider extends ChangeNotifier {
         };
       }
 
-      // ✅ BUILD CORRECT QUERY PARAMETERS
       final queryParameters = {
         'pendingTotalQuantity': pendingTotalQuantity,
         'poQuantity': poQuantity,
@@ -1470,21 +1406,20 @@ class POProvider extends ChangeNotifier {
         'taxType': taxType,
       };
 
-      // ✅ ADD DISCOUNT PARAMETERS BASED ON TYPE
       if (befTaxDiscountType == 'amount') {
         queryParameters['befTaxDiscountAmount'] = befTaxDiscountAmount ?? 0.0;
-        queryParameters['befTaxDiscount'] = 0.0; // Send 0 for percentage
+        queryParameters['befTaxDiscount'] = 0.0;
       } else {
         queryParameters['befTaxDiscount'] = befTaxDiscount ?? 0.0;
-        queryParameters['befTaxDiscountAmount'] = 0.0; // Send 0 for amount
+        queryParameters['befTaxDiscountAmount'] = 0.0;
       }
 
       if (afTaxDiscountType == 'amount') {
         queryParameters['afTaxDiscountAmount'] = afTaxDiscountAmount ?? 0.0;
-        queryParameters['afTaxDiscount'] = 0.0; // Send 0 for percentage
+        queryParameters['afTaxDiscount'] = 0.0;
       } else {
         queryParameters['afTaxDiscount'] = afTaxDiscount ?? 0.0;
-        queryParameters['afTaxDiscountAmount'] = 0.0; // Send 0 for amount
+        queryParameters['afTaxDiscountAmount'] = 0.0;
       }
 
       queryParameters['befTaxDiscountType'] = befTaxDiscountType;
@@ -1511,78 +1446,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // CALCULATIONS
-  // Future<Map<String, dynamic>> calculateItemTotals({
-  //   required double pendingTotalQuantity,
-  //   required double poQuantity,
-  //   required double newPrice,
-  //   double pendingBefTaxDiscountAmount = 0,
-  //   double pendingAfTaxDiscountAmount = 0,
-  //   double taxPercentage = 0,
-  //   required String taxType,
-  //   required String discountMode,
-  // }) async {
-  //   try {
-  //     double baseAmount = pendingTotalQuantity * newPrice;
-  //     double befTaxDiscountAmount = 0.0;
-  //     double afterBefTax = baseAmount;
-
-  //     if (discountMode == 'percentage') {
-  //       befTaxDiscountAmount = baseAmount * pendingBefTaxDiscountAmount / 100;
-  //       afterBefTax = baseAmount - befTaxDiscountAmount;
-  //     } else {
-  //       befTaxDiscountAmount = pendingBefTaxDiscountAmount;
-  //       afterBefTax = baseAmount - befTaxDiscountAmount;
-  //     }
-
-  //     double taxAmount = afterBefTax * taxPercentage / 100;
-  //     double priceAfterTax = afterBefTax + taxAmount;
-
-  //     double afTaxDiscountAmount = 0.0;
-  //     double finalPrice = priceAfterTax;
-
-  //     if (discountMode == 'percentage') {
-  //       afTaxDiscountAmount = priceAfterTax * pendingAfTaxDiscountAmount / 100;
-  //       finalPrice = priceAfterTax - afTaxDiscountAmount;
-  //     } else {
-  //       afTaxDiscountAmount = pendingAfTaxDiscountAmount;
-  //       finalPrice = priceAfterTax - afTaxDiscountAmount;
-  //     }
-
-  //     double pendingSgst = 0.0;
-  //     double pendingCgst = 0.0;
-  //     double pendingIgst = 0.0;
-
-  //     if (taxType == 'igst') {
-  //       pendingIgst = taxAmount;
-  //     } else {
-  //       pendingCgst = taxAmount / 2;
-  //       pendingSgst = taxAmount / 2;
-  //     }
-
-  //     final Map<String, dynamic> data = {
-  //       'pendingTotalPrice': baseAmount,
-  //       'pendingBefTaxDiscountAmount': befTaxDiscountAmount,
-  //       'pendingAfTaxDiscountAmount': afTaxDiscountAmount,
-  //       'pendingDiscountAmount': befTaxDiscountAmount + afTaxDiscountAmount,
-  //       'pendingTaxAmount': taxAmount,
-  //       'pendingSgst': pendingSgst,
-  //       'pendingCgst': pendingCgst,
-  //       'pendingIgst': pendingIgst,
-  //       'pendingFinalPrice': finalPrice,
-  //       'befTaxDiscount': pendingBefTaxDiscountAmount,
-  //       'afTaxDiscount': pendingAfTaxDiscountAmount,
-  //       'poQuantity': poQuantity,
-  //       'quantity': pendingTotalQuantity,
-  //     };
-
-  //     _taxData = data;
-  //     return data;
-  //   } catch (error) {
-  //     return {};
-  //   }
-  // }
-
   Future<Map<String, dynamic>> calculateOverallDiscountAPI({
     required List<Map<String, dynamic>> items,
     required bool applyOverallDiscount,
@@ -1590,14 +1453,12 @@ class POProvider extends ChangeNotifier {
     required double overallDiscount,
     required double overallDiscountAmount,
   }) async {
-    // ✅ Build payload with all required fields
     final payload = {
       "applyOverallDiscount": applyOverallDiscount,
       "overallDiscountType": overallDiscountType,
       "overallDiscount": overallDiscount,
       "overallDiscountAmount": overallDiscountAmount,
       "items": items,
-      // ✅ Add these if backend needs them
       "roundOffAdjustment": 0.0,
       "taxType": "cgst_sgst",
     };
@@ -1621,7 +1482,6 @@ class POProvider extends ChangeNotifier {
         print('🔍 Full API Response:');
         print(jsonEncode(decoded));
 
-        // ✅ Debug: Print full response structure
         print('📋 Full response structure:');
         print('   success: ${decoded["success"]}');
         print('   items count: ${(decoded["items"] as List?)?.length ?? 0}');
@@ -1652,7 +1512,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // UPDATE PO
   Future<void> updatePO(PO po) async {
     _setLoadingState(true);
     _setError(null);
@@ -1690,7 +1549,6 @@ class POProvider extends ChangeNotifier {
         "expectedDeliveryDate": formatDateForBackend(po.expectedDeliveryDate),
         "orderedDate": formatDateForBackend(po.orderedDate),
         "items": po.items.map((item) {
-          // ✅ FIX: Convert amount → percentage for backend
           double base =
               (item.quantity ?? 0.0) *
               (item.newPrice ?? item.existingPrice ?? 0.0);
@@ -1734,16 +1592,12 @@ class POProvider extends ChangeNotifier {
             "existingPrice": item.existingPrice ?? 0.0,
             "newPrice": item.newPrice ?? 0.0,
             "taxType": item.taxType ?? 'cgst_sgst',
-
-            // ✅ fixed lines
             "befTaxDiscount": double.parse(befTaxToSend.toStringAsFixed(2)),
             "afTaxDiscount": double.parse(afTaxToSend.toStringAsFixed(2)),
-
             "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
             "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
             "befTaxDiscountType": item.befTaxDiscountType ?? 'percentage',
             "afTaxDiscountType": item.afTaxDiscountType ?? 'percentage',
-
             "discountAmount": item.discountAmount ?? 0.0,
             "taxAmount": item.taxAmount ?? 0.0,
             "barcode": item.barcode ?? "",
@@ -1790,8 +1644,7 @@ class POProvider extends ChangeNotifier {
         "gstNumber": po.gstNumber ?? "",
         "creditLimit": po.creditLimit ?? 0,
         "poStatus": po.poStatus ?? "Pending",
-        "lastUpdatedDate":
-            po.lastUpdatedDate ?? DateTime.now().toIso8601String(),
+        "lastUpdatedDate": await getServerDate(),
         "roundOffAdjustment": po.roundOffAdjustment ?? 0.0,
         "roundOffValue": po.roundOffAdjustment ?? 0.0,
       };
@@ -1814,7 +1667,7 @@ class POProvider extends ChangeNotifier {
         );
         if (poListIndex != -1) _poList[poListIndex] = updatedPO;
 
-        notifyListeners(); // 🔥 REQUIRED
+        notifyListeners();
       } else {
         throw Exception(
           "Failed to update PO: ${response.statusCode} - ${response.data}",
@@ -1920,7 +1773,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // UPDATE ITEM TO BACKEND
   Future<void> updateItemFromBackend(int index, String poId) async {
     final item = _items[index];
 
@@ -1948,8 +1800,6 @@ class POProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final decoded = response.data;
         final serverItem = decoded["items"][0];
-
-        // Update only server-calculated fields
         _items[index].pendingTotalQuantity = serverItem["pendingTotalQuantity"];
         _items[index].pendingTotalPrice = serverItem["pendingTotalPrice"];
         _items[index].pendingDiscountAmount =
@@ -1970,7 +1820,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // CHECK INVOICE DUPLICATE
   Future<bool> checkInvoiceNumberExists({
     required String invoiceNo,
     required String currentPurchaseOrderId,
@@ -2009,7 +1858,6 @@ class POProvider extends ChangeNotifier {
       if (date.contains('-')) {
         List<String> parts = date.split('-');
 
-        // dd-MM-yyyy → yyyy-MM-dd
         if (parts[0].length == 2 && parts[1].length == 2) {
           return "${parts[2]}-${parts[1]}-${parts[0]}";
         }
@@ -2020,7 +1868,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // HTTP HELPERS
   Future<Response> postWithRedirectHandling(
     String url,
     Map<String, dynamic> body,
@@ -2040,18 +1887,12 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // POST NEW PO
   Future<void> postPO(PO po, VendorAll selectedVendorDetails) async {
     _setLoadingState(true);
     _error = null;
 
     try {
-      // --------------------------------------------------
-      // TIMESTAMPS
-      // --------------------------------------------------
-      final String formattedDate = DateFormat(
-        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-      ).format(DateTime.now());
+      final String formattedDate = await getServerDate();
 
       String formatDateForBackend(String dateString) {
         if (dateString.isEmpty) return "";
@@ -2061,7 +1902,6 @@ class POProvider extends ChangeNotifier {
               parts[0].length == 2 &&
               parts[1].length == 2 &&
               parts[2].length == 4) {
-            // dd-MM-yyyy → yyyy-MM-dd
             return "${parts[2]}-${parts[1]}-${parts[0]}";
           }
           return dateString;
@@ -2075,83 +1915,64 @@ class POProvider extends ChangeNotifier {
         po.expectedDeliveryDate ?? "",
       );
 
-      // --------------------------------------------------
-      // OVERALL DISCOUNT (PO LEVEL ONLY)
-      // --------------------------------------------------
-      final double overallDiscountValue = po.overallDiscount?.value ?? 0.0;
-      final String overallDiscountType =
-          po.overallDiscount?.mode == DiscountMode.percentage
-          ? "percentage"
-          : "amount";
+      po.items.forEach((item) {});
 
-      // --------------------------------------------------
-      // ITEMS (BACKEND EXPECTS % VALUES)
-      // --------------------------------------------------
       final List<Map<String, dynamic>> updatedItems = po.items.map((item) {
-        final double base =
-            (item.quantity ?? 0) * (item.newPrice ?? item.existingPrice ?? 0);
+        final double qty = item.quantity ?? 0.0;
+        final double price = item.newPrice ?? item.existingPrice ?? 0.0;
 
-        // Convert befTax discount → percentage
-        double befTaxPercent = item.befTaxDiscount ?? 0.0;
-        if (item.befTaxDiscountType == 'amount' && base > 0) {
-          befTaxPercent = ((item.befTaxDiscountAmount ?? 0.0) / base) * 100;
-        }
+        final double pendingFinal =
+            item.pendingFinalPrice ?? item.finalPrice ?? 0.0;
+        final double pendingTotal =
+            item.pendingTotalPrice ?? item.totalPrice ?? 0.0;
+        final double pendingDiscount = item.pendingDiscountAmount ?? 0.0;
+        final double pendingTax = item.pendingTaxAmount ?? 0.0;
 
-        // Convert afTax discount → percentage
-        double afTaxPercent = item.afTaxDiscount ?? 0.0;
-        if (item.afTaxDiscountType == 'amount' && base > 0) {
-          afTaxPercent = ((item.afTaxDiscountAmount ?? 0.0) / base) * 100;
+        double sgst = 0, cgst = 0, igst = 0;
+        if ((item.taxType ?? 'cgst_sgst') == 'igst') {
+          igst = pendingTax;
+        } else {
+          cgst = pendingTax / 2;
+          sgst = pendingTax / 2;
         }
 
         return {
           "itemId": item.itemId ?? "",
           "itemName": item.itemName ?? "",
-
-          "quantity": item.quantity ?? 0.0,
-          "newPrice": item.newPrice ?? 0.0,
-          "existingPrice": item.existingPrice ?? 0.0,
-
-          "taxPercentage": item.taxPercentage ?? 0.0,
-          "taxType": item.taxType ?? "cgst_sgst",
-
-          // ✅ ALWAYS send discounts as percentages
-          "befTaxDiscount": double.parse(befTaxPercent.toStringAsFixed(2)),
-          "afTaxDiscount": double.parse(afTaxPercent.toStringAsFixed(2)),
-          "befTaxDiscountType": "percentage",
-          "afTaxDiscountType": "percentage",
-
-          // ✅ Amounts sent separately
-          "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
-          "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
-
-          // Backend-calculated values (DO NOT recompute)
-          "taxAmount": item.taxAmount ?? 0.0,
-          "totalPrice": item.totalPrice ?? 0.0,
-          "finalPrice": item.finalPrice ?? 0.0,
+          "quantity": qty,
+          "poQuantity": qty,
+          "poQuantityTaxAmount": item.poQuantityTaxAmount ?? pendingTax,
+          "poQuantityDiscountAmount":
+              item.poQuantityDiscountAmount ?? pendingDiscount,
+          "poQuantitypendingTotalPrice":
+              item.poQuantitypendingTotalPrice ?? pendingTotal,
+          "poQuantitypendingFinalPrice":
+              item.poQuantitypendingFinalPrice ?? pendingFinal,
+          "poQuantitysgst": item.poQuantitysgst ?? sgst,
+          "poQuantitycgst": item.poQuantitycgst ?? cgst,
+          "poQuantityigst": item.poQuantityigst ?? igst,
 
           "uom": item.uom ?? "",
           "count": item.count ?? 1.0,
           "eachQuantity": item.eachQuantity ?? 0.0,
-
-          // Pending values (authoritative)
-          "pendingCount": item.pendingCount ?? item.count ?? 1.0,
-          "pendingQuantity": item.pendingQuantity ?? item.eachQuantity ?? 0.0,
-          "pendingTotalQuantity":
-              item.pendingTotalQuantity ?? item.quantity ?? 0.0,
-
-          "pendingBefTaxDiscountAmount":
-              item.pendingBefTaxDiscountAmount ?? 0.0,
-          "pendingAfTaxDiscountAmount": item.pendingAfTaxDiscountAmount ?? 0.0,
-          "pendingDiscountAmount": item.pendingDiscountAmount ?? 0.0,
-          "pendingTaxAmount": item.pendingTaxAmount ?? 0.0,
-          "pendingFinalPrice": item.pendingFinalPrice ?? item.finalPrice ?? 0.0,
-          "pendingTotalPrice": item.pendingTotalPrice ?? item.totalPrice ?? 0.0,
+          "existingPrice": item.existingPrice ?? 0.0,
+          "newPrice": price,
+          "taxPercentage": item.taxPercentage ?? 0.0,
+          "taxType": item.taxType ?? "cgst_sgst",
+          "befTaxDiscount": item.befTaxDiscount ?? 0.0,
+          "afTaxDiscount": item.afTaxDiscount ?? 0.0,
+          "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
+          "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
+          "pendingCount": item.pendingCount ?? 1.0,
+          "pendingQuantity": item.pendingQuantity ?? qty,
+          "pendingTotalQuantity": item.pendingTotalQuantity ?? qty,
+          "pendingTaxAmount": pendingTax,
+          "pendingDiscountAmount": pendingDiscount,
+          "pendingTotalPrice": pendingTotal,
+          "pendingFinalPrice": pendingFinal,
         };
       }).toList();
 
-      // --------------------------------------------------
-      // TOTALS (AGGREGATION ONLY)
-      // --------------------------------------------------
       final double totalPendingAmount = po.items.fold(
         0.0,
         (s, i) => s + (i.pendingFinalPrice ?? 0),
@@ -2173,50 +1994,33 @@ class POProvider extends ChangeNotifier {
       final bool isHoldOrder =
           finalAmount > (selectedVendorDetails.creditLimit ?? 0);
 
-      // --------------------------------------------------
-      // BUILD FINAL PO OBJECT
-      // --------------------------------------------------
       final updatedPO = po.copyWith(
         orderDate: formattedDate,
         createdDate: formattedDate,
         lastUpdatedDate: formattedDate,
-        approvedDate: formattedDate,
-        rejectedDate: formattedDate,
-        invoiceDate: formattedDate,
-
+        approvedDate: null,
+        rejectedDate: null,
+        invoiceDate: null,
         orderedDate: formattedOrderedDate,
         expectedDeliveryDate: formattedExpectedDate,
-
         totalOrderAmount: finalAmount,
         pendingOrderAmount: finalAmount,
         pendingDiscountAmount: totalPendingDiscount,
         pendingTaxAmount: totalPendingTax,
-
         roundOffAdjustment: roundOffValue,
         poStatus: isHoldOrder ? 'CreditLimit for Approve' : 'Pending',
       );
 
-      // --------------------------------------------------
-      // FINAL PAYLOAD
-      // --------------------------------------------------
       final Map<String, dynamic> poJson = updatedPO.toJson()
         ..['items'] = updatedItems
-        ..['overallDiscountValue'] = overallDiscountValue
-        ..['overallDiscountType'] = overallDiscountType
-        ..['roundOffAdjustment'] = roundOffValue
-        ..['roundOffValue'] = roundOffValue
-        ..['poStatus'] = updatedPO.poStatus
-        ..['isHoldOrder'] = isHoldOrder;
+        ..removeWhere(
+          (key, value) =>
+              (key == "approvedDate" ||
+                  key == "rejectedDate" ||
+                  key == "invoiceDate") &&
+              (value == "" || value == null),
+        );
 
-      print('📤 Posting PO');
-      print('   Items count: ${updatedItems.length}');
-      print(
-        '   First item afTaxDiscount: ${updatedItems.first["afTaxDiscount"]}%',
-      );
-
-      // --------------------------------------------------
-      // API CALL
-      // --------------------------------------------------
       final response = await postWithRedirectHandling(
         '/purchaseorders/',
         poJson,
@@ -2225,9 +2029,7 @@ class POProvider extends ChangeNotifier {
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchPOsWithFilters(status: null, clearExisting: true);
       } else {
-        throw Exception(
-          "Failed to post PO: ${response.statusCode} - ${response.data}",
-        );
+        throw Exception("Failed to post PO");
       }
     } catch (e) {
       _setError(e.toString());
@@ -2236,7 +2038,34 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // FILTER SUMMARY METHODS
+  PO _mergeWithExistingPO(PO newPO) {
+    final oldPO = _pos.firstWhere(
+      (p) => p.purchaseOrderId == newPO.purchaseOrderId,
+      orElse: () => newPO,
+    );
+
+    for (int i = 0; i < newPO.items.length; i++) {
+      final newItem = newPO.items[i];
+
+      final oldItem = oldPO.items.firstWhere(
+        (it) => it.itemId == newItem.itemId,
+        orElse: () => newItem,
+      );
+
+      newItem.poQuantityTaxAmount ??= oldItem.poQuantityTaxAmount;
+      newItem.poQuantityDiscountAmount ??= oldItem.poQuantityDiscountAmount;
+      newItem.poQuantitypendingTotalPrice ??=
+          oldItem.poQuantitypendingTotalPrice;
+      newItem.poQuantitypendingFinalPrice ??=
+          oldItem.poQuantitypendingFinalPrice;
+      newItem.poQuantitysgst ??= oldItem.poQuantitysgst;
+      newItem.poQuantitycgst ??= oldItem.poQuantitycgst;
+      newItem.poQuantityigst ??= oldItem.poQuantityigst;
+    }
+
+    return newPO;
+  }
+
   Map<String, int> getFilterCounts() {
     return {
       'All': _pos.length,
@@ -2252,7 +2081,6 @@ class POProvider extends ChangeNotifier {
     };
   }
 
-  // ERROR FORMATTERS
   String _formatDioError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -2280,20 +2108,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  String _formatStatusChangeError(DioException e) {
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-        return 'Connection timeout. Please try again.';
-      case DioExceptionType.connectionError:
-        return 'No internet connection available.';
-      case DioExceptionType.badResponse:
-        return e.response?.data['message']?.toString() ??
-            'Server error (${e.response?.statusCode})';
-      default:
-        return 'Failed to change PO status: ${e.message}';
-    }
-  }
-
   String _formatConversionError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -2308,7 +2122,6 @@ class POProvider extends ChangeNotifier {
     }
   }
 
-  // DISPOSE
   @override
   void dispose() {
     _searchTimer?.cancel();

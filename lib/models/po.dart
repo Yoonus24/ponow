@@ -3,9 +3,7 @@ import 'package:intl/intl.dart';
 import 'discount_model.dart';
 
 class PO {
-  // ------------------------------
-  // MAIN FIELDS
-  // ------------------------------
+
   final String purchaseOrderId;
   final String? vendorName;
   final String? vendorContact;
@@ -46,9 +44,6 @@ class PO {
   final double? overallDiscountValue;
   double? manualTotalDiscount;
 
-  // ------------------------------
-  // TEMPLATE FIELDS
-  // ------------------------------
   final bool? isTemplate;
   final String? templateName;
   final String? templateCreatedDate;
@@ -94,7 +89,6 @@ class PO {
     this.overallDiscount,
     this.roundOffAdjustment = 0.0,
     this.isHoldOrder = false,
-    // TEMPLATE
     this.isTemplate = false,
     this.templateName,
     this.templateCreatedDate,
@@ -105,9 +99,6 @@ class PO {
     this.locationName,
   }) : items = items ?? [];
 
-  // ------------------------------
-  // COMPUTED VALUES
-  // ------------------------------
 
   double get subTotal {
     return items.fold(0.0, (sum, item) => sum + (item.totalPrice ?? 0.0));
@@ -129,12 +120,10 @@ class PO {
   double get totalDiscount {
     if (manualTotalDiscount != null) return manualTotalDiscount!;
 
-    // If backend already calculated, trust it
     if (overallDiscountValue != null) {
       return overallDiscountValue!;
     }
 
-    // UI-side fallback
     return itemWiseDiscount + overallDiscountAmount;
   }
 
@@ -147,10 +136,6 @@ class PO {
     final amount = subTotal - totalDiscount + roundOff;
     return amount > 0 ? amount : 0.0;
   }
-
-  // ------------------------------
-  // COPY WITH
-  // ------------------------------
 
   PO copyWith({
     String? purchaseOrderId,
@@ -246,10 +231,6 @@ class PO {
     );
   }
 
-  // ------------------------------
-  // TO JSON
-  // ------------------------------
-
   Map<String, dynamic> toJson() => {
     'purchaseOrderId': purchaseOrderId,
     'vendorName': vendorName ?? '',
@@ -288,9 +269,8 @@ class PO {
     'overallDiscount': overallDiscount?.toJson(),
     'overallDiscountValue': overallDiscountValue ?? totalDiscount,
 
-    'roundOffAdjustment': roundOffAdjustment ?? 0.0,
+    'roundOffValue': roundOffAdjustment ?? 0.0,
     'isHoldOrder': isHoldOrder ?? false,
-    // TEMPLATE
     'isTemplate': isTemplate ?? false,
     'templateName': templateName ?? '',
     'templateCreatedDate': templateCreatedDate ?? '',
@@ -298,10 +278,6 @@ class PO {
     'location': location ?? '',
     'locationName': locationName ?? '',
   };
-
-  // ------------------------------
-  // FROM JSON
-  // ------------------------------
 
   factory PO.fromJson(Map<String, dynamic> json) => PO(
     purchaseOrderId: json['purchaseOrderId'] ?? '',
@@ -351,7 +327,6 @@ class PO {
             ?.map((i) => Item.fromJson(i))
             .toList() ??
         [],
-    // TEMPLATE
     isTemplate: json['isTemplate'] ?? false,
     templateName: json['templateName'] ?? '',
     templateCreatedDate: json['templateCreatedDate']?.toString() ?? '',
@@ -359,10 +334,6 @@ class PO {
     location: json['location']?.toString() ?? '',
     locationName: json['locationName']?.toString() ?? '',
   );
-
-  // ------------------------------
-  // DATE HELPERS
-  // ------------------------------
 
   String get formattedOrderDate {
     if (orderDate == null || orderDate!.isEmpty) return 'N/A';

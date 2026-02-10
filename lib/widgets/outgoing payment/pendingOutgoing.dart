@@ -59,7 +59,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     _selectedIndicesNotifier.addListener(_updateSelection);
     _horizontalScrollController.addListener(_handleHorizontalScroll);
 
-    // Initialize with empty list
     _selectedRowsNotifier.value = [];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -96,7 +95,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   int _calculateDueDays(Outgoing outgoing) {
     if (outgoing.invoiceDate == null) return 0;
 
-    // Extract days from "15 days"
     final terms = outgoing.paymentTerms ?? '';
     final match = RegExp(r'\d+').firstMatch(terms);
     final int creditDays = match != null ? int.parse(match.group(0)!) : 0;
@@ -149,7 +147,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
       debugPrint('  - Vendor: ${_selectedVendorNotifier.value}');
       debugPrint('  - Invoice: ${_selectedInvoiceNotifier.value}');
 
-      // FIX 1: Send null for "All Vendors" instead of empty string
       final String? vendorNameForApi =
           (_selectedVendorNotifier.value == null ||
               _selectedVendorNotifier.value!.isEmpty ||
@@ -157,7 +154,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           ? null
           : _selectedVendorNotifier.value!.trim();
 
-      // FIX 2: Send null for "All Invoices"
       final String? invoiceNoForApi =
           (_selectedInvoiceNotifier.value == null ||
               _selectedInvoiceNotifier.value!.trim().isEmpty)
@@ -201,15 +197,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     }
   }
 
-  double _calculatePaidAmount(Outgoing payment) {
-    // ✅ ALWAYS TRUST BACKEND SUMMARY
-    if (payment.totalPaidAmount != null) {
-      return payment.totalPaidAmount!;
-    }
-
-    // 🔁 FALLBACK (safety only)
-    return (payment.partialAmount ?? 0.0) + (payment.fullPaymentAmount ?? 0.0);
-  }
 
   void _removeOverlay() {
     _overlayEntry?.remove();
@@ -327,18 +314,14 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       ? null
                       : () {
                           if (_sortColumnNotifier.value == sortColumn) {
-                            // 🔁 toggle asc / desc
                             _sortAscendingNotifier.value =
                                 !_sortAscendingNotifier.value;
                           } else {
-                            // 🆕 new column sort
                             _sortColumnNotifier.value = sortColumn;
                             _sortAscendingNotifier.value = true;
                           }
-
-                          // 🔥 THIS IS THE MISSING PIECE
-                          setState(() {});
                         },
+
                   child: Tooltip(
                     message: text,
                     child: Row(
@@ -464,7 +447,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         paymentMode: paymentMode,
                         paymentMethod: paymentMethod,
 
-                        // ✅ SEND TOTAL AMOUNT, NOT SPLIT
                         partialAmount: paymentType == 'partial' ? amount : null,
 
                         fullPaymentAmount: paymentType == 'full'
@@ -728,7 +710,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                     fieldViewBuilder:
                         (context, controller, focusNode, onFieldSubmitted) {
-                          // Ensure selected vendor appears in the field
                           if (selectedVendor != null &&
                               selectedVendor.isNotEmpty &&
                               controller.text != selectedVendor) {
@@ -742,7 +723,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                             controller: controller,
                             focusNode: focusNode,
 
-                            // 🔴 IMPORTANT: Removed textAlignVertical to allow top shift
                             style: const TextStyle(fontSize: 14),
 
                             decoration: InputDecoration(
@@ -752,7 +732,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                 color: Colors.black54,
                               ),
 
-                              // ✅ Icon centered with fixed size
                               prefixIcon: Padding(
                                 padding: const EdgeInsets.only(
                                   left: 10,
@@ -770,7 +749,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                 minHeight: 40,
                               ),
 
-                              // ✅ Clear button
                               suffixIcon:
                                   controller.text.isNotEmpty &&
                                       controller.text != 'All Vendors'
@@ -786,9 +764,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                               border: InputBorder.none,
 
-                              // ✅ THIS moves the text slightly UP
                               contentPadding: const EdgeInsets.only(
-                                top: 6, // text moves upward
+                                top: 6, 
                                 bottom: 0,
                                 left: 5,
                                 right: 5,
@@ -804,11 +781,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         },
 
                     onSelected: (selected) {
-                      // _selectedVendorNotifier.value = selected;
                       _handleVendorSelected(selected);
                     },
 
-                    // ✅ Dropdown UI
                     optionsViewBuilder: (context, onSelected, options) {
                       return Align(
                         alignment: Alignment.topLeft,
@@ -896,7 +871,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                       fieldViewBuilder:
                           (context, controller, focusNode, onFieldSubmitted) {
-                            // ✅ Ensure selected invoice appears in the field
                             if (selectedInvoice != null &&
                                 selectedInvoice.isNotEmpty &&
                                 controller.text != selectedInvoice) {
@@ -921,7 +895,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                     color: Colors.black54,
                                   ),
 
-                                  // ✅ ICON SAME AS VENDOR STYLE
                                   prefixIcon: Padding(
                                     padding: const EdgeInsets.only(
                                       left: 10,
@@ -939,7 +912,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                     minHeight: 40,
                                   ),
 
-                                  // ✅ CLEAR BUTTON SAME STYLE
                                   suffixIcon:
                                       controller.text.isNotEmpty &&
                                           controller.text != 'All Invoices'
@@ -958,7 +930,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                                   border: InputBorder.none,
 
-                                  // ✅ SAME TEXT POSITION AS VENDOR FIELD
                                   contentPadding: const EdgeInsets.only(
                                     top: 6,
                                     bottom: 0,
@@ -977,11 +948,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                           },
 
                       onSelected: (selected) {
-                        // _selectedInvoiceNotifier.value = selected;
                         _handleInvoiceSelected(selected);
                       },
 
-                      // ✅ DROPDOWN UI MATCHES VENDOR FIELD
                       optionsViewBuilder: (context, onSelected, options) {
                         return Align(
                           alignment: Alignment.topLeft,
@@ -1073,7 +1042,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     List<ApInvoice> apInvoices,
     List<double> columnWidths,
   ) {
-    // Safety check
     if (index < 0) {
       return Container(height: 60.0);
     }
@@ -1101,7 +1069,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 );
               }
 
-              // Safe to access now
               final isSelected = selectedRows[index];
 
               return Checkbox(
@@ -1111,7 +1078,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 onChanged: (value) {
                   final newSelectedRows = List<bool>.from(selectedRows);
 
-                  // Double-check bounds before modifying
                   if (index < newSelectedRows.length) {
                     newSelectedRows[index] = value ?? false;
                     _selectedRowsNotifier.value = newSelectedRows;
@@ -1383,12 +1349,10 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   final List<GRN> grnList = provider.grnList;
                   final List<ApInvoice> apInvoices = provider.apInvoices;
 
-                  // ✅ Proper loading state
                   if (provider.isLoadingOutgoings) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  // ✅ Real empty state (after loading finished)
                   if (!provider.isLoadingOutgoings && filtered.isEmpty) {
                     return const Center(
                       child: Text(
@@ -1471,7 +1435,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       child: SingleChildScrollView(
                         controller: _mainScrollController,
                         physics:
-                            const AlwaysScrollableScrollPhysics(), // 🔥 IMPORTANT
+                            const AlwaysScrollableScrollPhysics(),
                         scrollDirection: Axis.vertical,
                         child: Column(
                           children: [
@@ -1755,11 +1719,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                     height: 360,
                                                     child: Scrollbar(
                                                       controller:
-                                                          _verticalScrollController, // ✅ ADD THIS LINE
+                                                          _verticalScrollController,
                                                       thumbVisibility: true,
                                                       child: SingleChildScrollView(
                                                         controller:
-                                                            _verticalScrollController, // ✅ SAME CONTROLLER
+                                                            _verticalScrollController, 
                                                         child: SizedBox(
                                                           width: totalWidth,
                                                           child: Column(

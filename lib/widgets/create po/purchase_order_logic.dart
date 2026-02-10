@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/BranchLocation.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -29,8 +28,6 @@ class PurchaseOrderLogic {
     null,
   );
 
-  // bool _isInitialized = false;
-
   final TemplateProvider templateProvider;
   bool _addressAutoFilled = false;
 
@@ -53,27 +50,19 @@ class PurchaseOrderLogic {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (isDisposed()) return;
 
-      // 🔥 PRELOAD VENDORS FIRST (CRITICAL FOR EDIT MODE)
       await poProvider.preloadVendors();
       await notifier.fetchAllVendors1();
 
-      // --------------------------------------------------
-      // ✏️ EDIT MODE
-      // --------------------------------------------------
+    
       if (editingPO != null) {
         _initializeWithPOData(editingPO!);
 
-        // Supporting data can load in background
         _fetchSupportingDataInBackground();
 
         updateTotalOrderAmount();
         triggerUIRefresh();
         return;
       }
-
-      // --------------------------------------------------
-      // ➕ CREATE NEW PO
-      // --------------------------------------------------
       await _initializeForNewPO();
     });
   }
@@ -124,23 +113,20 @@ class PurchaseOrderLogic {
   Future<void> _initializeForNewPO() async {
     if (isDisposed()) return;
 
-    // 🔥 Load Billing & Shipping first (same behaviour as before)
     await Future.wait([
       notifier.fetchShippingAddress1(),
       notifier.fetchBillingAddress1(),
     ]);
 
-    // 🔥 Load Location (branches) exactly like addresses
     await poProvider.preloadBranches();
 
-    // Items can load after
     await notifier.fetchItems('');
 
     notifier.expectedDeliveryDateController.clear();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      applyAddressesIfReady(); // Billing + Shipping
-      applyLocationIfReady(); // ✅ Location (NOW SAME BEHAVIOUR)
+      applyAddressesIfReady();
+      applyLocationIfReady(); 
     });
 
     final backendDate = await poProvider.getServerDate();
@@ -174,13 +160,11 @@ class PurchaseOrderLogic {
     final branches = poProvider.branches;
     if (branches.isEmpty) return;
 
-    // Only for CREATE PO
     if (notifier.selectedLocation != null &&
         notifier.selectedLocation!.isNotEmpty) {
       return;
     }
 
-    // 🔥 Prefer prod_GW warehouse
     final selected = branches.firstWhere(
       (b) => b.location.toLowerCase() == 'prod_gw',
       orElse: () => branches.first,
@@ -192,37 +176,11 @@ class PurchaseOrderLogic {
     );
   }
 
-  void _updateQuantity() {
-    if (isDisposed()) {
-      print('⚠️ _updateQuantity: Logic is disposed');
-      return;
-    }
-
-    try {
-      if (!notifier.countController.hasListeners ||
-          !notifier.eachQuantityController.hasListeners) {
-        print('⚠️ _updateQuantity: Controllers have no listeners');
-        return;
-      }
-
-      final count = double.tryParse(notifier.countController.text) ?? 0.0;
-      final eachQuantity =
-          double.tryParse(notifier.eachQuantityController.text) ?? 0.0;
-
-      // Check if quantityController is still valid
-      if (notifier.quantityController.hasListeners) {
-        notifier.quantityController.text = (count * eachQuantity)
-            .toStringAsFixed(2);
-      }
-    } catch (e) {
-      print('❌ Error in _updateQuantity: $e');
-    }
-  }
+ 
 
   void _onVendorInputChanged() {
     if (isDisposed()) return;
 
-    // 🔥 DO NOT CLEAR IN EDIT MODE
     if (editingPO != null) return;
 
     if (vendorController.text.trim().isEmpty) {
@@ -484,13 +442,11 @@ class PurchaseOrderLogic {
   void resetAllFields() {
     if (isDisposed()) return;
 
-    // 🚫 DO NOTHING IN EDIT MODE
     if (editingPO != null) {
       print('⚠️ resetAllFields skipped (edit mode)');
       return;
     }
 
-    // ✅ ONLY for Create PO
     vendorController.clear();
     _clearVendorDetails();
 
@@ -554,14 +510,7 @@ class PurchaseOrderLogic {
     }
 
     try {
-      // // 🔒 VALIDATE ITEM IDs
-      // for (final item in notifier.poItems) {
-      //   if (item.itemId == null || item.itemId!.isEmpty) {
-      //     throw Exception('Item ID missing');
-      //   }
-      // }
-
-      // 🔥 BUILD PAYLOAD
+   
       final itemList = notifier.poItems.map((item) {
         return {
           "itemId": item.itemId,
@@ -571,12 +520,10 @@ class PurchaseOrderLogic {
               item.pendingTotalQuantity ?? item.quantity ?? 0.0,
           "poQuantity": item.poQuantity ?? item.quantity ?? 0.0,
 
-          // BEFORE TAX
           "befTaxDiscount": item.befTaxDiscount ?? 0.0,
           "befTaxDiscountType": item.befTaxDiscountType ?? "percentage",
           "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
 
-          // AFTER TAX (overall discount will be applied by backend)
           "afTaxDiscount": 0.0,
           "afTaxDiscountType": "amount",
           "afTaxDiscountAmount": 0.0,
@@ -589,7 +536,6 @@ class PurchaseOrderLogic {
       final bool isPercentage =
           overallDiscountMode.value == DiscountMode.percentage;
 
-      // 📤 API CALL
       final response = await poProvider.calculateOverallDiscountAPI(
         items: itemList,
         applyOverallDiscount: true,
@@ -602,15 +548,9 @@ class PurchaseOrderLogic {
         throw Exception(response["error"] ?? "Discount failed");
       }
 
-      // --------------------------------------------------
-      // 🔥 VERY IMPORTANT FIX (THIS WAS MISSING)
-      // --------------------------------------------------
+    
       notifier.isOverallDiscountActive = true;
       notifier.discountMode.value = overallDiscountMode.value;
-
-      // --------------------------------------------------
-      // ✅ APPLY BACKEND VALUES TO ITEMS
-      // --------------------------------------------------
       final List items = response["items"] ?? [];
       final summary = response["summary"] ?? {};
 
@@ -647,18 +587,12 @@ class PurchaseOrderLogic {
         uiItem.pendingIgst = toDouble(apiItem["pendingIgst"]);
       }
 
-      // --------------------------------------------------
-      // ✅ TOTALS FROM BACKEND SUMMARY
-      // --------------------------------------------------
       notifier.pendingTaxAmount = toDouble(summary["totalTaxAmount"]);
       notifier.totalOrderAmount = toDouble(summary["totalFinalAmount"]);
       notifier.overallDiscountAmount = toDouble(
         summary["overallDiscountTotalAmount"],
       );
 
-      // --------------------------------------------------
-      // 🔁 FINAL RECALC
-      // --------------------------------------------------
       notifier.calculateTotals();
       updateTotalOrderAmount();
       triggerUIRefresh();
@@ -667,47 +601,6 @@ class PurchaseOrderLogic {
         _showRequiredFieldSnackBar(e.toString());
       }
     }
-  }
-
-  void _updateItemsWithOverallDiscount(List<dynamic> updatedItems) {
-    for (
-      int i = 0;
-      i < updatedItems.length && i < notifier.poItems.length;
-      i++
-    ) {
-      final apiItem = updatedItems[i];
-      final item = notifier.poItems[i];
-
-      double toDouble(dynamic v) {
-        if (v == null) return 0.0;
-        if (v is num) return v.toDouble();
-        return double.tryParse(v.toString()) ?? 0.0;
-      }
-
-      // ✅ Backend-calculated values ONLY
-      item.afTaxDiscount = toDouble(apiItem['afTaxDiscount']);
-      item.afTaxDiscountAmount = toDouble(apiItem['afTaxDiscountAmount']);
-      item.pendingAfTaxDiscountAmount = toDouble(
-        apiItem['pendingAfTaxDiscountAmount'],
-      );
-
-      item.totalPrice = toDouble(apiItem['pendingTotalPrice']);
-      item.pendingTotalPrice = toDouble(apiItem['pendingTotalPrice']);
-
-      item.taxAmount = toDouble(apiItem['pendingTaxAmount']);
-      item.pendingTaxAmount = toDouble(apiItem['pendingTaxAmount']);
-
-      item.finalPrice = toDouble(apiItem['pendingFinalPrice']);
-      item.pendingFinalPrice = toDouble(apiItem['pendingFinalPrice']);
-
-      item.pendingDiscountAmount = toDouble(apiItem['pendingDiscountAmount']);
-
-      item.pendingCgst = toDouble(apiItem['pendingCgst']);
-      item.pendingSgst = toDouble(apiItem['pendingSgst']);
-      item.pendingIgst = toDouble(apiItem['pendingIgst']);
-    }
-
-    notifier.notifyListeners();
   }
 
   void _showRequiredFieldSnackBar(String message, {GlobalKey? scrollKey}) {
@@ -775,33 +668,14 @@ class PurchaseOrderLogic {
     });
   }
 
-  // void _setupInitialAddresses() {
-  //   // Billing
-  //   if (notifier.billingAddress.isNotEmpty &&
-  //       notifier.billingController.text.isEmpty) {
-  //     final first = notifier.billingAddress.first;
-  //     final label = '${first.address1} ${first.address2}';
-  //     notifier.billingController.text = label;
-  //     notifier.setSelectedbillingaddress(first.businessId);
-  //   }
 
-  //   // Shipping
-  //   if (notifier.shippingAddress.isNotEmpty &&
-  //       notifier.shippingController.text.isEmpty) {
-  //     final first = notifier.shippingAddress.first;
-  //     notifier.shippingController.text = first.address;
-  //     notifier.setSelectedshippingaddress(first.shippingId);
-  //   }
-  // }
 
   void _initializeWithPOData(PO po) {
     if (isDisposed()) return;
 
     notifier.setEditingPO(po);
 
-    // ---------------------------
-    // Vendor (NAME based only)
-    // ---------------------------
+   
     VendorAll vendor;
 
     try {
@@ -828,38 +702,25 @@ class PurchaseOrderLogic {
     notifier.setSelectedVendor(vendor.vendorName);
     notifier.selectedVendorDetails = vendor;
     vendorController.text = vendor.vendorName;
-
     notifier.vendorContactController.text = vendor.contactpersonPhone;
     notifier.paymentTermsController.text = vendor.paymentTerms;
     notifier.creditLimitController.text = vendor.creditLimit.toString();
 
-    // ---------------------------
-    // LOCATION (EDIT MODE FIX)
-    // ---------------------------
+
     if (po.location != null && po.location!.isNotEmpty) {
       notifier.setLocation(
         location: po.location!,
-        locationName: po.locationName, // optional but recommended
+        locationName: po.locationName, 
       );
     }
 
-    // ---------------------------
-    // Dates
-    // ---------------------------
+
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
     notifier.expectedDeliveryDateController.text = formatDate(
       po.expectedDeliveryDate ?? '',
     );
-
-    // ---------------------------
-    // Addresses
-    // ---------------------------
     notifier.billingController.text = po.billingAddress ?? '';
     notifier.shippingController.text = po.shippingAddress ?? '';
-
-    // ---------------------------
-    // Items
-    // ---------------------------
     notifier.poItems.clear();
 
     for (final item in po.items) {
@@ -908,14 +769,9 @@ class PurchaseOrderLogic {
       );
     }
 
-    // ---------------------------
-    // Discount restore
-    // ---------------------------
+   
     _initializeDiscountSectionWithPOData(po);
 
-    // ---------------------------
-    // Totals
-    // ---------------------------
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isDisposed()) return;
 
@@ -979,34 +835,9 @@ class PurchaseOrderLogic {
     notifier.notifyListeners();
   }
 
-  void _validateAndFixRoundoff(PO po) {
-    if (isDisposed()) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (isDisposed()) return;
-
-      double expectedTotal = po.totalOrderAmount ?? 0.0;
-      double calculatedTotal = notifier.calculatedFinalAmount;
-
-      double roundOffInController =
-          double.tryParse(notifier.roundOffController.text) ?? 0.0;
-
-      if ((expectedTotal - calculatedTotal).abs() > 0.01) {
-        double correctedRoundOff =
-            expectedTotal - (calculatedTotal - roundOffInController);
-
-        notifier.roundOffController.text = correctedRoundOff.toStringAsFixed(2);
-
-        notifier.calculateTotals();
-        updateTotalOrderAmount();
-        triggerUIRefresh();
-      }
-    });
-  }
 
   void _verifyItemDataBeforeSubmission() {
-    // ✅ NO FRONTEND VALIDATION
-    // Backend will validate itemId, quantity, price, tax, etc.
+
   }
 
   DateTime? parseDate(String dateString) {
@@ -1035,21 +866,10 @@ class PurchaseOrderLogic {
     }
   }
 
-  String _formatToDDMMYYYY(String input) {
-    try {
-      final date = DateTime.parse(input);
-      return "${date.day.toString().padLeft(2, '0')}-"
-          "${date.month.toString().padLeft(2, '0')}-"
-          "${date.year}";
-    } catch (_) {
-      return input;
-    }
-  }
 
   void updateTotalOrderAmount() {
     if (isDisposed()) return;
 
-    // ✅ Just reflect backend-calculated total
     totalOrderAmount.value = notifier.totalOrderAmount;
   }
 
@@ -1214,7 +1034,7 @@ class PurchaseOrderLogic {
       }
 
       if (s.contains("-") && s.split("-").length == 3) {
-        return s; // already formatted
+        return s;
       }
 
       return "";

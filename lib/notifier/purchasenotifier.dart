@@ -3,8 +3,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
-import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:provider/provider.dart';
 import '../models/po.dart';
@@ -27,8 +25,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   final TextEditingController overallDiscountController =
       TextEditingController();
   final TextEditingController roundOffController = TextEditingController();
-  double _overallDiscountValue = 0.0; // Raw % or ₹ input
-  double _overallDiscountAmount = 0.0; // Final ₹ amount
+  double _overallDiscountValue = 0.0; 
+  double _overallDiscountAmount = 0.0; 
   double pendingDiscountAmount = 0.0;
   double pendingTaxAmount = 0.0;
   double pendingOrderAmount = 0.0;
@@ -391,18 +389,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
   }
 
-  bool _isControllerDisposed(TextEditingController controller) {
-    try {
-      // ✅ FIXED: Try to access the text property
-      // If it throws, the controller is likely disposed
-      final text = controller.text;
-      return false;
-    } catch (e) {
-      print('⚠️ Controller check error (likely disposed): $e');
-      return true;
-    }
-  }
-
   Future<void> fetchVendors1() async {
     if (_vendorsLoaded) return;
 
@@ -417,9 +403,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     if (_vendorsLoading) return;
 
     _vendorsLoading = true;
+
     await poProvider.fetchingAllVendors();
+
     vendorAllList = poProvider.vendorAllList;
+
     _vendorsLoading = false;
+
+    safeNotify();
   }
 
   Future<void> fetchItems(String query) async {
@@ -538,11 +529,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     for (final item in poItems) {
       subTotal += item.totalPrice ?? 0.0;
-
-      // 🔥 CRITICAL FIX — sync pending tax fields
       final double tax = item.pendingTaxAmount ?? item.taxAmount ?? 0.0;
       item.pendingTaxAmount = tax;
-
       if (item.taxType == 'igst') {
         item.pendingIgst = tax;
         item.pendingCgst = 0.0;
@@ -552,10 +540,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         item.pendingSgst = tax / 2;
         item.pendingIgst = 0.0;
       }
-
       totalTax += tax;
       totalFinal += item.pendingFinalPrice ?? item.finalPrice ?? 0.0;
-
       totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
       totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
@@ -579,10 +565,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     pendingOrderAmount = _calculatedFinalAmount;
 
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
-
-    print('✅ EDIT MODE TOTALS FIXED');
-    print('   Tax: $totalTax');
-    print('   Final Amount: $totalOrderAmount');
 
     if (notify) safeNotify();
   }
@@ -623,9 +605,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void setSelectedItem(String itemName) {
     if (_disposed) return;
-
-    print('🎯 setSelectedItem called: $itemName');
-
     PurchaseItem foundItem = PurchaseItem(
       itemName: itemName,
       purchasePrice: 0,
@@ -643,10 +622,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       );
 
       foundItem = existingItem;
-      print('✅ Found item in purchaseItems: $itemName');
     } catch (e) {
-      print('⚠️ Item not found in purchaseItems, using default');
-
       purchaseItems.add(foundItem);
     }
 
@@ -671,12 +647,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       befTaxDiscountController.text = '0';
       afTaxDiscountController.text = '0';
     });
-
-    print('✅ Item set successfully:');
-    print('   UOM: ${foundItem.uom}');
-    print('   Price: ${foundItem.purchasePrice}');
-    print('   Tax: ${foundItem.purchasetaxName}');
-
     safeNotify();
   }
 
@@ -710,7 +680,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           }
         });
       } catch (e) {
-        print('❌ Vendor not found in list: $vendorName');
         selectedVendorDetails = null;
       }
     } else {
@@ -737,8 +706,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void updateItemDetailsFromCache(PurchaseItem item) {
     if (_disposed) return;
 
-    print('🎯 updateItemDetailsFromCache: ${item.itemName}');
-    print('   ID: ${item.purchaseItemId}');
 
     _selectedItem = item;
 
@@ -755,7 +722,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     updateVariance();
 
-    // Ensure item exists in purchaseItems list
     final index = purchaseItems.indexWhere(
       (e) => e.purchaseItemId == item.purchaseItemId,
     );
@@ -769,7 +735,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void calculateTotals({bool fromEditLoad = false}) {
     if (_disposed) {
-      print('calculateTotals skipped: notifier disposed');
       return;
     }
 
@@ -888,14 +853,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _safeResetController(TextEditingController controller) {
-    try {
-      final currentText = controller.text;
-      controller.clear();
-    } catch (e) {
-      print('⚠️ Controller disposed, skipping clear: $e');
-    }
-  }
 
   void addItem(Item item) {
     if (_disposed) return;
@@ -1021,7 +978,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           ? double.tryParse(snapshot["overallDiscount"] ?? '') ?? 0.0
           : 0.0;
 
-      // UPDATE PO
       if (editingPO != null) {
         final updatedPO = editingPO!.copyWith(
           vendorName: selectedVendor,
@@ -1067,7 +1023,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return true;
       }
 
-      //  CREATE NEW PO
       final newPO = PO(
         purchaseOrderId: '',
         randomId: '',

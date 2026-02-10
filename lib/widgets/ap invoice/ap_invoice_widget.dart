@@ -27,7 +27,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     _leftController = ScrollController();
     _rightController = ScrollController();
 
-    // Sync scrolling
     _leftController.addListener(() {
       if (_syncing) return;
       _syncing = true;
@@ -78,13 +77,9 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
-  // =========================================================
-  // HEADER - WITH STATUS
-  // =========================================================
   Widget _buildHeader(ApInvoice apinvoice) {
     String statusText = _formatStatus(apinvoice.status);
     final double headerAmount = (apinvoice.invoiceAmount ?? 0.0);
-        // .roundToDouble();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -95,7 +90,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ---------------- ROW 1 ----------------
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -112,7 +106,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                 ),
               ),
 
-              // Status badge
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -135,7 +128,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
             ],
           ),
 
-          // ---------------- ROW 2 ----------------
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -148,13 +140,12 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
-                  maxLines: 2, // allow 2 lines
-                  softWrap: true, // Wrap into next line
+                  maxLines: 2,
+                  softWrap: true, 
                   overflow: TextOverflow.visible,
                 ),
               ),
 
-              // View + PDF icons
               Row(
                 children: [
                   IconButton(
@@ -185,7 +176,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
             ],
           ),
 
-          // ---------------- ROW 3 ----------------
           Row(
             children: [
               Expanded(
@@ -217,9 +207,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
-  // =========================================================
-  // STATUS HELPER METHODS
-  // =========================================================
+
 
   String _formatStatus(String? status) {
     if (status == null) return "Unknown";
@@ -242,9 +230,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     }
   }
 
-  // =========================================================
-  // MAIN TABLE (unchanged)
-  // =========================================================
+
   Widget _buildTable(ApInvoice apinvoice) {
     final items = apinvoice.itemDetails ?? [];
 
@@ -267,9 +253,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
 
     return Row(
       children: [
-        // =====================================================
-        // LEFT FIXED COLUMN
-        // =====================================================
+      
         SizedBox(
           width: 150,
           child: Column(
@@ -307,9 +291,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
           ),
         ),
 
-        // =====================================================
-        // RIGHT SCROLLABLE COLUMNS
-        // =====================================================
         Expanded(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -317,7 +298,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
               width: rightWidth,
               child: Column(
                 children: [
-                  // ---------------- HEADER ----------------
                   Container(
                     height: 40,
                     color: Colors.grey.shade300,
@@ -336,7 +316,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                     ),
                   ),
 
-                  // ---------------- BODY ----------------
                   Expanded(
                     child: ListView.builder(
                       controller: _rightController,
@@ -381,9 +360,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
-  // =========================================================
-  // CELL VALUE HANDLER
-  // =========================================================
+ 
   String _getValue(String col, dynamic item) {
     switch (col) {
       case "UOM":

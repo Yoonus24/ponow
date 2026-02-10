@@ -15,7 +15,6 @@ class GRNReturnWidget extends StatefulWidget {
 class _GRNReturnWidgetState extends State<GRNReturnWidget> {
   @override
   Widget build(BuildContext context) {
-    // Create a list of all return entries
     final allReturnEntries = <Map<String, dynamic>>[];
     int returnIndex = 0;
 
@@ -58,7 +57,6 @@ class _GRNReturnWidgetState extends State<GRNReturnWidget> {
       }
     }
 
-    // Row height: 10px top padding + 10px bottom padding + ~20px text/border + 3px bottom margin
     const double rowHeight = 43.0;
     const int maxVisibleRows = 5;
     const double maxTableHeight = rowHeight * maxVisibleRows;
@@ -117,16 +115,13 @@ class _GRNReturnWidgetState extends State<GRNReturnWidget> {
               ],
             ),
           ),
-          // Data section with single horizontal scroll for header and body
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const ClampingScrollPhysics(),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  // Estimate header height: 8px top + 8px bottom + ~20px text/border
                   const double headerHeight = 36.0;
-                  // Use available height minus header height, capped at maxTableHeight
                   final availableHeight = constraints.maxHeight - headerHeight;
                   final dataSectionHeight = availableHeight < maxTableHeight
                       ? availableHeight
@@ -134,7 +129,6 @@ class _GRNReturnWidgetState extends State<GRNReturnWidget> {
 
                   return Column(
                     children: [
-                      // Header row with bottom border
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 8.0),
                         decoration: BoxDecoration(
@@ -243,7 +237,6 @@ class _GRNReturnWidgetState extends State<GRNReturnWidget> {
                           ],
                         ),
                       ),
-                      // Data rows with constrained height and vertical scroll
                       Container(
                         constraints: BoxConstraints(
                           maxHeight: dataSectionHeight,

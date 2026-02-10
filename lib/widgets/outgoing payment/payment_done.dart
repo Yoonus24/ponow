@@ -27,23 +27,16 @@ class PaymentDonePage extends StatefulWidget {
 }
 
 class _PaymentDonePageState extends State<PaymentDonePage> {
-  // -------------------------------
-  // Value Notifiers (Reactive State)
-  // -------------------------------
-  final TextEditingController searchController = TextEditingController();
 
+  final TextEditingController searchController = TextEditingController();
   final ValueNotifier<List<Outgoing>> filteredPaymentsNotifier =
       ValueNotifier<List<Outgoing>>([]);
-
   final ValueNotifier<bool> loadingNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> errorNotifier = ValueNotifier<String>("");
-
   final ScrollController verticalController = ScrollController();
   final ScrollController horizontalController = ScrollController();
 
-  // -------------------------------
-  // INIT
-  // -------------------------------
+
   @override
   void initState() {
     super.initState();
@@ -55,9 +48,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     });
   }
 
-  // -------------------------------
-  // LOAD DATA
-  // -------------------------------
+
   Future<void> _loadData() async {
     loadingNotifier.value = true;
     errorNotifier.value = "";
@@ -77,15 +68,12 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     }
   }
 
-  // -------------------------------
-  // FILTER
-  // -------------------------------
+
   void _filterPayments() {
     final provider = context.read<OutgoingPaymentProvider>();
 
     final query = searchController.text.toLowerCase();
     final filtered = provider.payments.where((payment) {
-      // if (payment.status?.toLowerCase() == 'active') return false;
 
       final matchesStatus = payment.status?.toLowerCase() == 'fully paid';
 
@@ -100,9 +88,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     filteredPaymentsNotifier.value = filtered;
   }
 
-  // -------------------------------
-  // DISPOSE
-  // -------------------------------
   @override
   void dispose() {
     searchController.removeListener(_filterPayments);
@@ -117,9 +102,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     super.dispose();
   }
 
-  // -------------------------------
-  // SMALL HELPERS
-  // -------------------------------
+
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
       case 'fully paid':
@@ -153,15 +136,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   String _formatDate(DateTime? date) =>
       date != null ? DateFormat('dd-MM-yyyy').format(date) : 'N/A';
 
-  // double calculatePaid(Outgoing p) {
-  //   if (p.status?.toLowerCase() == 'fully paid') {
-  //     return p.fullPaymentAmount ?? 0;
-  //   } else if (p.status?.toLowerCase() == 'partially paid') {
-  //     return p.partialAmount ?? 0;
-  //   }
-  //   return (p.partialAmount ?? 0) + (p.fullPaymentAmount ?? 0);
-  // }
-
+ 
   List<String> _vendorSuggestions(OutgoingPaymentProvider provider) {
     final allowed = ['fully paid', 'partially paid'];
     return provider.payments
@@ -174,9 +149,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         .toList();
   }
 
-  // -------------------------------
-  // MAIN UI
-  // -------------------------------
+
   @override
   Widget build(BuildContext context) {
     final columnWidths = {
@@ -198,7 +171,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header section in same row
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -288,7 +260,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                                   74,
                                                   122,
                                                   227,
-                                                ), // Blue accent
+                                                ), 
                                               ),
                                           headingTextStyle: const TextStyle(
                                             color: Colors.white,
@@ -333,9 +305,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // -------------------------------
-  // SEARCH BAR (Updated)
-  // -------------------------------
+
   Widget _buildSearchBar() {
     return Consumer<OutgoingPaymentProvider>(
       builder: (context, provider, __) {
@@ -428,9 +398,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // -------------------------------
-  // DATATABLE COLUMNS
-  // -------------------------------
+
   List<DataColumn> _buildColumns(Map widths) {
     return [
       DataColumn(label: _cell("NO", widths['no'], align: TextAlign.center)),
@@ -464,9 +432,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     ];
   }
 
-  // -------------------------------
-  // DATATABLE ROW
-  // -------------------------------
+
   DataRow _buildRow(int index, Outgoing p, Map w, BuildContext context) {
     return DataRow(
       cells: [
@@ -495,9 +461,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // -------------------------------
-  // CELLS
-  // -------------------------------
+
   Widget _cell(String t, double w, {TextAlign align = TextAlign.center}) {
     return Container(
       width: w,
@@ -532,7 +496,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // STATUS CELL
   DataCell _statusCell(String? s, double width) {
     final color = _getStatusColor(s);
     return DataCell(
@@ -561,7 +524,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // VIEW CELL
   DataCell _viewCell(BuildContext c, Outgoing p, double w) {
     return DataCell(
       SizedBox(
@@ -580,7 +542,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // PDF CELL
   DataCell _pdfCell(BuildContext c, Outgoing p, double w) {
     return DataCell(
       SizedBox(
@@ -617,9 +578,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  // -------------------------------
-  // PAYMENT DETAILS POPUP
-  // -------------------------------
+
   void showPaymentDetailsTable(BuildContext context, Outgoing payment) {
     showDialog(
       context: context,
@@ -627,12 +586,12 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         return Dialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20), // ✅ more curved edges
+            borderRadius: BorderRadius.circular(20), 
           ),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20), // ✅ match curve
+              borderRadius: BorderRadius.circular(20), 
             ),
             padding: const EdgeInsets.all(16),
             constraints: const BoxConstraints(maxWidth: 420),
@@ -641,7 +600,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🔹 Header: centered title + right close icon
                   SizedBox(
                     height: 40,
                     child: Stack(
@@ -698,7 +656,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
 
                   const SizedBox(height: 16),
 
-                  // 🔹 Close button
                   Center(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -736,7 +693,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         children: [
           // LABEL
           SizedBox(
-            width: 100, // 👈 fixed width = perfect alignment
+            width: 100, 
             child: Text(
               label,
               style: const TextStyle(
@@ -746,7 +703,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
             ),
           ),
 
-          // COLON
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 6),
             child: Text(
@@ -758,7 +714,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
             ),
           ),
 
-          // VALUE (wraps automatically)
           Expanded(
             child: Text(
               value ?? 'N/A',

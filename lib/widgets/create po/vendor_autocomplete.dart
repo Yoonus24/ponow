@@ -46,7 +46,6 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     _loadInitialVendors();
   }
 
-  // 🔥 INITIAL LOAD
   Future<void> _loadInitialVendors() async {
     _isLoading.value = true;
 
@@ -65,6 +64,8 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     _allVendors = List.from(fetched);
     _cacheVendors(fetched);
 
+    widget.notifier.vendorAllList = _allVendors;
+
     _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
 
     _skip += fetched.length;
@@ -82,16 +83,33 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
   void _search(String query) {
     _debounceTimer?.cancel();
 
-    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
-      final filtered = query.isEmpty
-          ? _allVendors
-          : _allVendors.where(
-              (v) => v.vendorName.toLowerCase().contains(query.toLowerCase()),
-            );
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      _isLoading.value = true;
 
-      _displayedVendors.value = filtered.map((e) => e.vendorName).toList();
-
+      _skip = 0;
+      _hasMore = true;
       _currentQuery = query;
+
+      await widget.poProvider.fetchingAllVendors(
+        vendorName: query,
+        skip: _skip,
+        limit: _limit,
+        append: false,
+      );
+
+      final fetched = widget.poProvider.vendorAllList;
+
+      _allVendors = List.from(fetched);
+      _cacheVendors(fetched);
+
+      widget.notifier.vendorAllList = _allVendors;
+
+      _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+
+      _skip += fetched.length;
+      _hasMore = fetched.length == _limit;
+
+      _isLoading.value = false;
     });
   }
 
@@ -121,6 +139,8 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
       _cacheVendors(newVendors);
       _allVendors.addAll(newVendors);
 
+      widget.notifier.vendorAllList = _allVendors;
+
       _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
 
       _skip += newVendors.length;
@@ -130,15 +150,6 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     _isLoadingMore.value = false;
   }
 
-  VendorAll? _findVendor(String name) {
-    return _vendorCache[name];
-  }
-
-  void _applyVendor(VendorAll v) {
-    widget.notifier.vendorContactController.text = v.contactpersonPhone;
-    widget.notifier.paymentTermsController.text = v.paymentTerms;
-    widget.notifier.creditLimitController.text = v.creditLimit.toString();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,54 +159,18 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
 
         _search(query);
 
-        if (query.isEmpty) {
-          return _allVendors.map((v) => v.vendorName);
-        }
-
-        return _allVendors
-            .where(
-              (v) => v.vendorName.toLowerCase().contains(query.toLowerCase()),
-            )
-            .map((v) => v.vendorName);
+        return _displayedVendors.value;
       },
 
-      onSelected: (name) async {
+      onSelected: (name) {
         widget.controller.text = name;
 
-        var vendor = _findVendor(name);
+        widget.notifier.vendorAllList = _allVendors;
 
-        if (vendor == null) {
-          await widget.poProvider.fetchingAllVendors(
-            vendorName: name,
-            skip: 0,
-            limit: 10,
-            append: false,
-          );
-
-          vendor = widget.poProvider.vendorAllList.firstWhere(
-            (v) => v.vendorName == name,
-            orElse: () => VendorAll(
-              vendorName: name,
-              contactpersonPhone: '',
-              vendorId: '',
-              paymentTerms: '',
-              contactpersonEmail: '',
-              address: '',
-              country: '',
-              state: '',
-              city: '',
-              postalCode: 0,
-              gstNumber: '',
-              creditLimit: 0,
-            ),
-          );
-        }
-
-        if (vendor.vendorName.isNotEmpty) {
-          _applyVendor(vendor);
-        }
+        widget.notifier.setSelectedVendor(name);
 
         widget.onVendorSelected(name);
+
         FocusManager.instance.primaryFocus?.unfocus();
       },
 
@@ -304,7 +279,6 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
               filled: true,
               fillColor: Colors.white,
 
-              // 🔥 loading + clear button
               suffixIcon: ValueListenableBuilder<bool>(
                 valueListenable: _isLoading,
                 builder: (_, loading, __) {

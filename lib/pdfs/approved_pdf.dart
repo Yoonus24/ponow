@@ -8,21 +8,12 @@ import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-/// PurchaseOrderService
-///
-/// - Fully null-safe PDF generation
-/// - Fetches PO, business and vendor by vendorId (from PO)
-/// - Safe numeric formatting (avoids calling toStringAsFixed() on null)
-/// - Safe date handling
-/// - Graceful fallback for missing logo asset
 class PurchaseOrderService {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
-  static const String businessUrl =
-      'http://yenerp.com/purchaseapi/pobusiness/'; // kept as-is
+  static const String businessUrl = 'http://yenerp.com/purchaseapi/pobusiness/';
   static const String vendorBaseUrl =
       'http://192.168.29.252:8000/nextjstestapi/vendors/';
 
-  /// Fetch a single purchase order by id
   Future<Map<String, dynamic>> fetchPurchaseOrder(
     String purchaseOrderId,
   ) async {
@@ -42,7 +33,6 @@ class PurchaseOrderService {
     }
   }
 
-  /// Fetch business details (keeps original endpoint behavior)
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
     final uri = Uri.parse(businessUrl);
     final response = await http.get(uri);
@@ -52,7 +42,6 @@ class PurchaseOrderService {
       if (data.isNotEmpty && data.first is Map<String, dynamic>) {
         return data.first as Map<String, dynamic>;
       } else {
-        // Return an empty map instead of throwing to allow graceful fallbacks
         return <String, dynamic>{};
       }
     } else {
@@ -62,10 +51,8 @@ class PurchaseOrderService {
     }
   }
 
-  /// Fetch vendor by vendorId (correct endpoint)
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
     if (vendorId.trim().isEmpty) {
-      // Return empty map to avoid throwing too early; caller may decide.
       return <String, dynamic>{};
     }
 
@@ -79,40 +66,32 @@ class PurchaseOrderService {
       } else if (decoded is List &&
           decoded.isNotEmpty &&
           decoded.first is Map<String, dynamic>) {
-        // Some APIs may return a single-element list; handle that defensively
         return decoded.first as Map<String, dynamic>;
       }
       return <String, dynamic>{};
     } else {
-      // Return empty map to allow PDF generation with fallback values
       return <String, dynamic>{};
     }
   }
 
-  /// Generate PDF file for a purchase order id
   Future<File> generatePurchaseOrderPdf(String purchaseOrderId) async {
     if (purchaseOrderId.trim().isEmpty) {
       throw Exception('purchaseOrderId is empty');
     }
 
-    // Fetch PO data
     final Map<String, dynamic> poData = await fetchPurchaseOrder(
       purchaseOrderId,
     );
 
-    // Business & vendor
     final Map<String, dynamic> businessData = await fetchBusinessDetails();
 
-    // vendorId is expected to be in the PO as "vendorId"
     final vendorId = (poData['vendorId'] ?? '').toString();
     final Map<String, dynamic> vendorData = await fetchVendorById(vendorId);
 
-    // Items list (defensive)
     final List<dynamic> itemsRaw = (poData['items'] is List)
         ? List<dynamic>.from(poData['items'])
         : <dynamic>[];
 
-    // Load logo image (graceful fallback)
     pw.MemoryImage? logoImage;
     try {
       logoImage = await _tryLoadLogoImage('assets/bestmummy.png');
@@ -120,14 +99,12 @@ class PurchaseOrderService {
       logoImage = null;
     }
 
-    // Date helpers
     String safeFormatDate(String? dateValue) {
       if (dateValue == null) return 'N/A';
       try {
         final dt = DateTime.parse(dateValue);
         return DateFormat('dd-MM-yyyy').format(dt);
       } catch (_) {
-        // If it's already in dd-MM-yyyy or other safe string, return as-is
         return dateValue;
       }
     }
@@ -150,11 +127,9 @@ class PurchaseOrderService {
         ? safeFormatDate(poData['dueDate'].toString())
         : 'N/A';
 
-    // Amount and words
     final pendingOrderAmount = _safeNum(poData['pendingOrderAmount']);
     final amountInWords = _amountInWords(pendingOrderAmount);
 
-    // Build PDF
     final pdf = pw.Document();
 
     pdf.addPage(
@@ -165,7 +140,6 @@ class PurchaseOrderService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header Row with optional logo and title
               pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
@@ -192,7 +166,6 @@ class PurchaseOrderService {
                 ],
               ),
 
-              // Business details (right aligned column)
               pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
@@ -233,7 +206,6 @@ class PurchaseOrderService {
 
               pw.SizedBox(height: 12),
 
-              // Top tables: Vendor Details | Billing | PO Details
               pw.Table(
                 border: pw.TableBorder.all(width: 0.5),
                 columnWidths: {
@@ -328,7 +300,6 @@ class PurchaseOrderService {
 
               pw.SizedBox(height: 12),
 
-              // Items table header + rows
               pw.Table(
                 border: pw.TableBorder.all(width: 0.5),
                 columnWidths: {

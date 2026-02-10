@@ -169,9 +169,7 @@ class ApprovedPOTable extends StatelessWidget {
     );
   }
 
-  // =========================================================
-  // ✅ FIXED ITEM NAME COLUMN (wrap + no cut)
-  // =========================================================
+
   Widget _buildFixedItemColumn(List<Item> items) {
     return Column(
       children: [
@@ -203,8 +201,8 @@ class ApprovedPOTable extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       item.itemName ?? "",
-                      maxLines: null, // ✅ unlimited
-                      overflow: TextOverflow.visible, // ✅ no cut
+                      maxLines: null, 
+                      overflow: TextOverflow.visible, 
                       softWrap: true,
                       style: const TextStyle(
                         fontSize: 12,
@@ -223,7 +221,6 @@ class ApprovedPOTable extends StatelessWidget {
   }
 
   Widget _buildOrderedItemCell(Item item, String column, bool isEvenRow) {
-    // Skip received column in ordered table
     if (column == 'Received') {
       return Container(width: logic.getColumnWidth(column));
     }
@@ -258,7 +255,6 @@ class ApprovedPOTable extends StatelessWidget {
         );
 
       case 'Expiry':
-        // ✅ SAFE: don’t use expiryDateValuesMap[item]!
         final expiryController = logic.expiryDateControllersMap[item];
 
         if (expiryController == null) {
@@ -314,12 +310,9 @@ class ApprovedPOTable extends StatelessWidget {
   }
 
   Widget _buildReceivedItemCell(Item item, String column, bool isEvenRow) {
-    // Check if this column should be shown in received table
     if (column == 'Total') {
       return Container(width: logic.getColumnWidth(column));
     }
-
-    // Get controllers with null safety
     final controller = logic.receivedQtyControllers[item];
     final befTaxController = logic.befTaxControllersMap[item];
     final afTaxController = logic.afTaxControllersMap[item];
@@ -364,7 +357,6 @@ class ApprovedPOTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: InkWell(
                 onTap: () {
-                  // 🔥 CLEAR OLD ERROR BEFORE OPENING CALCULATOR
                   final errors = Map<Item, String?>.from(
                     logic.receivedQtyErrorsValue.value,
                   );
@@ -384,7 +376,7 @@ class ApprovedPOTable extends StatelessWidget {
                   child: SizedBox(
                     height: rowHeight - 2,
                     child: TextField(
-                      key: ValueKey(hasError), // rebuild when error toggles
+                      key: ValueKey(hasError), 
                       controller: controller,
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 12),
@@ -427,7 +419,6 @@ class ApprovedPOTable extends StatelessWidget {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        // Add ValueListenableBuilder to listen for controller changes
         return ValueListenableBuilder<TextEditingValue>(
           valueListenable: befTaxController,
           builder: (context, value, _) {
@@ -436,7 +427,6 @@ class ApprovedPOTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: const BoxDecoration(color: Colors.white),
               child: Text(
-                // Show discount PERCENTAGE from item, not from controller
                 item.befTaxDiscount?.toStringAsFixed(2) ?? '0.00',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 11, color: Colors.black),
@@ -450,7 +440,6 @@ class ApprovedPOTable extends StatelessWidget {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        // Add ValueListenableBuilder to listen for controller changes
         return ValueListenableBuilder<TextEditingValue>(
           valueListenable: afTaxController,
           builder: (context, value, _) {
@@ -459,7 +448,6 @@ class ApprovedPOTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               decoration: const BoxDecoration(color: Colors.white),
               child: Text(
-                // Show discount PERCENTAGE from item, not from controller
                 item.afTaxDiscount?.toStringAsFixed(2) ?? '0.00',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 11, color: Colors.black),

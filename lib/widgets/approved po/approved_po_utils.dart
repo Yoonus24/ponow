@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../numeric_Calculator.dart';
 
 class ApprovedPOUtils {
-  // MARK: - Expiry Date Formatter
   static String? formatExpiryDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) return null;
     try {
@@ -14,7 +13,6 @@ class ApprovedPOUtils {
     }
   }
 
-  // MARK: - Numeric Calculator Show Method
   static void showNumericCalculator({
     required BuildContext context,
     required TextEditingController? controller,
@@ -38,7 +36,6 @@ class ApprovedPOUtils {
     );
   }
 
-  // MARK: - Table Cell Builder
   static Widget buildTableCell(String text, {bool isHeader = false, bool alignLeft = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),

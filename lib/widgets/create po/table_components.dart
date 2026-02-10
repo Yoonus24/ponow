@@ -42,9 +42,7 @@ class CustomTableCell extends StatelessWidget {
   }
 }
 
-/// ===============================================
-/// ⭐ MULTI-LINE TABLE CELL FOR ITEM NAME COLUMN ⭐
-/// ===============================================
+
 class MultiLineTableCell extends StatelessWidget {
   final String text;
   final double flex;
@@ -60,9 +58,9 @@ class MultiLineTableCell extends StatelessWidget {
       child: Text(
         text,
         style: const TextStyle(fontSize: 13),
-        maxLines: 2, // ⭐ Allow 2 lines
-        softWrap: true, // ⭐ Wrap to next line
-        overflow: TextOverflow.visible, // ⭐ No ellipsis
+        maxLines: 2,
+        softWrap: true, 
+        overflow: TextOverflow.visible, 
       ),
     );
   }

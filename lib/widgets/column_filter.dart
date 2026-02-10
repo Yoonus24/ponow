@@ -24,7 +24,9 @@ class _ColumnFilterDialogState extends State<ColumnFilterDialog> {
   void initState() {
     super.initState();
     columnsNotifier = ValueNotifier<List<String>>(List.from(widget.columns));
-    visibilityNotifier = ValueNotifier<Map<String, bool>>(Map.from(widget.columnVisibility));
+    visibilityNotifier = ValueNotifier<Map<String, bool>>(
+      Map.from(widget.columnVisibility),
+    );
   }
 
   @override
@@ -38,6 +40,7 @@ class _ColumnFilterDialogState extends State<ColumnFilterDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
       title: const Text('Reorder Columns'),
       content: SizedBox(
         width: double.maxFinite,
@@ -62,9 +65,12 @@ class _ColumnFilterDialogState extends State<ColumnFilterDialog> {
                         key: ValueKey(columns[index]),
                         title: Text(columns[index]),
                         trailing: Checkbox(
+                          activeColor: Colors.blueAccent,
                           value: columnVisibility[columns[index]],
                           onChanged: (bool? value) {
-                            final newVisibility = Map<String, bool>.from(columnVisibility);
+                            final newVisibility = Map<String, bool>.from(
+                              columnVisibility,
+                            );
                             newVisibility[columns[index]] = value ?? true;
                             visibilityNotifier.value = newVisibility;
                           },
@@ -77,14 +83,24 @@ class _ColumnFilterDialogState extends State<ColumnFilterDialog> {
           },
         ),
       ),
+
       actions: [
-        TextButton(
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blueAccent,
+            foregroundColor: Colors.white,
+          ),
           onPressed: () {
             Navigator.pop(context);
           },
           child: const Text('Cancel'),
         ),
-       TextButton(
+
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blueAccent,
+            foregroundColor: Colors.white,
+          ),
           onPressed: () {
             widget.onApply(columnsNotifier.value, visibilityNotifier.value);
             Navigator.pop(context);

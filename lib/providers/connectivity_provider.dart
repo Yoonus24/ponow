@@ -27,17 +27,12 @@ class ConnectivityProvider extends ChangeNotifier {
     final connected = results.any((r) => r != ConnectivityResult.none);
 
     if (!_isConnected && connected) {
-      // 🔄 OFFLINE → ONLINE
       _showBackOnline = true;
       notifyListeners();
-
-      // ⏱️ hide after 3 sec
       Future.delayed(const Duration(seconds: 3), () {
         _showBackOnline = false;
         notifyListeners();
       });
-
-      // 🔥 AUTO REFRESH HOOK (screens can listen)
     }
 
     _isConnected = connected;

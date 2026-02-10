@@ -88,7 +88,7 @@ class AddressFields {
 
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return ''; // no message, only red border
+                      return '';
                     }
                     return null;
                   },

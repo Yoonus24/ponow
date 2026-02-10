@@ -5,16 +5,16 @@ import '../../models/po.dart';
 
 class POCard extends StatelessWidget {
   final PO po;
-  final GlobalKey cardKey; // ✅ Accept GlobalKey as parameter
+  final GlobalKey cardKey; 
 
   const POCard({
     super.key,
     required this.po,
-    required this.cardKey, // ✅ Required parameter
+    required this.cardKey, 
   });
 
   void scrollToPO() {
-    final context = cardKey.currentContext; // ✅ Now this works with GlobalKey
+    final context = cardKey.currentContext;
 
     if (context != null) {
       Scrollable.ensureVisible(
@@ -40,7 +40,7 @@ class POCard extends StatelessWidget {
         }
       },
       child: Container(
-        key: cardKey, // ✅ Use the provided GlobalKey
+        key: cardKey, 
         width: 100,
         margin: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
         decoration: BoxDecoration(

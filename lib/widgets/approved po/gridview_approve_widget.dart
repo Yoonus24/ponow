@@ -4,8 +4,6 @@ class GridViewApproveWidget<T> extends StatelessWidget {
   final List<T> items;
   final Widget Function(BuildContext context, int index) itemBuilder;
   final double fixedHeight;
-
-  // ✅ ADD THESE
   final bool shrinkWrap;
   final ScrollPhysics? physics;
 
@@ -42,7 +40,6 @@ class GridViewApproveWidget<T> extends StatelessWidget {
         return GridView.builder(
           padding: const EdgeInsets.all(8.0),
 
-          // ✅ IMPORTANT FIX
           shrinkWrap: shrinkWrap,
           physics: physics,
 

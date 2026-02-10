@@ -22,7 +22,6 @@ class POListView extends StatelessWidget {
 
     final mq = MediaQuery.of(context);
 
-    // 🔥 EXACT SAME HEIGHT AS CommonBottomNav
     final double bottomNavHeight = mq.size.height * 0.010;
 
     return LayoutBuilder(
@@ -33,7 +32,6 @@ class POListView extends StatelessWidget {
         return SingleChildScrollView(
           controller: scrollController,
 
-          // ✅ PERFECT PADDING (NO EXTRA GAP)
           padding: EdgeInsets.only(bottom: bottomNavHeight + mq.padding.bottom),
 
           child: Wrap(

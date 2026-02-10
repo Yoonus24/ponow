@@ -21,12 +21,9 @@ class Ledger extends StatefulWidget {
 }
 
 class _LedgerState extends State<Ledger> {
-  // 🔍 Search
   final TextEditingController _vendorSearchController = TextEditingController();
   final ValueNotifier<String> _searchQueryNotifier = ValueNotifier('');
   final ValueNotifier<String?> _selectedVendorNotifier = ValueNotifier(null);
-
-  // 🎯 Focus + Overlay
   final FocusNode _vendorFocusNode = FocusNode();
   final LayerLink _vendorLayerLink = LayerLink();
   OverlayEntry? _vendorOverlay;
@@ -66,7 +63,6 @@ class _LedgerState extends State<Ledger> {
     );
   }
 
-  // 🔽 Overlay dropdown (same UX as PO VendorAutocomplete)
   void _showVendorOverlay(List<String> vendors) {
     _vendorOverlay?.remove();
 
@@ -83,15 +79,15 @@ class _LedgerState extends State<Ledger> {
           showWhenUnlinked: false,
           offset: const Offset(0, 58),
           child: Material(
-            color: Colors.white, // ✅ dropdown background white
+            color: Colors.white, 
             elevation: 6,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white, // ✅ extra safety
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Colors.grey.shade300, // subtle border
+                  color: Colors.grey.shade300, 
                 ),
               ),
               child: ListView.builder(
@@ -108,7 +104,7 @@ class _LedgerState extends State<Ledger> {
                       _vendorSearchController.text = vendor;
                       _vendorOverlay?.remove();
                       _vendorOverlay = null;
-                      _vendorFocusNode.requestFocus(); // 🔥 keep keyboard
+                      _vendorFocusNode.requestFocus(); 
                     },
                   );
                 },
@@ -210,7 +206,6 @@ class _LedgerState extends State<Ledger> {
 
                   return Column(
                     children: [
-                      // 🔹 Header
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                         child: Row(
@@ -223,7 +218,6 @@ class _LedgerState extends State<Ledger> {
                             ),
                             const Spacer(),
 
-                            // 🔍 Vendor Search (PO-style)
                             SizedBox(
                               width: 230,
                               child: CompositedTransformTarget(
@@ -266,7 +260,6 @@ class _LedgerState extends State<Ledger> {
                         ),
                       ),
 
-                      // 🔹 Table
                       Expanded(
                         child: provider.isLoading
                             ? const Center(child: CircularProgressIndicator())
@@ -397,7 +390,6 @@ class _LedgerState extends State<Ledger> {
   }
 }
 
-// 🔹 Header widget
 class _Header extends StatelessWidget {
   final String text;
   const _Header(this.text);

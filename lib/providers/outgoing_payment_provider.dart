@@ -15,44 +15,32 @@ import 'package:purchaseorders2/models/outgoing.dart';
 class OutgoingPaymentProvider extends ChangeNotifier {
   final Dio dio = Dio();
   final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
-
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
-
   List<GRN> _grnList = [];
   List<ApInvoice> _apInvoices = [];
-
   final ValueNotifier<List<String>> _vendorNamesNotifier =
       ValueNotifier<List<String>>([]);
   final ValueNotifier<List<String>> _invoiceNumbersNotifier =
       ValueNotifier<List<String>>([]);
-
   List<String> _vendorNames = [];
   List<String> _invoiceNumbers = [];
-
-  // Flags
   bool _isLoading = false;
   bool _isLoadingOutgoings = false;
   bool _isLoadingVendors = false;
   bool _isLoadingInvoices = false;
-
   String _error = '';
   List<String> _validationWarnings = [];
-
   List<Outgoing> get payments => _payments;
   List<Outgoing> get allPayments => _allPayments;
-
   List<GRN> get grnList => _grnList;
   List<ApInvoice> get apInvoices => _apInvoices;
-
   List<String> get vendorNames => _vendorNamesNotifier.value;
   List<String> get invoiceNumbers => _invoiceNumbersNotifier.value;
-
   bool get isLoading => _isLoading;
   bool get isLoadingOutgoings => _isLoadingOutgoings;
   bool get isLoadingVendors => _isLoadingVendors;
   bool get isLoadingInvoices => _isLoadingInvoices;
-
   String get error => _error;
   List<String> get validationWarnings => _validationWarnings;
 
@@ -118,9 +106,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         if (kDebugMode) {
           print('✅ Fetched ${_apInvoices.length} AP invoices');
         }
-
-        // 🔥 AUTO-REFRESH OUTGOINGS
-        // await fetchFilteredOutgoings(status: 'pending', skip: 0, limit: 100);
       } else {
         _apInvoices = [];
       }
@@ -160,7 +145,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
     try {
       final response = await dio.get(
-        '$_baseUrl/outgoingpayments/outgoing/getAll', // ✅ FIXED
+        '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: {
           'status': 'active,Pending,Partially Paid',
           'limit': 500,
@@ -229,9 +214,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     int limit = 50,
     String? invoiceNo,
   }) async {
-    // 🔒 Prevent duplicate calls
-    // if (_isLoadingOutgoings) return _payments;
-
     _isLoadingOutgoings = true;
     _error = '';
     notifyListeners();
@@ -274,7 +256,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
-      // ✅ SUCCESS (even if empty)
       if (response.statusCode == 200) {
         final raw = response.data;
         final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
@@ -298,15 +279,13 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
         _allPayments = List.from(_payments);
 
-        _error = ''; // 🔥 IMPORTANT
+        _error = '';
       } else {
-        // ❌ REAL BACKEND FAILURE ONLY
         _payments = [];
         _allPayments = [];
         _error = 'Unable to load outgoings. Please try again.';
       }
     } catch (e) {
-      // ❌ NETWORK / EXCEPTION ONLY
       _payments = [];
       _allPayments = [];
       _error = 'Network error. Please check your connection.';

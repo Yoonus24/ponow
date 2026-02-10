@@ -49,7 +49,7 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero, // ✅ no curved edges
+        borderRadius: BorderRadius.zero,
       ),
       child: SizedBox(
         width: size.width,
@@ -164,7 +164,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
     );
   }
 
-  // ✅ CARD WITH SWIPE
   Widget _buildTemplateCard(POTemplate t) {
     final provider = Provider.of<TemplateProvider>(context, listen: false);
 
@@ -173,18 +172,16 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
       direction: DismissDirection.horizontal,
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          // 👉 Swipe right = Activate
           if (!t.isActive) {
             await provider.activateTemplate(t.templateId);
           }
         } else {
-          // 👈 Swipe left = Deactivate
           if (t.isActive) {
             await provider.deactivateTemplate(t.templateId);
           }
         }
         provider.fetchTemplates(search: _searchController.text);
-        return false; // keep the card
+        return false; 
       },
       background: _buildSwipeBg(
         color: Colors.green.shade600,
@@ -287,7 +284,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
     );
   }
 
-  // ❌ Power button removed
   Widget _buildFooterRow(POTemplate t) {
     return Row(
       children: [
@@ -391,7 +387,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
     );
   }
 
-  // VIEW DETAILS (ITEM / UOM / QTY)
   void _showTemplateDetailsDialog(POTemplate t) {
     showDialog(
       context: context,
@@ -430,7 +425,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
               ),
               const SizedBox(height: 15),
 
-              // Basic Info with Poppins
               _buildInfoRow('Template', t.templateName),
               _buildInfoRow('Vendor', t.vendorName),
               _buildInfoRow('Total Items', t.itemCount.toString()),
@@ -439,7 +433,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
 
               const SizedBox(height: 13),
 
-              // Items List
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -464,7 +457,6 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
     );
   }
 
-  // Poppins styled info rows
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
