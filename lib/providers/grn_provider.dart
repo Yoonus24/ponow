@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRNProvider with ChangeNotifier {
   List<GRN> _grns = [];
@@ -37,7 +38,14 @@ class GRNProvider with ChangeNotifier {
   int get skip => _skip;
   int get limit => _limit;
 
-  final Dio _dio = Dio();
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30), // GET default
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 15), // POST/PATCH
+      headers: {'Content-Type': 'application/json'},
+    ),
+  );
 
   GRNProvider() {
     fetchReturnReasons();
@@ -198,29 +206,29 @@ class GRNProvider with ChangeNotifier {
     }
   }
 
-  Future<List<GRN>> _fetchByStatus(String status) async {
-    try {
-      final response = await _dio.get(
-        _grnListEndpoint,
-        queryParameters: {
-          "skip": "$_skip",
-          "limit": "$_limit",
-          "status": status,
-        },
-      );
+  // Future<List<GRN>> _fetchByStatus(String status) async {
+  //   try {
+  //     final response = await _dio.get(
+  //       _grnListEndpoint,
+  //       queryParameters: {
+  //         "skip": "$_skip",
+  //         "limit": "$_limit",
+  //         "status": status,
+  //       },
+  //     );
 
-      print("🌐 RAW FETCH ${response.realUri}");
+  //     print("🌐 RAW FETCH ${response.realUri}");
 
-      if (response.statusCode == 200) {
-        final List data = response.data;
-        return data.map((e) => GRN.fromJson(e)).toList();
-      }
+  //     if (response.statusCode == 200) {
+  //       final List data = response.data;
+  //       return data.map((e) => GRN.fromJson(e)).toList();
+  //     }
 
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
+  //     return [];
+  //   } catch (e) {
+  //     return [];
+  //   }
+  // }
 
   Future<bool> updateGRN(GRN grn, String newStatus) async {
     print('--- updateGRN called for ${grn.grnId} ---');
@@ -238,7 +246,6 @@ class GRNProvider with ChangeNotifier {
 
       final response = await _dio.patch(
         '$_grnBase/${grn.grnId}',
-        data: jsonEncode(grn.toJson()),
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -342,81 +349,86 @@ class GRNProvider with ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> convertFromApprovedPOToGRN({
-    required String poId,
-    required String invoiceNo,
-    required DateTime invoiceDate,
-    required List<Map<String, dynamic>> items,
-    required double discount,
-    required double roundOffAdjustment,
-  }) async {
-    print('=== Starting convertFromApprovedPOToGRN ===');
-    print('PO ID: $poId');
-    print('Invoice No: $invoiceNo');
+  // Future<Map<String, dynamic>> convertFromApprovedPOToGRN({
+  //   required String poId,
+  //   required String invoiceNo,
+  //   required DateTime invoiceDate,
+  //   required List<Map<String, dynamic>> items,
+  //   required double discount,
+  //   required double roundOffAdjustment,
+  //   required List freights,
+  //   required double totalFreightAmount,
+  //   required double totalFreightTaxAmount,
+  // }) async {
+  //   print('=== Starting convertFromApprovedPOToGRN ===');
+  //   print('PO ID: $poId');
+  //   print('Invoice No: $invoiceNo');
 
-    setLoading(true);
-    setError(null);
+  //   setLoading(true);
+  //   setError(null);
 
-    try {
-      final double itemFinalTotal = items.fold<double>(
-        0.0,
-        (sum, item) => sum + ((item['finalPrice'] ?? 0.0) as num).toDouble(),
-      );
+  //   try {
+  //     final double itemFinalTotal = items.fold<double>(
+  //       0.0,
+  //       (sum, item) => sum + ((item['finalPrice'] ?? 0.0) as num).toDouble(),
+  //     );
 
-      final double roundedTotal = itemFinalTotal.roundToDouble();
-      final double calculatedRoundOff = double.parse(
-        (roundedTotal - itemFinalTotal).toStringAsFixed(2),
-      );
+  //     final double roundedTotal = itemFinalTotal.roundToDouble();
+  //     final double calculatedRoundOff = double.parse(
+  //       (roundedTotal - itemFinalTotal).toStringAsFixed(2),
+  //     );
 
-      print('🧮 Item Total       : $itemFinalTotal');
-      print('🧮 Rounded Total    : $roundedTotal');
-      print('🧮 Round-Off Stored : $calculatedRoundOff');
+  //     print('🧮 Item Total       : $itemFinalTotal');
+  //     print('🧮 Rounded Total    : $roundedTotal');
+  //     print('🧮 Round-Off Stored : $calculatedRoundOff');
 
-      final Map<String, dynamic> requestBody = {
-        'poId': poId,
-        'invoiceNo': invoiceNo,
-        'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
-        'discountPrice': discount,
-        'roundOffAdjustment': calculatedRoundOff,
-        'freights': 0.0,
-        'items': items,
-      };
+  //     final Map<String, dynamic> requestBody = {
+  //       'poId': poId,
+  //       'invoiceNo': invoiceNo,
+  //       'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
+  //       'discountPrice': discount,
+  //       'roundOffAdjustment': calculatedRoundOff,
+  //       'freights': freights,
+  //       'totalFreightAmount': totalFreightAmount,
+  //       'totalFreightTaxAmount': totalFreightTaxAmount,
+  //       'items': items,
+  //     };
 
-      print('📤 Request Body: ${jsonEncode(requestBody)}');
+  //     print('📤 Request Body: ${jsonEncode(requestBody)}');
 
-      final response = await _dio.post(
-        '$_grnBase/convert-to-ap',
-        data: jsonEncode(requestBody),
-        options: Options(headers: {'Content-Type': 'application/json'}),
-      );
+  //     final response = await _dio.post(
+  //       '$_grnBase/convert-to-ap',
+  //       data: jsonEncode(requestBody),
+  //       options: Options(headers: {'Content-Type': 'application/json'}),
+  //     );
 
-      print('📥 Response Status: ${response.statusCode}');
-      print('📥 Response Body: ${response.data}');
+  //     print('📥 Response Status: ${response.statusCode}');
+  //     print('📥 Response Body: ${response.data}');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = response.data;
+  //     if (response.statusCode == 200 || response.statusCode == 201) {
+  //       final responseData = response.data;
 
-        await fetchFilteredGRNs();
+  //       await fetchFilteredGRNs();
 
-        return {
-          'success': true,
-          'grnId': responseData['grnId'],
-          'message': 'GRN created successfully',
-          'roundOffAdjustment': calculatedRoundOff,
-        };
-      } else {
-        return {
-          'success': false,
-          'error': 'Server error: ${response.statusCode} - ${response.data}',
-        };
-      }
-    } catch (e) {
-      print('❌ Error in convertFromApprovedPOToGRN: $e');
-      return {'success': false, 'error': e.toString()};
-    } finally {
-      setLoading(false);
-    }
-  }
+  //       return {
+  //         'success': true,
+  //         'grnId': responseData['grnId'],
+  //         'message': 'GRN created successfully',
+  //         'roundOffAdjustment': calculatedRoundOff,
+  //       };
+  //     } else {
+  //       return {
+  //         'success': false,
+  //         'error': 'Server error: ${response.statusCode} - ${response.data}',
+  //       };
+  //     }
+  //   } catch (e) {
+  //     print('❌ Error in convertFromApprovedPOToGRN: $e');
+  //     return {'success': false, 'error': e.toString()};
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }
 
   Future<List<GRN>> fetchGrnsWithItemStatus(String status) async {
     print('Starting fetchGrnsWithItemStatus for status: $status');

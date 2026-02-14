@@ -11,7 +11,7 @@ class AddressFields {
     inputDecoration,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(top: 4.0),
+      padding: EdgeInsets.zero,
       child: Builder(
         builder: (context) {
           return GestureDetector(
@@ -78,32 +78,28 @@ class AddressFields {
               }
             },
             child: AbsorbPointer(
-              child: SizedBox(
-                height: 50,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 60, maxHeight: 60),
                 child: TextFormField(
                   controller: notifier.expectedDeliveryDateController,
                   readOnly: true,
                   maxLines: 1,
                   textAlignVertical: TextAlignVertical.center,
-
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return '';
                     }
                     return null;
                   },
-
                   decoration: inputDecoration("Expected Date").copyWith(
                     filled: true,
                     fillColor: Colors.white,
                     floatingLabelBehavior: FloatingLabelBehavior.auto,
                     hintText: '',
                     errorStyle: const TextStyle(height: 0, fontSize: 0),
-                    contentPadding: const EdgeInsets.only(
-                      left: 14,
-                      right: 40,
-                      top: 16,
-                      bottom: 16,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
                     ),
                     suffixIcon: Padding(
                       padding: const EdgeInsets.only(right: 6),

@@ -4,33 +4,39 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class APInvoicePDF {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
-  static const String businessUrl =
-      'http://192.168.29.252:8000/nextjstestapi/pobusiness';
+  static const String businessUrl = 'https://yenerp.com/purchaseapi/pobusiness';
   static const String vendorUrl =
-      'http://192.168.29.252:8000/nextjstestapi/vendors/';
+      'http://192.168.29.252:8000/nextjstestapi/vendors/exact-name/';
+
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
+
   // Fetch AP Invoice data from the backend
   Future<Map<String, dynamic>> fetchAPInvoices(String invoiceId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/apinvoices/$invoiceId'),
+      final response = await _dio.get(
+        '$baseUrl/apinvoices/$invoiceId',
+        options: Options(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        print('Full GRN Data: $data');
-        print('Item Details: ${data['itemDetails']}');
-        return data;
-      } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('Failed to load GRN: ${response.statusCode}');
-      }
+      final data = response.data;
+      print('Full GRN Data: $data');
+      print('Item Details: ${data['itemDetails']}');
+
+      return Map<String, dynamic>.from(data);
     } catch (e) {
       print('Error fetching AP Invoice: $e');
       rethrow;
@@ -38,32 +44,32 @@ class APInvoicePDF {
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await http.get(Uri.parse(businessUrl));
+    final response = await _dio.get(
+      businessUrl,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      if (data.isNotEmpty) {
-        return data.first as Map<String, dynamic>;
-      } else {
-        throw Exception('Business data list is empty');
-      }
+    final List<dynamic> data = response.data;
+
+    if (data.isNotEmpty) {
+      return Map<String, dynamic>.from(data.first);
     } else {
-      throw Exception('Failed to load business details');
+      throw Exception('Business data list is empty');
     }
   }
 
   Future<Map<String, dynamic>> fetchVendorsDetails() async {
-    final response = await http.get(Uri.parse(vendorUrl));
+    final response = await _dio.get(
+      vendorUrl,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      if (data.isNotEmpty) {
-        return data.first as Map<String, dynamic>;
-      } else {
-        throw Exception('Vendor data list is empty');
-      }
+    final List<dynamic> data = response.data;
+
+    if (data.isNotEmpty) {
+      return Map<String, dynamic>.from(data.first);
     } else {
-      throw Exception('Failed to load vendor details');
+      throw Exception('Vendor data list is empty');
     }
   }
 

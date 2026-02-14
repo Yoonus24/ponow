@@ -169,7 +169,6 @@ class ApprovedPOTable extends StatelessWidget {
     );
   }
 
-
   Widget _buildFixedItemColumn(List<Item> items) {
     return Column(
       children: [
@@ -201,8 +200,8 @@ class ApprovedPOTable extends StatelessWidget {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       item.itemName ?? "",
-                      maxLines: null, 
-                      overflow: TextOverflow.visible, 
+                      maxLines: null,
+                      overflow: TextOverflow.visible,
                       softWrap: true,
                       style: const TextStyle(
                         fontSize: 12,
@@ -376,7 +375,7 @@ class ApprovedPOTable extends StatelessWidget {
                   child: SizedBox(
                     height: rowHeight - 2,
                     child: TextField(
-                      key: ValueKey(hasError), 
+                      key: ValueKey(hasError),
                       controller: controller,
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 12),

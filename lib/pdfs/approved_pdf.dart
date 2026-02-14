@@ -3,8 +3,7 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
@@ -12,66 +11,68 @@ class PurchaseOrderService {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   static const String businessUrl = 'http://yenerp.com/purchaseapi/pobusiness/';
   static const String vendorBaseUrl =
-      'http://192.168.29.252:8000/nextjstestapi/vendors/';
+      'http://192.168.29.252:8000/nextjstestapi/vendors/exact-name/';
+
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   Future<Map<String, dynamic>> fetchPurchaseOrder(
     String purchaseOrderId,
   ) async {
-    final uri = Uri.parse('$baseUrl/purchaseorders/$purchaseOrderId');
-    final response = await http.get(uri);
+    final uri = '$baseUrl/purchaseorders/$purchaseOrderId';
 
-    if (response.statusCode == 200) {
-      final dynamic decoded = json.decode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-      throw Exception('Unexpected PO format: expected JSON object');
-    } else {
-      throw Exception(
-        'Failed to load purchase order: ${response.statusCode} ${response.reasonPhrase}',
-      );
+    final response = await _dio.get(
+      uri,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
+
+    final dynamic decoded = response.data;
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
     }
+
+    throw Exception('Unexpected PO format: expected JSON object');
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final uri = Uri.parse(businessUrl);
-    final response = await http.get(uri);
+    final response = await _dio.get(
+      businessUrl,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      if (data.isNotEmpty && data.first is Map<String, dynamic>) {
-        return data.first as Map<String, dynamic>;
-      } else {
-        return <String, dynamic>{};
-      }
-    } else {
-      throw Exception(
-        'Failed to load business details: ${response.statusCode} ${response.reasonPhrase}',
-      );
+    final List<dynamic> data = response.data;
+
+    if (data.isNotEmpty && data.first is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(data.first);
     }
+
+    return <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
-    if (vendorId.trim().isEmpty) {
-      return <String, dynamic>{};
+    if (vendorId.trim().isEmpty) return {};
+
+    final response = await _dio.get(
+      '$vendorBaseUrl$vendorId',
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
+
+    final dynamic decoded = response.data;
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
     }
 
-    final uri = Uri.parse('$vendorBaseUrl$vendorId');
-    final response = await http.get(uri);
-
-    if (response.statusCode == 200) {
-      final dynamic decoded = json.decode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      } else if (decoded is List &&
-          decoded.isNotEmpty &&
-          decoded.first is Map<String, dynamic>) {
-        return decoded.first as Map<String, dynamic>;
-      }
-      return <String, dynamic>{};
-    } else {
-      return <String, dynamic>{};
+    if (decoded is List && decoded.isNotEmpty) {
+      return Map<String, dynamic>.from(decoded.first);
     }
+
+    return {};
   }
 
   Future<File> generatePurchaseOrderPdf(String purchaseOrderId) async {

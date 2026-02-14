@@ -7,6 +7,7 @@ import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/discount_model.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:purchaseorders2/models/po_template.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class PurchaseOrderLogic {
   final BuildContext context;
@@ -30,6 +31,7 @@ class PurchaseOrderLogic {
 
   final TemplateProvider templateProvider;
   bool _addressAutoFilled = false;
+  // String? _serverDate;
 
   PurchaseOrderLogic({
     required this.context,
@@ -53,16 +55,14 @@ class PurchaseOrderLogic {
       await poProvider.preloadVendors();
       await notifier.fetchAllVendors1();
 
-    
       if (editingPO != null) {
         _initializeWithPOData(editingPO!);
-
         _fetchSupportingDataInBackground();
-
         updateTotalOrderAmount();
         triggerUIRefresh();
         return;
       }
+
       await _initializeForNewPO();
     });
   }
@@ -126,18 +126,39 @@ class PurchaseOrderLogic {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       applyAddressesIfReady();
-      applyLocationIfReady(); 
+      applyLocationIfReady();
     });
 
-    final backendDate = await poProvider.getServerDate();
     if (!isDisposed()) {
-      notifier.orderedDateController.text = backendDate ?? '';
+      final now = ServerTimeService.now;
+      notifier.orderedDateController.text =
+          "${now.day.toString().padLeft(2, '0')}-"
+          "${now.month.toString().padLeft(2, '0')}-"
+          "${now.year}";
     }
 
     notifier.totalOrderAmount = 0.0;
     updateTotalOrderAmount();
     triggerUIRefresh();
   }
+
+  // String getServerDateForSubmission() {
+  //   if (_serverDate == null || _serverDate!.isEmpty) {
+  //     return DateTime.now().toIso8601String(); // fallback safety
+  //   }
+
+  //   // convert dd-MM-yyyy to ISO format
+  //   final parts = _serverDate!.split("-");
+  //   if (parts.length == 3) {
+  //     final day = parts[0];
+  //     final month = parts[1];
+  //     final year = parts[2];
+
+  //     return "$year-$month-$day";
+  //   }
+
+  //   return _serverDate!;
+  // }
 
   void _fetchSupportingDataInBackground() {
     Future.wait([
@@ -175,8 +196,6 @@ class PurchaseOrderLogic {
       locationName: selected.branchName,
     );
   }
-
- 
 
   void _onVendorInputChanged() {
     if (isDisposed()) return;
@@ -381,6 +400,7 @@ class PurchaseOrderLogic {
 
       if (editingPO == null) {
         notifier.poItems.clear();
+        notifier.clearFreights();
       }
 
       FocusManager.instance.primaryFocus?.unfocus();
@@ -456,6 +476,7 @@ class PurchaseOrderLogic {
     notifier.shippingController.clear();
 
     notifier.poItems.clear();
+    notifier.clearFreights();
 
     notifier.overallDiscountController.text = '0';
     notifier.roundOffController.text = '0';
@@ -510,7 +531,6 @@ class PurchaseOrderLogic {
     }
 
     try {
-   
       final itemList = notifier.poItems.map((item) {
         return {
           "itemId": item.itemId,
@@ -548,7 +568,6 @@ class PurchaseOrderLogic {
         throw Exception(response["error"] ?? "Discount failed");
       }
 
-    
       notifier.isOverallDiscountActive = true;
       notifier.discountMode.value = overallDiscountMode.value;
       final List items = response["items"] ?? [];
@@ -668,14 +687,11 @@ class PurchaseOrderLogic {
     });
   }
 
-
-
   void _initializeWithPOData(PO po) {
     if (isDisposed()) return;
 
     notifier.setEditingPO(po);
 
-   
     VendorAll vendor;
 
     try {
@@ -706,14 +722,12 @@ class PurchaseOrderLogic {
     notifier.paymentTermsController.text = vendor.paymentTerms;
     notifier.creditLimitController.text = vendor.creditLimit.toString();
 
-
     if (po.location != null && po.location!.isNotEmpty) {
       notifier.setLocation(
         location: po.location!,
-        locationName: po.locationName, 
+        locationName: po.locationName,
       );
     }
-
 
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
     notifier.expectedDeliveryDateController.text = formatDate(
@@ -730,7 +744,7 @@ class PurchaseOrderLogic {
 
       final befDisc = item.befTaxDiscountAmount ?? 0.0;
       final afDisc = item.afTaxDiscountAmount ?? 0.0;
-      final tax = item.taxAmount ?? 0.0;
+      final tax = item.pendingTaxAmount ?? item.taxAmount ?? 0.0;
 
       double finalPrice = item.finalPrice ?? 0.0;
       if (finalPrice == 0.0 && base > 0) {
@@ -761,15 +775,19 @@ class PurchaseOrderLogic {
           pendingFinalPrice: finalPrice,
           pendingTaxAmount: tax,
           pendingDiscountAmount: befDisc + afDisc,
-          pendingCgst: item.pendingCgst ?? 0.0,
-          pendingSgst: item.pendingSgst ?? 0.0,
-          pendingIgst: item.pendingIgst ?? 0.0,
+          pendingCgst:
+              item.pendingCgst ?? (item.taxType == 'cgst_sgst' ? tax / 2 : 0.0),
+
+          pendingSgst:
+              item.pendingSgst ?? (item.taxType == 'cgst_sgst' ? tax / 2 : 0.0),
+
+          pendingIgst: item.pendingIgst ?? (item.taxType == 'igst' ? tax : 0.0),
+
           expiryDate: '',
         ),
       );
     }
 
-   
     _initializeDiscountSectionWithPOData(po);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -835,10 +853,7 @@ class PurchaseOrderLogic {
     notifier.notifyListeners();
   }
 
-
-  void _verifyItemDataBeforeSubmission() {
-
-  }
+  void _verifyItemDataBeforeSubmission() {}
 
   DateTime? parseDate(String dateString) {
     if (dateString.isEmpty) return null;
@@ -865,7 +880,6 @@ class PurchaseOrderLogic {
       return null;
     }
   }
-
 
   void updateTotalOrderAmount() {
     if (isDisposed()) return;

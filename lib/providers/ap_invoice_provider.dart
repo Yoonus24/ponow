@@ -9,6 +9,7 @@ import 'package:purchaseorders2/models/outgoing.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class APInvoiceProvider extends ChangeNotifier {
   List<ApInvoice> _apInvoices = [];
@@ -125,6 +126,10 @@ class APInvoiceProvider extends ChangeNotifier {
       final response = await _dio.patch(
         '/apinvoices/$invoiceId/convert-to-outgoing-and-discount',
         data: requestBody,
+        options: Options(
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+        ),
       );
 
       print('Response: ${response.statusCode} ${response.data}');

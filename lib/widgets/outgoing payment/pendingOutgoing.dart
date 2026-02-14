@@ -197,7 +197,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     }
   }
 
-
   void _removeOverlay() {
     _overlayEntry?.remove();
     _overlayEntry = null;
@@ -765,7 +764,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                               border: InputBorder.none,
 
                               contentPadding: const EdgeInsets.only(
-                                top: 6, 
+                                top: 6,
                                 bottom: 0,
                                 left: 5,
                                 right: 5,
@@ -1434,8 +1433,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       thumbVisibility: true,
                       child: SingleChildScrollView(
                         controller: _mainScrollController,
-                        physics:
-                            const AlwaysScrollableScrollPhysics(),
+                        physics: const AlwaysScrollableScrollPhysics(),
                         scrollDirection: Axis.vertical,
                         child: Column(
                           children: [
@@ -1723,7 +1721,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                       thumbVisibility: true,
                                                       child: SingleChildScrollView(
                                                         controller:
-                                                            _verticalScrollController, 
+                                                            _verticalScrollController,
                                                         child: SizedBox(
                                                           width: totalWidth,
                                                           child: Column(

@@ -75,6 +75,8 @@ class Outgoing {
 
   final double? remainingPayableAmount;
   final List<PaymentHistory>? paymentHistory;
+  final double? totalFreightAmount;
+  final double? totalFreightTaxAmount;
 
   Outgoing({
     required this.outgoingId,
@@ -146,6 +148,8 @@ class Outgoing {
     this.paymentHistory,
     this.paidAmount,
     this.originalTotalPayableAmount,
+      this.totalFreightAmount,
+      this.totalFreightTaxAmount, 
   });
 
   factory Outgoing.fromJson(Map<String, dynamic> json) {
@@ -234,6 +238,11 @@ class Outgoing {
             ?.toDouble(),
 
         paymentHistory: _parsePaymentHistory(json['paymentHistory']),
+          grn: json['grn'] != null ? GRN.fromJson(json['grn']) : null,
+          ap: json['ap'] != null ? ApInvoice.fromJson(json['ap']) : null,
+          totalFreightAmount: _parseDouble(json['totalFreightAmount']),
+          totalFreightTaxAmount: _parseDouble(json['totalFreightTaxAmount']),
+
       );
     } catch (e, stackTrace) {
       print('Error parsing Outgoing: $e');
@@ -242,7 +251,6 @@ class Outgoing {
       rethrow;
     }
   }
-
 
   static String? _parseString(dynamic value) {
     if (value == null) return null;
@@ -359,6 +367,10 @@ class Outgoing {
       'totalPaidAmount': totalPaidAmount,
       'remainingPayableAmount': remainingPayableAmount,
       'paymentHistory': paymentHistory?.map((e) => e.toJson()).toList(),
+        'grn': grn?.toJson(), 
+        'ap': ap?.toJson(),
+        'totalFreightAmount': totalFreightAmount,
+        'totalFreightTaxAmount': totalFreightTaxAmount,
     };
   }
 
@@ -440,6 +452,9 @@ class Outgoing {
       remainingPayableAmount:
           remainingPayableAmount ?? this.remainingPayableAmount,
       paymentHistory: paymentHistory ?? this.paymentHistory,
+      totalFreightAmount: totalFreightAmount ?? this.totalFreightAmount,
+      totalFreightTaxAmount: totalFreightTaxAmount ?? this.totalFreightTaxAmount,
+      
     );
   }
 }

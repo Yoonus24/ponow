@@ -226,21 +226,17 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       labelStyle: TextStyle(
         fontSize: isMobile ? 13 : 14,
-        color: Colors.grey.shade800, 
+        color: Colors.grey.shade800,
       ),
 
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(
-          color: Colors.grey.shade500, 
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade500),
       ),
 
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(
-          color: Colors.grey.shade500, 
-        ),
+        borderSide: BorderSide(color: Colors.grey.shade500),
       ),
 
       focusedBorder: OutlineInputBorder(
@@ -254,11 +250,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
 
       filled: true,
-      fillColor: isReadOnly
-          ? Colors
-                .grey
-                .shade300 
-          : Colors.white,
+      fillColor: isReadOnly ? Colors.grey.shade300 : Colors.white,
 
       suffixIconConstraints: BoxConstraints(minWidth: 48, minHeight: 40),
 
@@ -467,7 +459,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
                             ),
 
                             SizedBox(
-                              height: 60, 
+                              height: 60,
                               child: TextFormField(
                                 controller: notifier.uomController,
                                 readOnly: true,
@@ -484,11 +476,11 @@ class _AddItemDialogState extends State<AddItemDialog> {
                             TextFormField(
                               controller: _fieldControllers['count'],
                               readOnly: true,
-                              decoration: _buildFieldDecoration("Count *"),
+                              decoration: _buildFieldDecoration("Pkt Count *"),
                               style: TextStyle(fontSize: isMobile ? 14 : 14),
                               onTap: () {
                                 _openNumericCalculator(
-                                  title: "Count",
+                                  title: "pkt Count",
                                   type: "none",
                                   controller: _fieldControllers['count']!,
                                 );

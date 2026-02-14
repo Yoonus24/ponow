@@ -122,14 +122,7 @@ class _POWidgetState extends State<POWidget> {
           orElse: () => widget.po,
         );
 
-        final double itemsTotal = updatedPO.items.fold(
-          0.0,
-          (sum, i) => sum + (i.pendingFinalPrice ?? i.finalPrice ?? 0.0),
-        );
-
-        final double roundOff = updatedPO.roundOffAdjustment ?? 0.0;
-
-        final double cardTotal = itemsTotal + roundOff;
+        final double cardTotal = updatedPO.finalAmount;
 
         return Container(
           margin: const EdgeInsets.all(10),
@@ -496,8 +489,7 @@ class _POWidgetState extends State<POWidget> {
       if (!mounted) return;
 
       if (result == true) {
-        final poProvider = Provider.of<POProvider>(context, listen: false);
-        await poProvider.fetchPOs();
+        await context.read<POProvider>().fetchPOs();
 
         if (!mounted) return;
 

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_Calculator.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
@@ -171,7 +172,6 @@ class _GRNModalState extends State<GRNModal> {
       }
     }
 
-  
     WidgetsBinding.instance.addPostFrameCallback((_) {
       totalsNotifier.value = _recalculateGRNTotal();
     });
@@ -185,7 +185,6 @@ class _GRNModalState extends State<GRNModal> {
       }
     });
   }
-
 
   @override
   void dispose() {
@@ -233,26 +232,6 @@ class _GRNModalState extends State<GRNModal> {
     super.dispose();
   }
 
-  Future<DateTime> _getServerDate() async {
-    try {
-      final poProvider = Provider.of<POProvider>(context, listen: false);
-      final serverDateString = await poProvider.getServerDate(); 
-
-      if (serverDateString != null && serverDateString.contains("-")) {
-        final parts = serverDateString.split("-");
-        return DateTime(
-          int.parse(parts[2]), // yyyy
-          int.parse(parts[1]), // mm
-          int.parse(parts[0]), // dd
-        );
-      }
-    } catch (e) {
-      print("Error fetching backend date: $e");
-    }
-
-    return DateTime.now();
-  }
-
   void _safeUpdateController(TextEditingController? controller, String value) {
     if (controller != null && controller.text != value) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -292,21 +271,35 @@ class _GRNModalState extends State<GRNModal> {
 
   Map<String, double> _recalculateGRNTotal() {
     double itemTotal = 0.0;
+    double totalSGST = 0.0;
+    double totalCGST = 0.0;
+    double totalIGST = 0.0;
 
     for (final item in grn.itemDetails ?? []) {
       itemTotal += item.finalPrice ?? 0.0;
+      totalSGST += item.sgst ?? 0.0;
+      totalCGST += item.cgst ?? 0.0;
+      totalIGST += item.igst ?? 0.0;
     }
 
-    final double roundOff = grn.roundOffAdjustment ?? 0.0;
-    final double finalTotal = itemTotal + roundOff;
+    final double freightAmount = grn.totalFreightAmount ?? 0.0;
+    final double freightTax = grn.totalFreightTaxAmount ?? 0.0;
+    final double freightTotal = freightAmount + freightTax;
 
-    grn.grnAmount = finalTotal;
+    final double discount = grn.totalDiscount ?? 0.0;
+    final double roundOff = grn.roundOffAdjustment ?? 0.0;
+
+    final double finalTotal = itemTotal + freightTotal + roundOff;
 
     return {
       'totalItemsAmount': itemTotal,
-      'totalDiscount': grn.totalDiscount ?? 0.0,
+      'freightAmount': freightTotal,
       'roundOff': roundOff,
       'totalReceivedAmount': finalTotal,
+      'totalDiscount': discount,
+      'totalSGST': totalSGST,
+      'totalCGST': totalCGST,
+      'totalIGST': totalIGST,
     };
   }
 
@@ -534,8 +527,6 @@ class _GRNModalState extends State<GRNModal> {
     );
   }
 
- 
-
   Future<void> _convertToAP(BuildContext context) async {
     if (isConverting.value) return;
 
@@ -566,13 +557,12 @@ class _GRNModalState extends State<GRNModal> {
             style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             child: const Text("Cancel"),
           ),
-
           ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blueAccent,
               foregroundColor: Colors.white,
             ),
-            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text("Convert"),
           ),
         ],
@@ -584,25 +574,27 @@ class _GRNModalState extends State<GRNModal> {
     try {
       isConverting.value = true;
 
+      // ✅ Item total (for logging only)
       final double itemTotal = (grn.itemDetails ?? []).fold<double>(
         0.0,
         (sum, item) => sum + (item.finalPrice ?? 0.0),
       );
-      final double grnFinalAmount = grn.grnAmount ?? itemTotal;
-      final double apRoundOff = grn.roundOffAdjustment ?? 0.0;
 
-      print('🧮 Item Total      : $itemTotal');
-      print('🧮 GRN Amount     : $grnFinalAmount');
-      print('🧮 AP Round-Off   : $apRoundOff');
+      // ✅ REAL round off comes from GRN (NOT freight)
+      final double apRoundOff =
+          grn.grnRoundOffAmount ?? grn.roundOffAdjustment ?? 0.0;
+
+      print('🧮 Item Total  : $itemTotal');
+      print('🧮 GRN Amount : ${grn.grnAmount}');
+      print('🧮 AP Round   : $apRoundOff');
+      print('➡️ AP Final   : ${(grn.grnAmount ?? itemTotal) + apRoundOff}');
 
       final result = await context
           .read<GRNProvider>()
           .convertGrnToApAndOutgoing(
             grnId: grn.grnId ?? '',
             discountPrice: grn.discountPrice ?? 0.0,
-
             roundOffAdjustment: apRoundOff,
-
             itemUpdates:
                 grn.itemDetails
                     ?.map(
@@ -620,7 +612,7 @@ class _GRNModalState extends State<GRNModal> {
       if (result['success'] == true && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('converted AP + Outgoing successfully'),
+            content: Text('Converted AP + Outgoing successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -631,6 +623,7 @@ class _GRNModalState extends State<GRNModal> {
       }
     } catch (e) {
       if (!context.mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
       );
@@ -771,9 +764,7 @@ class _GRNModalState extends State<GRNModal> {
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: EdgeInsets.zero,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero, 
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: size.width,
         height: size.height,
@@ -845,7 +836,7 @@ class _GRNModalState extends State<GRNModal> {
                                 totals['commonDiscount'] ?? 0.0;
                             final double roundOff = totals['roundOff'] ?? 0.0;
                             final double totalReceivedAmount =
-                                grn.grnAmount ?? 0.0;
+                                totals['totalReceivedAmount'] ?? 0.0;
 
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1145,7 +1136,8 @@ class _GRNModalState extends State<GRNModal> {
                       totals['totalItemsAmount'] ?? 0.0;
                   final double discount = totals['totalDiscount'] ?? 0.0;
                   final double roundOff = totals['roundOff'] ?? 0.0;
-                  final double totalReceivedAmount = grn.grnAmount ?? 0.0;
+                  final double totalReceivedAmount =
+                      totals['totalReceivedAmount'] ?? 0.0;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -1180,6 +1172,11 @@ class _GRNModalState extends State<GRNModal> {
                         '${discount.toStringAsFixed(2)}',
                         compact: true,
                       ),
+                      _buildSummaryRow(
+                        "Freight Charges",
+                        totals['freightAmount']?.toStringAsFixed(2) ?? '0.00',
+                        compact: true,
+                      ),
 
                       if (roundOff != 0)
                         _buildSummaryRow(
@@ -1204,7 +1201,6 @@ class _GRNModalState extends State<GRNModal> {
                         compact: true,
                       ),
 
-                
                       ValueListenableBuilder<String?>(
                         valueListenable: roundOffErrorNotifier,
                         builder: (context, error, _) {
@@ -1473,7 +1469,8 @@ class _GRNModalState extends State<GRNModal> {
       case 'Expiry Date':
         return GestureDetector(
           onTap: () async {
-            final backendDate = await _getServerDate();
+            final backendDate = ServerTimeService.now;
+
             DateTime initialDate = backendDate;
 
             try {
@@ -1493,6 +1490,7 @@ class _GRNModalState extends State<GRNModal> {
 
             if (picked != null) {
               item.expiryDate = DateFormat("yyyy-MM-dd").format(picked);
+
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 expiryDateControllers[itemId]!.text = DateFormat(
                   "dd-MM-yyyy",
@@ -1500,6 +1498,7 @@ class _GRNModalState extends State<GRNModal> {
               });
             }
           },
+
           child: AbsorbPointer(
             child: TextFormField(
               controller: expiryDateControllers[itemId],

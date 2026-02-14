@@ -82,7 +82,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
     }
   }
 
-
   void debugFiltering() {
     final provider = context.read<OutgoingPaymentProvider>();
 
@@ -177,9 +176,9 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Color.fromARGB(255, 38, 89, 198), 
+              primary: Color.fromARGB(255, 38, 89, 198),
               onPrimary: Colors.white,
-              onSurface: Colors.black, 
+              onSurface: Colors.black,
             ),
             dialogBackgroundColor: Colors.white,
             dialogTheme: DialogThemeData(

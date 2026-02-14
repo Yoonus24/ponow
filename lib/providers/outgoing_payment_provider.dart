@@ -3,7 +3,6 @@
 
 // ignore_for_file: avoid_print, prefer_final_fields, unused_field, unnecessary_import
 
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +10,19 @@ import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class OutgoingPaymentProvider extends ChangeNotifier {
   final Dio dio = Dio();
+  OutgoingPaymentProvider() {
+    dio.options = BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 15),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
   final String _baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
@@ -23,8 +32,8 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       ValueNotifier<List<String>>([]);
   final ValueNotifier<List<String>> _invoiceNumbersNotifier =
       ValueNotifier<List<String>>([]);
-  List<String> _vendorNames = [];
-  List<String> _invoiceNumbers = [];
+  // List<String> _vendorNames = [];
+  // List<String> _invoiceNumbers = [];
   bool _isLoading = false;
   bool _isLoadingOutgoings = false;
   bool _isLoadingVendors = false;
@@ -134,7 +143,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           ..sort();
 
     _vendorNamesNotifier.value = vendors;
-    notifyListeners();
+    // notifyListeners();
   }
 
   Future<void> fetchInvoiceNumbers() async {
@@ -364,7 +373,8 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     try {
       final response = await dio.post(
         '$_baseUrl/outgoingpayments/',
-        data: jsonEncode(outgoing.toJson()),
+        data: outgoing.toJson(),
+
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -431,10 +441,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
 
     try {
-      final Dio dio = Dio()
-        ..options.connectTimeout = const Duration(seconds: 10)
-        ..options.receiveTimeout = const Duration(seconds: 10);
-
       String backendPaymentMethod;
       if (paymentMode == 'Cash') {
         if (paymentMethod == 'petty_cash') {
@@ -488,7 +494,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         print('processPayment -> requestData=$requestData');
       }
 
-      final response = await dio.patch(
+      final response = await this.dio.patch(
         '$_baseUrl/outgoingpayments/$outgoingId/payment',
         data: requestData,
         options: Options(headers: {'Content-Type': 'application/json'}),
@@ -553,9 +559,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     List<Outgoing> outgoing,
   ) async {
     try {
-      dio.options.connectTimeout = const Duration(seconds: 30);
-      dio.options.receiveTimeout = const Duration(seconds: 30);
-
       final Map<String, Outgoing> outgoingMap = {
         for (var o in outgoing) o.outgoingId: o,
       };
@@ -647,7 +650,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
       debugPrint('✅ BULK REQUEST => $requestData');
 
-      final response = await dio.patch(
+      final response = await this.dio.patch(
         '$_baseUrl/outgoingpayments/bulk/bulk-payment',
         data: requestData,
         options: Options(

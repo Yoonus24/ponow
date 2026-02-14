@@ -1270,8 +1270,7 @@ class _GRNModalState extends State<GRNReturn> {
                     : <MapEntry<int, ItemDetail>>[];
 
                 final tableHeight = selectedItems.isNotEmpty
-                    ? (selectedItems.length * 60.0) +
-                          40.0 
+                    ? (selectedItems.length * 60.0) + 40.0
                     : 0.0;
 
                 return Column(
@@ -1383,10 +1382,7 @@ class _GRNModalState extends State<GRNReturn> {
                       if (selectedItems.isNotEmpty) ...[
                         Container(
                           constraints: BoxConstraints(
-                            maxHeight: tableHeight.clamp(
-                              100.0,
-                              400.0,
-                            ),
+                            maxHeight: tableHeight.clamp(100.0, 400.0),
                           ),
                           decoration: BoxDecoration(
                             border: Border.all(color: Colors.grey[300]!),
@@ -1395,19 +1391,13 @@ class _GRNModalState extends State<GRNReturn> {
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: SizedBox(
-                              width: 400, 
+                              width: 400,
                               child: Table(
                                 columnWidths: const {
-                                  0: FlexColumnWidth(2.0), 
-                                  1: FixedColumnWidth(
-                                    70,
-                                  ), 
-                                  2: FixedColumnWidth(
-                                    90,
-                                  ),
-                                  3: FlexColumnWidth(
-                                    2.5,
-                                  ), 
+                                  0: FlexColumnWidth(2.0),
+                                  1: FixedColumnWidth(70),
+                                  2: FixedColumnWidth(90),
+                                  3: FlexColumnWidth(2.5),
                                 },
                                 defaultVerticalAlignment:
                                     TableCellVerticalAlignment.middle,
@@ -1547,8 +1537,7 @@ class _GRNModalState extends State<GRNReturn> {
                                             horizontal: 8,
                                           ),
                                           child: SizedBox(
-                                            width:
-                                                180, 
+                                            width: 180,
                                             child: Text(
                                               itemReasonsNotifier
                                                       .value[index] ??
@@ -1557,7 +1546,7 @@ class _GRNModalState extends State<GRNReturn> {
                                                 fontSize: 11,
                                                 color: Colors.grey,
                                               ),
-                                              maxLines: 2, 
+                                              maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
@@ -1683,6 +1672,7 @@ class _GRNModalState extends State<GRNReturn> {
               .toList();
 
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+
     try {
       print(
         'Submitting GRN return: scenario=${scenarioNotifier.value}, items=$convertedItems',
@@ -1707,33 +1697,29 @@ class _GRNModalState extends State<GRNReturn> {
 
       if (!mounted) return;
 
-      final messenger = ScaffoldMessenger.of(context);
+      // ✅ Close only this screen
+      Navigator.of(context).pop(true);
 
-      Navigator.of(context).pop();
-
-      messenger.showSnackBar(
+      // ✅ Show success message safely
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Return processed successfully'),
           duration: Duration(seconds: 2),
           backgroundColor: Colors.green,
         ),
       );
-
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
     } catch (e) {
       print('Error processing GRN return: $e');
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to process return: $e'),
-            duration: const Duration(seconds: 3),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to process return: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 

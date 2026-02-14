@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/po.dart';
 import '../providers/po_provider.dart';
 import '../widgets/approved po/approved_po_widget.dart';
@@ -83,18 +84,15 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   }
 
   Future<void> _pickDate() async {
-    final provider = Provider.of<POProvider>(context, listen: false);
+    Provider.of<POProvider>(context, listen: false);
 
     DateTime initialDate = DateTime.now();
+
     try {
-      final serverDate = await provider.getServerDate();
-      if (serverDate != null && serverDate.isNotEmpty) {
-        final parts = serverDate.split("-"); 
-        initialDate = DateTime(
-          int.parse(parts[2]),
-          int.parse(parts[1]),
-          int.parse(parts[0]),
-        );
+      final now = ServerTimeService.now;
+      final serverDate = now.toIso8601String();
+      if (serverDate.isNotEmpty) {
+        initialDate = DateTime.parse(serverDate);
       }
     } catch (_) {}
 
@@ -110,14 +108,12 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
               background: Colors.white,
               surface: Colors.white,
               primary: Colors.blueAccent,
-              onPrimary: Colors.white, 
-              onSurface: Colors.black, 
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent, 
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
           ),
           child: child!,
@@ -156,7 +152,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
   String _fmt(DateTime d) =>
       "${d.day.toString().padLeft(2, '0')}-${d.month.toString().padLeft(2, '0')}-${d.year}";
-
 
   Widget _buildVendorField() {
     return Consumer<POProvider>(
@@ -378,9 +373,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
             return SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight,
-                ),
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -497,8 +490,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                           child: const Text(
                                             "Clear Filters",
                                             style: TextStyle(
-                                              color: Colors
-                                                  .blueAccent,
+                                              color: Colors.blueAccent,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),

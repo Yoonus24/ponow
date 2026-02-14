@@ -111,12 +111,11 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
 
     if (!mounted) return;
 
-   if (confirmed == true && mounted) {
-  Future.microtask(() {
-    _logic.convertPoToGRN(context);
-  });
-}
-
+    if (confirmed == true && mounted) {
+      Future.microtask(() {
+        _logic.convertPoToGRN(context);
+      });
+    }
   }
 
   @override
@@ -510,24 +509,33 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildBackendSummary({required bool isOrdered}) {
-    final po = widget.po;
+    return ValueListenableBuilder<int>(
+      valueListenable: _logic.uiRefresh,
+      builder: (_, __, ___) {
+        final po = widget.po;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _summaryRow(
-          isOrdered ? "Pending Discount" : "Received Discount",
-          po.pendingDiscountAmount,
-        ),
-        _summaryRow("Tax", po.pendingTaxAmount),
-        _summaryRow("Sub Total", po.pendingOrderAmount),
-        _summaryRow("Round Off", _logic.roundOffAmount.value),
-        _summaryRow(
-          "Final Amount",
-          _logic.receivedFinalAmount,
-          highlight: true,
-        ),
-      ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _summaryRow("Sub Total", _logic.receivedSubTotal),
+
+            _summaryRow(
+              isOrdered ? "Pending Discount" : "Received Discount",
+              po.pendingDiscountAmount,
+            ),
+            _summaryRow("Freight", _logic.totalFreightAmount),
+
+            _summaryRow("Tax", po.pendingTaxAmount),
+
+            _summaryRow("Round Off", _logic.roundOffAmount.value),
+            _summaryRow(
+              "Final Amount",
+              _logic.receivedFinalAmount,
+              highlight: true,
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -646,21 +654,31 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               const SizedBox(width: 4),
               SizedBox(
                 width: 70,
-                child: TextField(
-                  controller: _logic.discountInputController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(4),
+                child: InkWell(
+                  onTap: () {
+                    _logic.showNumericCalculator(
+                      controller: _logic.discountInputController,
+                      varianceName: 'Enter Discount',
+                      onValueSelected: () {},
+                      isItemField: false,
+                    );
+                  },
+                  child: IgnorePointer(
+                    child: TextField(
+                      controller: _logic.discountInputController,
+                      readOnly: true,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 11),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        hintText: 'Amount',
+                        hintStyle: const TextStyle(fontSize: 10),
+                      ),
                     ),
-                    hintText: 'Amount',
-                    hintStyle: const TextStyle(fontSize: 10),
                   ),
                 ),
               ),
@@ -738,43 +756,41 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 const SizedBox(width: 4),
                 SizedBox(
                   width: 70,
-                  child: TextField(
-                    controller: _logic.discountPriceController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                      signed: true,
-                    ),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 11),
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 2.0,
-                        horizontal: 4.0,
-                      ),
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: hasError ? Colors.red : Colors.grey.shade400,
-                          width: hasError ? 2 : 1,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: hasError ? Colors.red : Colors.grey.shade400,
-                          width: hasError ? 2 : 1,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: hasError ? Colors.red : Colors.grey.shade400,
-                          width: hasError ? 2 : 1,
-                        ),
-                      ),
-                    ),
-                    onChanged: (value) {
-                      _logic.updateRoundOff(value);
-                      _logic.validateRoundOff();
+                  child: InkWell(
+                    onTap: () {
+                      _logic.showNumericCalculator(
+                        controller: _logic.discountPriceController,
+                        varianceName: 'Enter Round Off',
+                        onValueSelected: () {
+                          _logic.updateRoundOff(
+                            _logic.discountPriceController.text,
+                          );
+                          _logic.validateRoundOff();
+                        },
+                        isItemField: false,
+                      );
                     },
+                    child: IgnorePointer(
+                      child: TextField(
+                        controller: _logic.discountPriceController,
+                        readOnly: true,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 11),
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 2.0,
+                            horizontal: 4.0,
+                          ),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: hasError ? Colors.red : Colors.grey,
+                              width: hasError ? 2 : 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ],

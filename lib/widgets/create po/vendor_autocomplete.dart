@@ -150,7 +150,6 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     _isLoadingMore.value = false;
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Autocomplete<String>(
@@ -274,7 +273,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
               ),
               contentPadding: const EdgeInsets.symmetric(
                 vertical: 14,
-                horizontal: 12,
+                horizontal: 7,
               ),
               filled: true,
               fillColor: Colors.white,

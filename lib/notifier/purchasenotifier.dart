@@ -3,8 +3,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/po.dart';
 import '../models/po_item.dart';
 import '../models/vendorpurchasemodel.dart';
@@ -25,8 +27,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   final TextEditingController overallDiscountController =
       TextEditingController();
   final TextEditingController roundOffController = TextEditingController();
-  double _overallDiscountValue = 0.0; 
-  double _overallDiscountAmount = 0.0; 
+  double _overallDiscountValue = 0.0;
+  double _overallDiscountAmount = 0.0;
   double pendingDiscountAmount = 0.0;
   double pendingTaxAmount = 0.0;
   double pendingOrderAmount = 0.0;
@@ -152,9 +154,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   List<Vendor> vendors = [];
   List<VendorAll> vendorAllList = [];
   bool _isLocationFocused = false;
+  List<FreightData> freights = [];
+
+  double totalFreightAmount = 0;
+  double totalFreightTaxAmount = 0;
+  double roundOffAdjustment = 0.0;
 
   bool get isLocationFocused => _isLocationFocused;
   PurchaseItem? selectedPurchaseItem;
+  bool _isEditTotalsInitialized = false;
 
   int? editingIndex;
 
@@ -172,11 +180,55 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     _editingPO = po;
 
+    // 🔥 Reset guard for new edit session
+    _isEditTotalsInitialized = false;
+
+    if (po != null) {
+      poItems = List<Item>.from(po.items);
+
+      freights = List<FreightData>.from(po.freights ?? []);
+      totalFreightAmount = po.totalFreightAmount ?? 0.0;
+      totalFreightTaxAmount = po.totalFreightTaxAmount ?? 0.0;
+
+      roundOffAdjustment = po.roundOffAdjustment ?? 0.0;
+      roundOffController.text = roundOffAdjustment.toStringAsFixed(2);
+
+      // ✅ Initialize totals ONCE
+      _initializeEditTotalsOnce(notify: notify);
+    }
+  }
+
+  void _initializeEditTotalsOnce({required bool notify}) {
+    if (_isEditTotalsInitialized) {
+      print("⛔ Skipping duplicate edit recalculation");
+      return;
+    }
+
+    print("✅ Initializing edit totals ONCE");
+
     recalculateFromLoadedPO(notify: notify);
 
-    if (notify) {
-      safeNotify();
-    }
+    _isEditTotalsInitialized = true;
+  }
+
+  Future<void> updateFreightAt(int index, FreightData freight) async {
+    if (index < 0 || index >= freights.length) return;
+
+    final newList = List<FreightData>.from(freights);
+    newList[index] = freight;
+
+    freights = newList;
+
+    await recalculateTotalsFromBackend();
+  }
+
+  void removeFreightAt(int index) {
+    if (index < 0 || index >= freights.length) return;
+
+    freights.removeAt(index);
+
+    recalculateTotalsFromBackend();
+    notifyListeners();
   }
 
   void safeNotify() {
@@ -187,6 +239,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void _safeCalculateTotals() {
     if (_disposed) return;
     calculateTotals();
+  }
+
+  void clearFreights() {
+    freights.clear();
+    totalFreightAmount = 0.0;
+    totalFreightTaxAmount = 0.0;
+    notifyListeners();
   }
 
   void safeControllerAction(void Function() action) {
@@ -200,6 +259,31 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     } catch (e) {
       print('⚠️ Error in controller action: $e');
     }
+  }
+
+  Future<void> addFreight(FreightData freight) async {
+    freights.add(freight);
+    await recalculateTotalsFromBackend();
+  }
+
+  Future<void> recalculateTotalsFromBackend() async {
+    final result = await poProvider.calculatePOTotals(
+      items: poItems.map((e) => e.toJson()).toList(),
+      freights: freights.map((e) => e.toJson()).toList(),
+    );
+
+    subTotal = result["subTotal"];
+    totalFreightAmount = result["totalFreightAmount"];
+    totalFreightTaxAmount = result["totalFreightTaxAmount"];
+
+    final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
+
+    _calculatedFinalAmount = result["finalAmount"] + roundOff;
+
+    totalOrderAmount = _calculatedFinalAmount;
+    pendingOrderAmount = _calculatedFinalAmount;
+
+    notifyListeners();
   }
 
   void updateVariance() {
@@ -233,25 +317,18 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     });
   }
 
-  void applyOverallDiscountToAllItemsAfTax(
+  Future<void> applyOverallDiscountToAllItemsAfTax(
     double discountValue,
     DiscountMode mode,
-  ) {
+  ) async {
     if (_disposed) return;
-
-    print('🔧 APPLYING OVERALL DISCOUNT');
 
     isOverallDiscountActive = true;
     discountMode.value = mode;
     _overallDiscountValue = discountValue;
     overallDiscountController.text = discountValue.toStringAsFixed(2);
 
-    for (var item in poItems) {
-      item.afTaxDiscount = 0.0;
-      item.afTaxDiscountAmount = 0.0;
-    }
-
-    _safeCalculateTotals();
+    await recalculateTotalsFromBackend();
   }
 
   void setLocation({required String location, String? locationName}) {
@@ -559,7 +636,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
 
-    _calculatedFinalAmount = totalFinal + roundOff;
+    _calculatedFinalAmount =
+        totalFinal + totalFreightAmount + totalFreightTaxAmount + roundOff;
 
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
@@ -587,13 +665,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   void removeItem(Item item) {
-    if (_disposed) return;
-
-    print('🗑 Removing item: ${item.itemName}');
-
     poItems.remove(item);
+
+    if (poItems.isEmpty) {
+      totalFreightAmount = 0;
+      totalFreightTaxAmount = 0;
+    }
+
     calculateTotals();
-    safeNotify();
   }
 
   void setSelectedPaymentTerm(String? term) {
@@ -706,7 +785,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void updateItemDetailsFromCache(PurchaseItem item) {
     if (_disposed) return;
 
-
     _selectedItem = item;
 
     safeControllerAction(() {
@@ -734,6 +812,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   void calculateTotals({bool fromEditLoad = false}) {
+    if (_editingPO != null && !_isEditTotalsInitialized) {
+      print("⛔ calculateTotals blocked during edit init");
+      return;
+    }
+
     if (_disposed) {
       return;
     }
@@ -768,7 +851,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
 
-    _calculatedFinalAmount = totalFinal + roundOff;
+    _calculatedFinalAmount =
+        totalFinal + totalFreightAmount + totalFreightTaxAmount + roundOff;
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
@@ -839,6 +923,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     poItems.clear();
     purchaseItems.clear();
     filteredItems.clear();
+    freights.clear();
+    totalFreightAmount = 0;
+    totalFreightTaxAmount = 0;
+
     editingIndex = null;
     _editItem = null;
     _editingPO = null;
@@ -852,7 +940,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     notifyListeners();
   }
-
 
   void addItem(Item item) {
     if (_disposed) return;
@@ -949,7 +1036,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         "overallDiscount": _getControllerTextSafely(overallDiscountController),
       };
 
-      calculateTotals();
+      await recalculateTotalsFromBackend();
+      await Future.delayed(Duration(milliseconds: 50));
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
@@ -987,6 +1075,9 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
           location: selectedLocation,
           locationName: selectedLocationName,
+          freights: freights,
+          totalFreightAmount: totalFreightAmount,
+          totalFreightTaxAmount: totalFreightTaxAmount,
 
           items: finalItems,
           totalOrderAmount: calculatedFinalAmount,
@@ -1054,6 +1145,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         orderDate: formattedOrderDate,
         expectedDeliveryDate: formattedExpectedDate,
         roundOffAdjustment: roundOffValue,
+        freights: freights,
+        totalFreightAmount: totalFreightAmount,
+        totalFreightTaxAmount: totalFreightTaxAmount,
+
         overallDiscount: hasOverallDiscount
             ? PurchaseOrderDiscount(
                 value: overallDiscountValue,
@@ -1085,10 +1180,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
   }
 
-  void calculateItemTotals() {
-    if (_disposed) return;
-    safeNotify();
-  }
+  // void calculateItemTotals() {
+  //   if (_disposed) return;
+  //   safeNotify();
+  // }
 
   Future<void> applyOverallDiscount(POProvider poProvider) async {}
 }

@@ -228,9 +228,26 @@ class GRNDetailsDialog extends StatelessWidget {
   }
 
   Widget _buildSummarySection() {
-    final totalReceived = grn.totalReceivedAmount ?? 0.0;
-    final totalDiscount = grn.discountPrice ?? 0.0;
-    final totalTax = grn.totalTax ?? 0.0;
+    // ✅ Item total (same as GRNModal)
+    double itemTotal = 0.0;
+
+    for (final item in grn.itemDetails ?? []) {
+      itemTotal += item.finalPrice ?? 0.0;
+    }
+
+    // ✅ Freight
+    final double freightAmount = grn.totalFreightAmount ?? 0.0;
+    final double freightTax = grn.totalFreightTaxAmount ?? 0.0;
+    final double freightTotal = freightAmount + freightTax;
+
+    // ✅ Discount
+    final double discount = grn.totalDiscount ?? grn.discountPrice ?? 0.0;
+
+    // ✅ Round off
+    final double roundOff = grn.roundOffAdjustment ?? 0.0;
+
+    // ✅ Final total (same formula as GRNModal)
+    final double finalTotal = itemTotal + freightTotal - discount + roundOff;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -241,15 +258,27 @@ class GRNDetailsDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
+              _buildSummaryRow('Items Total:', _formatCurrency(itemTotal)),
+
+              _buildSummaryRow('Discount:', _formatCurrency(discount)),
+
               _buildSummaryRow(
-                'Total Discount:',
-                _formatCurrency(totalDiscount),
+                'Freight Amount:',
+                _formatCurrency(freightAmount),
               ),
-              _buildSummaryRow('Total Tax:', _formatCurrency(totalTax)),
+
+              _buildSummaryRow('Freight Tax:', _formatCurrency(freightTax)),
+
+              _buildSummaryRow('Total Freight:', _formatCurrency(freightTotal)),
+
+              if (roundOff != 0)
+                _buildSummaryRow('Round Off:', _formatCurrency(roundOff)),
+
               const Divider(),
+
               _buildSummaryRow(
-                'Total Received Amount:',
-                _formatCurrency(totalReceived),
+                'Final Total:',
+                _formatCurrency(finalTotal),
                 isBold: true,
               ),
             ],
@@ -295,4 +324,3 @@ class GRNDetailsDialog extends StatelessWidget {
   String _formatNumber(double? value) => value?.toStringAsFixed(2) ?? '0.00';
   String _formatCurrency(double? value) => value?.toStringAsFixed(2) ?? '0.00';
 }
- 

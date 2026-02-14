@@ -4,6 +4,7 @@ import 'package:purchaseorders2/models/po_item.dart';
 import 'package:provider/provider.dart';
 import 'table_components.dart';
 import '../../models/discount_model.dart';
+import 'freight_dialog.dart';
 
 class ItemsTable extends StatefulWidget {
   final PurchaseOrderNotifier? notifier;
@@ -139,20 +140,61 @@ class _ItemsTableState extends State<ItemsTable> {
                 "Items",
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
-              SizedBox(
-                height: 35,
-                child: ElevatedButton.icon(
-                  onPressed: widget.onAddItem,
-                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                  label: const Text(
-                    "Add item",
-                    style: TextStyle(fontSize: 13, color: Colors.white),
+
+              Row(
+                children: [
+                  SizedBox(
+                    height: 35,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => FreightDialog(
+                            onAdd: (freight) {
+                              purchaseNotifier.addFreight(freight);
+                            },
+                          ),
+                        );
+                      },
+
+                      icon: const Icon(
+                        Icons.local_shipping,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        "Add Freight",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    backgroundColor: Colors.blueAccent,
+
+                  const SizedBox(width: 8),
+
+                  SizedBox(
+                    height: 35,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.onAddItem,
+                      icon: const Icon(
+                        Icons.add,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                      label: const Text(
+                        "Add item",
+                        style: TextStyle(fontSize: 13, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/ap.dart';
 import '../providers/ap_invoice_provider.dart';
 import '../providers/po_provider.dart';
@@ -55,13 +56,11 @@ class _APInvoicePageState extends State<APInvoicePage> {
     super.dispose();
   }
 
-
-
   Future<DateTime> _getServerDate() async {
     final provider = Provider.of<POProvider>(context, listen: false);
 
     try {
-      final s = await provider.getServerDate();
+      final s = ServerTimeService.now.toIso8601String();
       if (s != null) {
         final p = s.split('-');
         return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0]));
@@ -182,7 +181,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
     _vendorController.clear();
     _vendorNotifier.value = '';
   }
-
 
   Widget _buildVendorField() {
     return Consumer<POProvider>(
@@ -384,11 +382,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                   return Container(
                     decoration: BoxDecoration(
-                      color: hasCustomFilter
-                          ? Colors
-                                .grey
-                                .shade200 
-                          : null,
+                      color: hasCustomFilter ? Colors.grey.shade200 : null,
                       borderRadius: BorderRadius.circular(20),
                     ),
 
@@ -404,7 +398,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         children: [
                           Icon(
                             Icons.filter_list_rounded,
-                            color: Colors.blueGrey[700], 
+                            color: Colors.blueGrey[700],
                             size: 28,
                           ),
                         ],
@@ -477,8 +471,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
       ),
     );
   }
-
-
 
   List<ApInvoice> _filterInvoices(List<ApInvoice> list) {
     return list.where((inv) {

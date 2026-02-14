@@ -50,7 +50,6 @@ class _POModalState extends State<POModal> {
   void initState() {
     super.initState();
 
-   
     countControllers = widget.po.items
         .map(
           (item) =>
@@ -74,7 +73,6 @@ class _POModalState extends State<POModal> {
         )
         .toList();
 
-   
     befTaxDiscountControllers = [];
     afTaxDiscountControllers = [];
 
@@ -194,7 +192,6 @@ class _POModalState extends State<POModal> {
 
     final item = widget.po.items[index];
 
- 
     final pendingCount = double.tryParse(countControllers[index].text) ?? 0.0;
 
     final eachQuantity =
@@ -210,7 +207,6 @@ class _POModalState extends State<POModal> {
 
     final taxPercentage = item.taxPercentage ?? 0.0;
 
-  
     final totalQuantity = pendingCount * eachQuantity;
     final totalPrice = totalQuantity * unitPrice;
 
@@ -226,7 +222,6 @@ class _POModalState extends State<POModal> {
 
     final finalPrice = priceAfterBefDiscount + taxAmount - afTaxDiscountAmount;
 
-   
     double cgst = 0.0;
     double sgst = 0.0;
     double igst = 0.0;
@@ -236,7 +231,6 @@ class _POModalState extends State<POModal> {
       sgst = taxAmount / 2;
     }
 
-   
     item.pendingCount = pendingCount;
     item.pendingQuantity = eachQuantity;
     item.pendingTotalQuantity = totalQuantity;
@@ -257,7 +251,6 @@ class _POModalState extends State<POModal> {
     item.pendingSgst = sgst;
     item.pendingIgst = igst;
 
-  
     befTaxDiscountControllers[index].text = befTaxDiscountAmount
         .toStringAsFixed(2);
 
@@ -319,9 +312,11 @@ class _POModalState extends State<POModal> {
       (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
     );
 
+    final freight = widget.po.totalFreightAmount ?? 0.0;
+    final freightTax = widget.po.totalFreightTaxAmount ?? 0.0;
     final roundOff = widget.po.roundOffAdjustment ?? 0.0;
 
-    return itemsTotal + roundOff;
+    return itemsTotal + freight + freightTax + roundOff;
   }
 
   double getTotalOrderAmount() {
@@ -490,7 +485,7 @@ class _POModalState extends State<POModal> {
           item.itemName ?? '',
           textAlign: TextAlign.left,
 
-          maxLines: 3, 
+          maxLines: 3,
           softWrap: true,
           style: const TextStyle(fontSize: 12),
         );
@@ -757,9 +752,7 @@ class _POModalState extends State<POModal> {
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero, 
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: ValueListenableBuilder<List<String>>(
         valueListenable: columnsNotifier,
         builder: (context, columns, _) {
@@ -871,7 +864,7 @@ class _POModalState extends State<POModal> {
                                                 ),
                                                 child: Text(
                                                   item.itemName ?? '',
-                                               
+
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                   ),
@@ -940,6 +933,14 @@ class _POModalState extends State<POModal> {
 
                               Text(
                                 "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
+                              ),
+
+                              Text(
+                                "Freight Amount: ${(po.totalFreightAmount ?? 0.0).toStringAsFixed(2)}",
+                              ),
+
+                              Text(
+                                "Freight Tax: ${(po.totalFreightTaxAmount ?? 0.0).toStringAsFixed(2)}",
                               ),
 
                               Text(

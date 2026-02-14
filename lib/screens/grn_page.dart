@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/grn.dart';
 import '../providers/grn_provider.dart';
 import '../widgets/grn/grn_widget.dart';
@@ -164,8 +165,8 @@ class _GRNPageState extends State<GRNPage> {
                       : Icon(Icons.search, color: Colors.grey[600], size: 22),
                 ),
                 onChanged: (v) {
-                  _vendorNotifier.value = v; 
-                  _selectedVendorNotifier.value = v; 
+                  _vendorNotifier.value = v;
+                  _selectedVendorNotifier.value = v;
                   _refresh();
                 },
               );
@@ -403,9 +404,9 @@ class _GRNPageState extends State<GRNPage> {
               Expanded(
                 child: RefreshIndicator(
                   color: Colors.blueAccent,
-                  backgroundColor: Colors.white, 
-                  displacement: 40, 
-                  strokeWidth: 3, 
+                  backgroundColor: Colors.white,
+                  displacement: 40,
+                  strokeWidth: 3,
 
                   onRefresh: () async {
                     final grnProvider = Provider.of<GRNProvider>(
@@ -444,21 +445,47 @@ class _GRNPageState extends State<GRNPage> {
   }
 
   Future<void> _selectDate() async {
+    final poProvider = Provider.of<POProvider>(context, listen: false);
+
+    DateTime? serverNow;
+
+    try {
+      final serverDateIso = ServerTimeService.now.toIso8601String();
+      if (serverDateIso.isNotEmpty) {
+        serverNow = DateTime.parse(serverDateIso);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    if (serverNow == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Unable to fetch server date. Please try again."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
+      initialDate: _selectedDate ?? serverNow,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      lastDate: serverNow,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.blueAccent,
-              onPrimary: Colors.white,
-              onSurface: Colors.black87,
+              primary: Colors.blueAccent, // selected date + header
+              onPrimary: Colors.white, // text on header
+              onSurface: Colors.black, // normal text
             ),
+            dialogBackgroundColor: Colors.white, // full background
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent, // OK / CANCEL buttons
+              ),
             ),
           ),
           child: child!,

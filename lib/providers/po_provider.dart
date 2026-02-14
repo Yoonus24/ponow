@@ -7,13 +7,16 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
+import 'package:purchaseorders2/models/freight.dart';
+import 'package:purchaseorders2/models/freight_name_model.dart';
 import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/models/purchase_tax_model.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/vendorpurchasemodel.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/models/branchlocation.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class POProvider extends ChangeNotifier {
   static const String cloudBaseUrl = 'https://yenerp.com';
@@ -23,9 +26,10 @@ class POProvider extends ChangeNotifier {
       Dio(
           BaseOptions(
             baseUrl: 'http://192.168.29.252:8000/nextjstestapi',
-            connectTimeout: const Duration(seconds: 60),
+            connectTimeout: const Duration(seconds: 30),
             receiveTimeout: const Duration(seconds: 30),
-            sendTimeout: const Duration(seconds: 30),
+            sendTimeout: const Duration(seconds: 15),
+
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
@@ -89,6 +93,8 @@ class POProvider extends ChangeNotifier {
 
   bool _isBranchLoading = false;
   bool get isBranchLoading => _isBranchLoading;
+  List<PurchaseTax> purchaseTaxes = [];
+  List<FreightName> freightNames = [];
 
   final ScrollController vendorScrollController = ScrollController();
   final ScrollController vendorAllScrollController = ScrollController();
@@ -364,26 +370,26 @@ class POProvider extends ChangeNotifier {
     });
   }
 
-  Future<String> getServerDate() async {
-    try {
-      final response = await _dio.get("https://yenerp.com/liveapi/datetime");
+  // Future<String> getServerDate() async {
+  //   try {
+  //     final response = await _dio.get("https://yenerp.com/liveapi/datetime");
 
-      if (response.statusCode == 200) {
-        final date = response.data["current_date"];
-        final time = response.data["current_time"];
+  //     if (response.statusCode == 200) {
+  //       final date = response.data["current_date"];
+  //       final time = response.data["current_time"];
 
-        final combined = "$date $time";
+  //       final combined = "$date $time";
 
-        final parsed = DateFormat("dd-MM-yyyy hh:mm a").parse(combined);
+  //       final parsed = DateFormat("dd-MM-yyyy hh:mm a").parse(combined);
 
-        return parsed.toIso8601String();
-      }
-    } catch (e) {
-      print("❌ Server time failed → fallback device time");
-    }
+  //       return parsed.toIso8601String();
+  //     }
+  //   } catch (e) {
+  //     print("❌ Server time failed → fallback device time");
+  //   }
 
-    return DateTime.now().toIso8601String();
-  }
+  //   return DateTime.now().toIso8601String();
+  // }
 
   Future<void> fetchPOsWithFilters({
     String? status,
@@ -653,7 +659,8 @@ class POProvider extends ChangeNotifier {
   }
 
   Future<void> fetchTodayPOs() async {
-    final now = DateTime.now();
+    final now = ServerTimeService.now;
+
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
@@ -666,10 +673,11 @@ class POProvider extends ChangeNotifier {
   }
 
   Future<void> fetchThisWeekPOs() async {
-    final now = DateTime.now();
+    final now = ServerTimeService.now;
+
     final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
     final endOfWeek = startOfWeek.add(
-      Duration(days: 6, hours: 23, minutes: 59),
+      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
     );
 
     await fetchPOsWithFilters(
@@ -681,7 +689,8 @@ class POProvider extends ChangeNotifier {
   }
 
   Future<void> fetchThisMonthPOs() async {
-    final now = DateTime.now();
+    final now = ServerTimeService.now;
+
     final startOfMonth = DateTime(now.year, now.month, 1);
     final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
@@ -1160,7 +1169,7 @@ class POProvider extends ChangeNotifier {
 
   Future<void> approvePo(String purchaseOrderId, String status, PO po) async {
     try {
-      final now = await getServerDate();
+      final now = ServerTimeService.now.toIso8601String();
 
       final Map<String, dynamic> body = {
         "poStatus": status,
@@ -1305,36 +1314,49 @@ class POProvider extends ChangeNotifier {
       print('Round Off Adjustment: $roundOffAdjustment');
       print('===========================');
 
+      // ✅ Get PO from provider list
+      final PO currentPo = _pos.firstWhere(
+        (p) => p.purchaseOrderId == poId,
+        orElse: () => throw Exception("PO not found"),
+      );
+
+      // ✅ Update GRN with round-off + freight
       final Map<String, dynamic> updateBody = {
         'roundOffAdjustment': roundOffAdjustment ?? 0.0,
         'grnRoundOffAmount': roundOffAdjustment ?? 0.0,
+
+        // ✅ Freight copy from PO → GRN
+        'freights': currentPo.freights?.map((f) => f.toJson()).toList() ?? [],
+        'totalFreightAmount': currentPo.totalFreightAmount ?? 0.0,
+        'totalFreightTaxAmount': currentPo.totalFreightTaxAmount ?? 0.0,
       };
 
-      print("=== Updating GRN with round-off ===");
+      print("=== Updating GRN with round-off + freight ===");
       print(jsonEncode(updateBody));
 
       final response = await _dio.patch('/grns/$grnId', data: updateBody);
 
       if (response.statusCode == 200) {
-        print('GRN updated successfully with round-off: $roundOffAdjustment');
+        print('GRN updated successfully with freight + round-off');
 
         final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+
         await grnProvider.fetchFilteredGRNs();
       } else {
-        throw Exception(
-          'Failed to update GRN with round-off: ${response.statusCode}',
-        );
+        throw Exception('Failed to update GRN: ${response.statusCode}');
       }
     } on DioException catch (e) {
       _setError(_formatConversionError(e));
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Error updating GRN with round-off: ${e.message}"),
+          content: Text("Error updating GRN: ${e.message}"),
           backgroundColor: Colors.red,
         ),
       );
     } catch (e) {
       _setError('Failed to convert PO to GRN: ${e.toString()}');
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
       );
@@ -1644,9 +1666,12 @@ class POProvider extends ChangeNotifier {
         "gstNumber": po.gstNumber ?? "",
         "creditLimit": po.creditLimit ?? 0,
         "poStatus": po.poStatus ?? "Pending",
-        "lastUpdatedDate": await getServerDate(),
+        "lastUpdatedDate": ServerTimeService.now.toIso8601String(),
         "roundOffAdjustment": po.roundOffAdjustment ?? 0.0,
         "roundOffValue": po.roundOffAdjustment ?? 0.0,
+        "freightDetails": po.freights?.map((f) => f.toJson()).toList() ?? [],
+        "totalFreightAmount": po.totalFreightAmount ?? 0.0,
+        "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
       };
 
       final response = await _dio.patch(
@@ -1691,6 +1716,12 @@ class POProvider extends ChangeNotifier {
     try {
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
+
+      // ✅ NEW — fetch PO for freight sync
+      final PO po = _pos.firstWhere(
+        (p) => p.purchaseOrderId == poId,
+        orElse: () => throw Exception("PO not found for freight sync"),
+      );
 
       final receivedItems = items.map((item) {
         return item.copyWith(receivedQuantity: item.receivedQuantity ?? 0);
@@ -1754,7 +1785,11 @@ class POProvider extends ChangeNotifier {
         "roundOffAdjustment": roundOffAdjustment ?? 0.0,
         "grnRoundOffAmount": roundOffAdjustment ?? 0.0,
         "poId": poId,
-        "freights": [],
+
+        // ✅ NEW — freight sync
+        "freights": po.freights?.map((f) => f.toJson()).toList() ?? [],
+        "totalFreightAmount": po.totalFreightAmount ?? 0.0,
+        "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
       };
 
       final response = await _dio.patch(
@@ -1771,6 +1806,67 @@ class POProvider extends ChangeNotifier {
       debugPrint("updatePoDetails failed: $e");
       throw Exception("updatePoDetails failed: $e");
     }
+  }
+
+  Future<void> fetchPurchaseTaxes() async {
+    try {
+      final response = await _dio.get(
+        'http://192.168.29.252:8000/nextjstestapi/purchasetaxes/',
+      );
+
+      if (response.statusCode == 200) {
+        purchaseTaxes = (response.data as List)
+            .map((e) => PurchaseTax.fromJson(e))
+            .toList();
+
+        notifyListeners();
+      }
+    } catch (e) {
+      print("Tax fetch error: $e");
+    }
+  }
+
+  Future<void> fetchFreightNames() async {
+    try {
+      final response = await _dio.get(
+        'https://yenerp.com/nextjstestapi/freights/',
+      );
+
+      if (response.statusCode == 200) {
+        freightNames = (response.data as List)
+            .map((e) => FreightName.fromJson(e))
+            .toList();
+
+        notifyListeners();
+      }
+    } catch (e) {
+      print("Freight fetch error: $e");
+    }
+  }
+
+  Future<FreightData> calculateFreightTotals({
+    required double amount,
+    required String taxCode,
+    required String taxType,
+  }) async {
+    final response = await _dio.get(
+      '/purchaseorders/freight/totals',
+      queryParameters: {"amt": amount, "tCode": taxCode, "taxType": taxType},
+    );
+
+    return FreightData.fromJson(response.data);
+  }
+
+  Future<Map<String, dynamic>> calculatePOTotals({
+    required List items,
+    required List freights,
+  }) async {
+    final response = await _dio.post(
+      '/purchaseorders/calculate-totals',
+      data: {"items": items, "freights": freights},
+    );
+
+    return response.data;
   }
 
   Future<void> updateItemFromBackend(int index, String poId) async {
@@ -1892,8 +1988,7 @@ class POProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      final String formattedDate = await getServerDate();
-
+      final String formattedDate = ServerTimeService.now.toIso8601String();
       String formatDateForBackend(String dateString) {
         if (dateString.isEmpty) return "";
         try {
@@ -1914,8 +2009,6 @@ class POProvider extends ChangeNotifier {
       final formattedExpectedDate = formatDateForBackend(
         po.expectedDeliveryDate ?? "",
       );
-
-      po.items.forEach((item) {});
 
       final List<Map<String, dynamic>> updatedItems = po.items.map((item) {
         final double qty = item.quantity ?? 0.0;
@@ -1951,7 +2044,6 @@ class POProvider extends ChangeNotifier {
           "poQuantitysgst": item.poQuantitysgst ?? sgst,
           "poQuantitycgst": item.poQuantitycgst ?? cgst,
           "poQuantityigst": item.poQuantityigst ?? igst,
-
           "uom": item.uom ?? "",
           "count": item.count ?? 1.0,
           "eachQuantity": item.eachQuantity ?? 0.0,
@@ -1973,6 +2065,18 @@ class POProvider extends ChangeNotifier {
         };
       }).toList();
 
+      final double totalFreightAmount = po.freights == null
+          ? 0.0
+          : po.freights!
+                .map((f) => (f.amount ?? 0.0))
+                .fold(0.0, (a, b) => a + b);
+
+      final double totalFreightTaxAmount = po.freights == null
+          ? 0.0
+          : po.freights!
+                .map((f) => (f.taxAmount ?? 0.0))
+                .fold(0.0, (a, b) => a + b);
+
       final double totalPendingAmount = po.items.fold(
         0.0,
         (s, i) => s + (i.pendingFinalPrice ?? 0),
@@ -1989,7 +2093,13 @@ class POProvider extends ChangeNotifier {
       );
 
       final double roundOffValue = po.roundOffAdjustment ?? 0.0;
-      final double finalAmount = totalPendingAmount + roundOffValue;
+
+      // ✅ Include freight in final amount
+      final double finalAmount =
+          totalPendingAmount +
+          totalFreightAmount +
+          totalFreightTaxAmount +
+          roundOffValue;
 
       final bool isHoldOrder =
           finalAmount > (selectedVendorDetails.creditLimit ?? 0);
@@ -2012,7 +2122,10 @@ class POProvider extends ChangeNotifier {
       );
 
       final Map<String, dynamic> poJson = updatedPO.toJson()
+        ..['freights'] = po.freights?.map((f) => f.toJson()).toList() ?? []
         ..['items'] = updatedItems
+        ..['totalFreightAmount'] = totalFreightAmount
+        ..['totalFreightTaxAmount'] = totalFreightTaxAmount
         ..removeWhere(
           (key, value) =>
               (key == "approvedDate" ||

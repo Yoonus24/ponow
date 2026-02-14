@@ -6,6 +6,7 @@ import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/save_template_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/template_list_dialog.dart';
@@ -19,6 +20,7 @@ import '../widgets/create po/address_fields.dart';
 import '../widgets/create po/items_table.dart';
 import '../widgets/keyboard_dismisser.dart';
 import '../widgets/create po/template_creation_screen.dart';
+import '../widgets/create po/freight_table.dart';
 
 class PurchaseOrderDialog extends StatefulWidget {
   final PO? editingPO;
@@ -93,6 +95,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         notifier.creditLimitController.clear();
         notifier.billingController.clear();
         notifier.shippingController.clear();
+        notifier.clearFreights();
 
         notifier.overallDiscountController.text = '0';
         notifier.roundOffController.text = '0';
@@ -446,8 +449,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       postalCode: 0,
       gstNumber: '',
       creditLimit: 0,
-      orderDate: DateTime.now().toIso8601String(),
-      createdDate: DateTime.now().toIso8601String(),
+      orderDate: ServerTimeService.now.toIso8601String(),
+      createdDate: ServerTimeService.now.toIso8601String(),
+
       randomId: '',
     );
   }
@@ -640,8 +644,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       postalCode: notifier.selectedVendorDetails?.postalCode ?? 0,
       gstNumber: notifier.selectedVendorDetails?.gstNumber ?? '',
       creditLimit: notifier.selectedVendorDetails?.creditLimit ?? 0,
-      orderDate: DateTime.now().toIso8601String(),
-      createdDate: DateTime.now().toIso8601String(),
+      orderDate: ServerTimeService.now.toIso8601String(),
+      createdDate: ServerTimeService.now.toIso8601String(),
+
       randomId: '',
     );
   }
@@ -791,31 +796,39 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                 ] else ...[
                                   Row(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                        CrossAxisAlignment.center,
                                     children: [
                                       Expanded(
-                                        child: VendorAutocomplete(
-                                          controller:
-                                              _vendorAutocompleteController,
-                                          notifier: notifier,
-                                          poProvider: poProvider,
-                                          onVendorSelected: (selectedVendor) {
-                                            logic.onVendorSelected(
-                                              selectedVendor,
-                                            );
-                                            _triggerUIRefresh();
-                                          },
+                                        child: SizedBox(
+                                          height: 60,
+                                          child: VendorAutocomplete(
+                                            controller:
+                                                _vendorAutocompleteController,
+                                            notifier: notifier,
+                                            poProvider: poProvider,
+                                            onVendorSelected: (selectedVendor) {
+                                              logic.onVendorSelected(
+                                                selectedVendor,
+                                              );
+                                              _triggerUIRefresh();
+                                            },
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child:
-                                            AddressFields.buildExpectedDeliveryDateField(
-                                              notifier: notifier,
-                                              parseDate: logic.parseDate,
-                                              shouldHandleTap: _shouldHandleTap,
-                                              inputDecoration: _inputDecoration,
-                                            ),
+                                        child: SizedBox(
+                                          height: 60,
+                                          child:
+                                              AddressFields.buildExpectedDeliveryDateField(
+                                                notifier: notifier,
+                                                parseDate: logic.parseDate,
+                                                shouldHandleTap:
+                                                    _shouldHandleTap,
+                                                inputDecoration:
+                                                    _inputDecoration,
+                                              ),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -972,7 +985,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   SizedBox(height: isTablet ? 10 : 16),
                                 ],
 
-                               
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 1.0,
@@ -1012,8 +1024,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                                           fontSize: 17,
                                                           fontWeight:
                                                               FontWeight.bold,
-                                                          color:
-                                                              Colors.blueAccent,
+                                                          color: Colors.black87,
                                                         ),
                                                       );
                                                     },
@@ -1069,6 +1080,8 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                         notifier.itemWiseDiscountMode,
                                   ),
                                 ),
+                                const FreightTable(),
+                                SizedBox(height: isTablet ? 10 : 16),
 
                                 const Text(
                                   'Select Tax Type:',
@@ -1093,7 +1106,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                           activeColor: Colors.blueAccent,
                                         ),
                                         const Text("CGST/SGST"),
-                                        const SizedBox(width: 20),
+                                        const SizedBox(width: 10),
                                         Radio<int>(
                                           value: 2,
                                           groupValue: selectedTaxType,
@@ -1208,6 +1221,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                   onPressed: () {
                                     notifier.setEditingPO(null, notify: false);
                                     notifier.poItems.clear();
+                                    notifier.clearFreights();
                                     Navigator.of(context).pop();
                                   },
                                 ),

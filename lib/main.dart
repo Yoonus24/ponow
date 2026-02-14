@@ -13,10 +13,13 @@ import 'package:purchaseorders2/providers/payment_dialog_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:purchaseorders2/providers/connectivity_provider.dart';
 import 'package:purchaseorders2/screens/login_screen.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = true;
+  await ServerTimeService.initialize();
   runApp(const MyApp());
 }
 

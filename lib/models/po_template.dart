@@ -1,5 +1,6 @@
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class POTemplate {
   final String templateId;
@@ -113,8 +114,9 @@ class POTemplate {
           ? DateTime.parse(json['createdDate'])
           : DateTime.now(),
       randomId: json['randomId']?.toString() ?? '',
-      isActive: json['isActive'] ?? true, location: json['location'] ?? '', locationName: json['locationName'] ?? '',
-    
+      isActive: json['isActive'] ?? true,
+      location: json['location'] ?? '',
+      locationName: json['locationName'] ?? '',
     );
   }
 

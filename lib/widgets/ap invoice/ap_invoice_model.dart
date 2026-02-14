@@ -224,7 +224,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     final outgoingProvider = context.read<OutgoingPaymentProvider>();
 
     final hasOutgoing = outgoingProvider.allPayments.any(
-      (o) => o.invoiceId == widget.apinvoice.invoiceId, 
+      (o) => o.invoiceId == widget.apinvoice.invoiceId,
     );
 
     debugPrint('🧾 AP MODAL STATUS => "${widget.apinvoice.status}"');
@@ -232,6 +232,11 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     final double roundOff = widget.apinvoice.roundOffAdjustment ?? 0.0;
 
     final double finalTotal = (widget.apinvoice.invoiceAmount ?? 0.0);
+    final double freightAmount = widget.apinvoice.totalFreightAmount ?? 0.0;
+
+    final double freightTax = widget.apinvoice.totalFreightTaxAmount ?? 0.0;
+
+    final double freightTotal = freightAmount + freightTax;
 
     final double totalDiscount = (widget.apinvoice.discountDetails ?? 0.0);
 
@@ -452,6 +457,11 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                 style: const TextStyle(fontSize: 14),
                               ),
                               Text(
+                                'Freight Charges: ${freightTotal.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+
+                              Text(
                                 'Round Off: ${roundOff.toStringAsFixed(2)}',
                                 style: const TextStyle(fontSize: 14),
                               ),
@@ -480,8 +490,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                     onPressed: () async {
                                       final shouldReturn = await showDialog<bool>(
                                         context: context,
-                                        barrierDismissible:
-                                            false, 
+                                        barrierDismissible: false,
                                         builder: (context) {
                                           return ValueListenableBuilder<bool>(
                                             valueListenable: _isReturning,

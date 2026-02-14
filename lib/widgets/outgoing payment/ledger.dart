@@ -79,16 +79,14 @@ class _LedgerState extends State<Ledger> {
           showWhenUnlinked: false,
           offset: const Offset(0, 58),
           child: Material(
-            color: Colors.white, 
+            color: Colors.white,
             elevation: 6,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey.shade300, 
-                ),
+                border: Border.all(color: Colors.grey.shade300),
               ),
               child: ListView.builder(
                 shrinkWrap: true,
@@ -104,7 +102,7 @@ class _LedgerState extends State<Ledger> {
                       _vendorSearchController.text = vendor;
                       _vendorOverlay?.remove();
                       _vendorOverlay = null;
-                      _vendorFocusNode.requestFocus(); 
+                      _vendorFocusNode.requestFocus();
                     },
                   );
                 },
@@ -261,61 +259,74 @@ class _LedgerState extends State<Ledger> {
                       ),
 
                       Expanded(
-                        child: provider.isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : filteredPayments.isEmpty
-                            ? const Center(
-                                child: Text('No matching records found'),
-                              )
-                            : SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SingleChildScrollView(
-                                  child: DataTable(
-                                    headingRowHeight: 56,
-                                    dataRowHeight: 60,
-                                    headingRowColor:
-                                        const WidgetStatePropertyAll(
-                                          Colors.blueAccent,
-                                        ),
-                                    columns: const [
-                                      DataColumn(label: _Header('PDF')),
-                                      DataColumn(
-                                        label: _Header('Payment Date'),
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: 1100, // total table width
+                            child: Column(
+                              children: [
+                                /// 🔵 HEADER (now scrolls with body)
+                                Container(
+                                  color: Colors.blueAccent,
+                                  height: 56,
+                                  child: Row(
+                                    children: const [
+                                      _TableHeaderCell('PDF', 60),
+                                      _TableHeaderCell('Payment Date', 120),
+                                      _TableHeaderCell('Vendor Name', 180),
+                                      _TableHeaderCell('Payment', 120),
+                                      _TableHeaderCell('Reference', 120),
+                                      _TableHeaderCell('Invoice Date', 120),
+                                      _TableHeaderCell(
+                                        'Account Payable',
+                                        140,
+                                        isNumeric: true,
                                       ),
-                                      DataColumn(label: _Header('Vendor Name')),
-                                      DataColumn(label: _Header('Payment')),
-                                      DataColumn(label: _Header('Reference')),
-                                      DataColumn(
-                                        label: _Header('Invoice Date'),
+                                      _TableHeaderCell(
+                                        'Paid Amount',
+                                        120,
+                                        isNumeric: true,
                                       ),
-                                      DataColumn(
-                                        numeric: true,
-                                        label: _Header('Account Payable'),
-                                      ),
-                                      DataColumn(
-                                        numeric: true,
-                                        label: _Header('Paid Amount'),
-                                      ),
-                                      DataColumn(
-                                        numeric: true,
-                                        label: _Header('Remaining'),
+                                      _TableHeaderCell(
+                                        'Remaining',
+                                        120,
+                                        isNumeric: true,
                                       ),
                                     ],
-                                    rows: filteredPayments.map((payment) {
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(
-                                            IconButton(
-                                              icon: const Icon(
-                                                Icons.picture_as_pdf,
-                                                color: Colors.redAccent,
-                                              ),
-                                              onPressed: () =>
-                                                  _generatePdf(payment),
+                                  ),
+                                ),
+
+                                /// 🔵 BODY
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: filteredPayments.length,
+                                    itemBuilder: (context, index) {
+                                      final payment = filteredPayments[index];
+
+                                      return Container(
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.grey.shade300,
                                             ),
                                           ),
-                                          DataCell(
-                                            Text(
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 60,
+                                              child: IconButton(
+                                                icon: const Icon(
+                                                  Icons.picture_as_pdf,
+                                                  color: Colors.redAccent,
+                                                ),
+                                                onPressed: () =>
+                                                    _generatePdf(payment),
+                                              ),
+                                            ),
+
+                                            _tableCell(
                                               payment.paymentDate != null
                                                   ? DateFormat(
                                                       'dd-MM-yyyy',
@@ -323,19 +334,25 @@ class _LedgerState extends State<Ledger> {
                                                       payment.paymentDate!,
                                                     )
                                                   : 'N/A',
+                                              120,
                                             ),
-                                          ),
-                                          DataCell(
-                                            Text(payment.vendorName ?? 'N/A'),
-                                          ),
-                                          DataCell(
-                                            Text(
+
+                                            _tableCell(
+                                              payment.vendorName ?? 'N/A',
+                                              180,
+                                            ),
+
+                                            _tableCell(
                                               payment.paymentMethod ?? 'N/A',
+                                              120,
                                             ),
-                                          ),
-                                          DataCell(Text(payment.neftNo ?? '-')),
-                                          DataCell(
-                                            Text(
+
+                                            _tableCell(
+                                              payment.neftNo ?? '-',
+                                              120,
+                                            ),
+
+                                            _tableCell(
                                               payment.invoiceDate != null
                                                   ? DateFormat(
                                                       'dd-MM-yyyy',
@@ -343,40 +360,47 @@ class _LedgerState extends State<Ledger> {
                                                       payment.invoiceDate!,
                                                     )
                                                   : 'N/A',
+                                              120,
                                             ),
-                                          ),
-                                          DataCell(
-                                            Text(
+
+                                            _tableCell(
                                               (payment.originalTotalPayableAmount ??
                                                       payment
                                                           .totalPayableAmount ??
                                                       payment.payableAmount ??
                                                       0)
                                                   .toStringAsFixed(2),
+                                              140,
+                                              isNumeric: true,
                                             ),
-                                          ),
-                                          DataCell(
-                                            Text(
+
+                                            _tableCell(
                                               _calculatePaidAmount(
                                                 payment,
                                               ).toStringAsFixed(2),
+                                              120,
+                                              isNumeric: true,
                                             ),
-                                          ),
-                                          DataCell(
-                                            Text(
+
+                                            _tableCell(
                                               payment.status == 'Partially Paid'
                                                   ? _calculateRemainingAmount(
                                                       payment,
                                                     ).toStringAsFixed(2)
                                                   : '-',
+                                              120,
+                                              isNumeric: true,
                                             ),
-                                          ),
-                                        ],
+                                          ],
+                                        ),
                                       );
-                                    }).toList(),
+                                    },
                                   ),
                                 ),
-                              ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   );
@@ -388,6 +412,44 @@ class _LedgerState extends State<Ledger> {
       },
     );
   }
+}
+
+class _TableHeaderCell extends StatelessWidget {
+  final String text;
+  final double width;
+  final bool isNumeric;
+
+  const _TableHeaderCell(this.text, this.width, {this.isNumeric = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        text,
+        textAlign: isNumeric ? TextAlign.right : TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
+}
+
+Widget _tableCell(String text, double width, {bool isNumeric = false}) {
+  return SizedBox(
+    width: width,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        text,
+        textAlign: isNumeric ? TextAlign.right : TextAlign.center,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+  );
 }
 
 class _Header extends StatelessWidget {

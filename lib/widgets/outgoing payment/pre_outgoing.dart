@@ -205,8 +205,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
                                 return TextFormField(
                                   controller: controller,
                                   focusNode: _vendorFocusNode,
-                                  onChanged:
-                                      _onVendorSearchChanged,
+                                  onChanged: _onVendorSearchChanged,
                                   decoration: const InputDecoration(
                                     labelText: 'Search Vendor',
                                     border: OutlineInputBorder(),

@@ -8,6 +8,7 @@ import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/create%20po/add_item_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/address_fields.dart';
 import 'package:purchaseorders2/widgets/create%20po/discount_section.dart';
@@ -109,7 +110,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   }
 
   bool _shouldHandleTap(String fieldId) {
-    final now = DateTime.now();
+    final now = ServerTimeService.now;
     final lastTap = _lastTapTime[fieldId];
     if (lastTap != null && now.difference(lastTap) < _tapThrottleDuration) {
       return false;
@@ -170,7 +171,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
     );
   }
 
-
   Future<void> _saveTemplate() async {
     if (!_formKey.currentState!.validate()) {
       _showValidationError('Please fill all required fields');
@@ -218,7 +218,9 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
     final templateName = await _showTemplateNameDialog();
     if (templateName == null || templateName.isEmpty) return;
 
-    final poSnapshot = _createPOFromCurrentData(notifier).copyWith(
+    final poData = await _createPOFromCurrentData(notifier);
+
+    final poSnapshot = poData.copyWith(
       location: notifier.selectedLocation,
       locationName: notifier.selectedLocationName,
     );
@@ -281,12 +283,12 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   }
 
   Future<String?> _showTemplateNameDialog() async {
-    final controller = TextEditingController(); 
+    final controller = TextEditingController();
 
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white, 
+        backgroundColor: Colors.white,
         title: const Text(
           'Template Name',
           style: TextStyle(color: Colors.black),
@@ -322,7 +324,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text(
               'CANCEL',
-              style: TextStyle(color: Colors.black54), 
+              style: TextStyle(color: Colors.black54),
             ),
           ),
           ElevatedButton(
@@ -332,10 +334,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
               }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text(
-              'SAVE',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('SAVE', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -375,7 +374,9 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
     );
   }
 
-  PO _createPOFromCurrentData(PurchaseOrderNotifier notifier) {
+  Future<PO> _createPOFromCurrentData(PurchaseOrderNotifier notifier) async {
+    DateTime serverNow = ServerTimeService.now; 
+
     return PO(
       purchaseOrderId: '',
       vendorName: notifier.selectedVendor ?? '',
@@ -392,6 +393,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       paymentTerms: notifier.paymentTermsController.text,
       shippingAddress: notifier.shippingController.text,
       billingAddress: notifier.billingController.text,
+
       contactpersonEmail:
           notifier.selectedVendorDetails?.contactpersonEmail ?? '',
       address: notifier.selectedVendorDetails?.address ?? '',
@@ -401,8 +403,10 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       postalCode: notifier.selectedVendorDetails?.postalCode ?? 0,
       gstNumber: notifier.selectedVendorDetails?.gstNumber ?? '',
       creditLimit: notifier.selectedVendorDetails?.creditLimit ?? 0,
-      orderDate: DateTime.now().toIso8601String(),
-      createdDate: DateTime.now().toIso8601String(),
+
+      orderDate: serverNow.toIso8601String(),
+      createdDate: serverNow.toIso8601String(),
+
       randomId: '',
     );
   }
@@ -441,7 +445,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                   : 'Create Template',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.orange[700], 
+                color: Colors.orange[700],
                 fontSize: 20,
               ),
             ),
@@ -458,8 +462,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
             actions: [
               IconButton(
                 icon: Icon(Icons.description, color: Colors.orange[700]),
-                onPressed: () {
-                },
+                onPressed: () {},
                 tooltip: 'Template Information',
               ),
             ],
@@ -624,7 +627,6 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                           
                               Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -699,8 +701,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                         style: TextStyle(
                                           fontSize: 17,
                                           fontWeight: FontWeight.bold,
-                                          color: Colors
-                                              .orange[700], 
+                                          color: Colors.orange[700],
                                         ),
                                       );
                                     },
@@ -766,8 +767,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                       onChanged: (int? value) {
                                         logic.onTaxTypeChanged(value, 1);
                                       },
-                                      activeColor:
-                                          Colors.orange, 
+                                      activeColor: Colors.orange,
                                     ),
                                     const Text(
                                       "CGST/SGST",
@@ -780,8 +780,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                       onChanged: (int? value) {
                                         logic.onTaxTypeChanged(value, 2);
                                       },
-                                      activeColor:
-                                          Colors.orange, 
+                                      activeColor: Colors.orange,
                                     ),
                                     const Text(
                                       "IGST",

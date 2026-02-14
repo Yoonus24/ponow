@@ -1,9 +1,9 @@
+import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:intl/intl.dart';
 import 'discount_model.dart';
 
 class PO {
-
   final String purchaseOrderId;
   final String? vendorName;
   final String? vendorContact;
@@ -50,6 +50,9 @@ class PO {
   final String? templateId;
   final String? location;
   final String? locationName;
+  final List<FreightData>? freights;
+  final double? totalFreightAmount;
+  final double? totalFreightTaxAmount;
 
   PO({
     required this.purchaseOrderId,
@@ -97,8 +100,10 @@ class PO {
 
     this.location,
     this.locationName,
+    this.freights,
+    this.totalFreightAmount,
+    this.totalFreightTaxAmount,
   }) : items = items ?? [];
-
 
   double get subTotal {
     return items.fold(0.0, (sum, item) => sum + (item.totalPrice ?? 0.0));
@@ -182,6 +187,9 @@ class PO {
 
     String? location,
     String? locationName,
+    List<FreightData>? freights,
+    double? totalFreightAmount,
+    double? totalFreightTaxAmount,
   }) {
     return PO(
       purchaseOrderId: purchaseOrderId ?? this.purchaseOrderId,
@@ -228,6 +236,10 @@ class PO {
       templateId: templateId ?? this.templateId,
       location: location ?? this.location,
       locationName: locationName ?? this.locationName,
+      freights: freights ?? this.freights,
+      totalFreightAmount: totalFreightAmount ?? this.totalFreightAmount,
+      totalFreightTaxAmount:
+          totalFreightTaxAmount ?? this.totalFreightTaxAmount,
     );
   }
 
@@ -277,6 +289,9 @@ class PO {
     'templateId': templateId ?? '',
     'location': location ?? '',
     'locationName': locationName ?? '',
+    "freights": freights?.map((f) => f.toJson()).toList() ?? [],
+    "totalFreightAmount": totalFreightAmount ?? 0.0,
+    "totalFreightTaxAmount": totalFreightTaxAmount ?? 0.0,
   };
 
   factory PO.fromJson(Map<String, dynamic> json) => PO(
@@ -333,6 +348,13 @@ class PO {
     templateId: json['templateId'] ?? json['randomId'] ?? '',
     location: json['location']?.toString() ?? '',
     locationName: json['locationName']?.toString() ?? '',
+    freights:
+        (json["freights"] as List?)
+            ?.map((e) => FreightData.fromJson(e))
+            .toList() ??
+        [],
+    totalFreightAmount: (json["totalFreightAmount"] ?? 0.0).toDouble(),
+    totalFreightTaxAmount: (json["totalFreightTaxAmount"] ?? 0.0).toDouble(),
   );
 
   String get formattedOrderDate {

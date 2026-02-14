@@ -1,4 +1,6 @@
+import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRN {
   final String? grnId;
@@ -25,7 +27,7 @@ class GRN {
   final double? totalReturnedTax;
   final double? totalReturnedDiscount;
   double? discountPrice;
-  double? roundOffAdjustment; 
+  double? roundOffAdjustment;
   String? comments;
   final String? attachments;
   final String? createdDate;
@@ -47,6 +49,9 @@ class GRN {
   double? grnAmount;
   final double? totalDebitAmount;
   final bool? hasDebitCreditNotes;
+  final List<FreightData>? freights;
+  double? totalFreightAmount;
+  double? totalFreightTaxAmount;
 
   GRN({
     this.grnId,
@@ -73,7 +78,7 @@ class GRN {
     this.totalReturnedTax,
     this.totalReturnedDiscount,
     this.discountPrice,
-    this.roundOffAdjustment, 
+    this.roundOffAdjustment,
     this.comments,
     this.attachments,
     this.createdDate,
@@ -95,6 +100,9 @@ class GRN {
     this.grnAmount,
     this.totalDebitAmount,
     this.hasDebitCreditNotes,
+    this.freights,
+    this.totalFreightAmount,
+    this.totalFreightTaxAmount,
   });
 
   factory GRN.fromJson(Map<String, dynamic> json) {
@@ -124,13 +132,10 @@ class GRN {
       totalReturnedDiscount: (json['totalReturnedDiscount'] as num?)
           ?.toDouble(),
       discountPrice: (json['discountPrice'] as num?)?.toDouble(),
-      totalAmountBeforeRoundOff: 
-      (json['totalAmountBeforeRoundOff'] as num?)
+      totalAmountBeforeRoundOff: (json['totalAmountBeforeRoundOff'] as num?)
           ?.toDouble(),
 
-      grnRoundOffAmount:
-      (json['grnRoundOffAmount'] as num?)
-          ?.toDouble(),
+      grnRoundOffAmount: (json['grnRoundOffAmount'] as num?)?.toDouble(),
       roundOffAdjustment:
           (json['grnRoundOffAmount'] as num?)?.toDouble() ??
           (json['roundOffAdjustment'] as num?)?.toDouble() ??
@@ -156,6 +161,14 @@ class GRN {
       grnAmount: (json['grnAmount'] as num?)?.toDouble(),
       totalDebitAmount: (json['totalDebitAmount'] as num?)?.toDouble(),
       hasDebitCreditNotes: json['hasDebitCreditNotes'] as bool?,
+      freights: (json['freights'] as List?)
+          ?.map((e) => FreightData.fromJson(e))
+          .toList(),
+
+      totalFreightAmount: (json['totalFreightAmount'] as num?)?.toDouble(),
+
+      totalFreightTaxAmount: (json['totalFreightTaxAmount'] as num?)
+          ?.toDouble(),
     );
   }
 
@@ -207,6 +220,9 @@ class GRN {
       'grnReturnedPerson': grnReturnedPerson,
       'totalDebitAmount': totalDebitAmount,
       'hasDebitCreditNotes': hasDebitCreditNotes,
+      'freights': freights?.map((e) => e.toJson()).toList(),
+      'totalFreightAmount': totalFreightAmount,
+      'totalFreightTaxAmount': totalFreightTaxAmount,
     };
   }
 }
@@ -331,7 +347,7 @@ class DebitCreditNote {
           : DateTime.now(),
       createdBy: 'user123',
       lastUpdatedDate: null,
-      roundOffAdjustment: grn.roundOffAdjustment, 
+      roundOffAdjustment: grn.roundOffAdjustment,
     );
   }
 }

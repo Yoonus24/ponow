@@ -27,27 +27,21 @@ class PaymentDonePage extends StatefulWidget {
 }
 
 class _PaymentDonePageState extends State<PaymentDonePage> {
-
   final TextEditingController searchController = TextEditingController();
   final ValueNotifier<List<Outgoing>> filteredPaymentsNotifier =
       ValueNotifier<List<Outgoing>>([]);
   final ValueNotifier<bool> loadingNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> errorNotifier = ValueNotifier<String>("");
-  final ScrollController verticalController = ScrollController();
   final ScrollController horizontalController = ScrollController();
-
 
   @override
   void initState() {
     super.initState();
-
     searchController.addListener(_filterPayments);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
   }
-
 
   Future<void> _loadData() async {
     loadingNotifier.value = true;
@@ -68,20 +62,14 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     }
   }
 
-
   void _filterPayments() {
     final provider = context.read<OutgoingPaymentProvider>();
-
     final query = searchController.text.toLowerCase();
     final filtered = provider.payments.where((payment) {
-
       final matchesStatus = payment.status?.toLowerCase() == 'fully paid';
-
       if (!matchesStatus) return false;
-
       final vendorName = payment.vendorName?.toLowerCase() ?? '';
       final invoiceNo = payment.invoiceNo?.toLowerCase() ?? '';
-
       return vendorName.contains(query) || invoiceNo.contains(query);
     }).toList();
 
@@ -92,16 +80,12 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   void dispose() {
     searchController.removeListener(_filterPayments);
     searchController.dispose();
-
     filteredPaymentsNotifier.dispose();
     loadingNotifier.dispose();
     errorNotifier.dispose();
-
-    verticalController.dispose();
     horizontalController.dispose();
     super.dispose();
   }
-
 
   Color _getStatusColor(String? status) {
     switch (status?.toLowerCase()) {
@@ -110,7 +94,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         return Colors.green;
       case 'partially paid':
         return Colors.orange;
-
       default:
         return Colors.grey;
     }
@@ -123,7 +106,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         return 'Paid';
       case 'partially paid':
         return 'Partial';
-
       default:
         return status ?? 'N/A';
     }
@@ -136,7 +118,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   String _formatDate(DateTime? date) =>
       date != null ? DateFormat('dd-MM-yyyy').format(date) : 'N/A';
 
- 
   List<String> _vendorSuggestions(OutgoingPaymentProvider provider) {
     final allowed = ['fully paid', 'partially paid'];
     return provider.payments
@@ -149,34 +130,32 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         .toList();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final columnWidths = {
-      'no': 35.0,
+      'no': 50.0,
+      'status': 90.0,
+      'view': 60.0,
+      'pdf': 60.0,
       'vendor': 200.0,
       'invoice': 100.0,
       'date': 110.0,
       'total': 110.0,
       'paid': 110.0,
       'balance': 110.0,
-      'spacer': 10.0,
-      'payment_date': 110.0,
-      'status': 70.0,
-      'view': 55.0,
-      'pdf': 55.0,
+      'payment_date': 120.0,
     };
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
+            // Header with search bar
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: Row(
                 children: [
-                  // Small black text
                   Text(
                     'Payment Done',
                     style: const TextStyle(
@@ -186,7 +165,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                     ),
                   ),
                   const SizedBox(width: 5),
-
                   Expanded(child: _buildSearchBar()),
                 ],
               ),
@@ -245,48 +223,183 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   controller: horizontalController,
-                                  child: Scrollbar(
-                                    thumbVisibility: true,
-                                    controller: verticalController,
-                                    child: SizedBox(
-                                      height: 468,
-                                      child: SingleChildScrollView(
-                                        controller: verticalController,
-                                        child: DataTable(
-                                          headingRowColor:
-                                              WidgetStateProperty.all(
-                                                const Color.fromARGB(
-                                                  255,
-                                                  74,
-                                                  122,
-                                                  227,
-                                                ), 
-                                              ),
-                                          headingTextStyle: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                          ),
-                                          dataRowHeight: 60,
-                                          headingRowHeight: 48,
-                                          horizontalMargin: 16,
-                                          columnSpacing: 0,
-                                          columns: _buildColumns(columnWidths),
-                                          rows: payments
-                                              .asMap()
-                                              .entries
-                                              .map(
-                                                (e) => _buildRow(
-                                                  e.key,
-                                                  e.value,
-                                                  columnWidths,
-                                                  context,
-                                                ),
-                                              )
-                                              .toList(),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        height: 48,
+                                        color: const Color.fromARGB(
+                                          255,
+                                          74,
+                                          122,
+                                          227,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            _buildHeaderCell(
+                                              'NO',
+                                              columnWidths['no']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'STATUS',
+                                              columnWidths['status']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'VIEW',
+                                              columnWidths['view']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'PDF',
+                                              columnWidths['pdf']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'VENDOR',
+                                              columnWidths['vendor']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'INVOICE',
+                                              columnWidths['invoice']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'DATE',
+                                              columnWidths['date']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'TOTAL',
+                                              columnWidths['total']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'PAID',
+                                              columnWidths['paid']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'BALANCE',
+                                              columnWidths['balance']!,
+                                              align: TextAlign.center,
+                                            ),
+                                            _buildHeaderCell(
+                                              'PAYMENT DATE',
+                                              columnWidths['payment_date']!,
+                                              align: TextAlign.center,
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            left: BorderSide(
+                                              color: Colors.grey.shade300,
+                                            ),
+                                            right: BorderSide(
+                                              color: Colors.grey.shade300,
+                                            ),
+                                            bottom: BorderSide(
+                                              color: Colors.grey.shade300,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          children: payments.asMap().entries.map((
+                                            entry,
+                                          ) {
+                                            final index = entry.key;
+                                            final payment = entry.value;
+                                            final isEven = index % 2 == 0;
+
+                                            return Container(
+                                              height: 60,
+                                              color: isEven
+                                                  ? Colors.white
+                                                  : Colors.grey.shade50,
+                                              child: Row(
+                                                children: [
+                                                  _buildDataCell(
+                                                    '${index + 1}',
+                                                    columnWidths['no']!,
+                                                    align: TextAlign.center,
+                                                  ),
+                                                  _buildStatusCell(
+                                                    payment.status,
+                                                    columnWidths['status']!,
+                                                  ),
+                                                  _buildViewCell(
+                                                    context,
+                                                    payment,
+                                                    columnWidths['view']!,
+                                                  ),
+                                                  _buildPdfCell(
+                                                    context,
+                                                    payment,
+                                                    columnWidths['pdf']!,
+                                                  ),
+                                                  _buildDataCell(
+                                                    payment.vendorName ?? 'N/A',
+                                                    columnWidths['vendor']!,
+                                                    align: TextAlign.center,
+                                                  ),
+                                                  _buildDataCell(
+                                                    payment.invoiceNo ?? 'N/A',
+                                                    columnWidths['invoice']!,
+                                                    align: TextAlign.center,
+                                                  ),
+                                                  _buildDataCell(
+                                                    _formatDate(
+                                                      payment.invoiceDate,
+                                                    ),
+                                                    columnWidths['date']!,
+                                                    align: TextAlign.center,
+                                                  ),
+                                                  _buildDataCell(
+                                                    _formatCurrency(
+                                                      payment.payableAmount,
+                                                    ),
+                                                    columnWidths['total']!,
+                                                    align: TextAlign.center,
+                                                    isBold: true,
+                                                  ),
+                                                  _buildDataCell(
+                                                    _formatCurrency(
+                                                      payment.totalPaidAmount ??
+                                                          0,
+                                                    ),
+                                                    columnWidths['paid']!,
+                                                    align: TextAlign.center,
+                                                    isBold: true,
+                                                  ),
+                                                  _buildDataCell(
+                                                    _formatCurrency(
+                                                      payment.remainingPayableAmount ??
+                                                          0,
+                                                    ),
+                                                    columnWidths['balance']!,
+                                                    align: TextAlign.center,
+                                                    isBold: true,
+                                                  ),
+                                                  _buildDataCell(
+                                                    _formatDate(
+                                                      payment.paymentDate,
+                                                    ),
+                                                    columnWidths['payment_date']!,
+                                                    align: TextAlign.center,
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
@@ -305,6 +418,145 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
+  Widget _buildHeaderCell(
+    String text,
+    double width, {
+    TextAlign align = TextAlign.center,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      alignment: _getAlignment(align),
+      child: Text(
+        text,
+        textAlign: align,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _buildDataCell(
+    String text,
+    double width, {
+    TextAlign align = TextAlign.center,
+    bool isBold = false,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      alignment: _getAlignment(align),
+      child: Text(
+        text,
+        textAlign: align,
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.black,
+          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _buildStatusCell(String? status, double width) {
+    final color = _getStatusColor(status);
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      alignment: Alignment.center,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color),
+        ),
+        child: Text(
+          _getStatusText(status),
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewCell(BuildContext context, Outgoing payment, double width) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      alignment: Alignment.center,
+      child: IconButton(
+        icon: const Icon(
+          Icons.remove_red_eye,
+          size: 22,
+          color: Colors.blueAccent,
+        ),
+        onPressed: () => showPaymentDetailsTable(context, payment),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        iconSize: 22,
+      ),
+    );
+  }
+
+  Widget _buildPdfCell(BuildContext context, Outgoing payment, double width) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      alignment: Alignment.center,
+      child: IconButton(
+        icon: const Icon(
+          Icons.picture_as_pdf,
+          color: Colors.redAccent,
+          size: 22,
+        ),
+        onPressed: () async {
+          try {
+            final pdf = await OutgoingPdf().generateOutgoingPdf(
+              payment.outgoingId,
+            );
+            await Printing.layoutPdf(onLayout: (_) => pdf.readAsBytesSync());
+            if (mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text("PDF generated")));
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text("PDF error: $e")));
+            }
+          }
+        },
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        iconSize: 22,
+      ),
+    );
+  }
+
+  Alignment _getAlignment(TextAlign align) {
+    switch (align) {
+      case TextAlign.left:
+        return Alignment.centerLeft;
+      case TextAlign.right:
+        return Alignment.centerRight;
+      case TextAlign.center:
+      default:
+        return Alignment.center;
+    }
+  }
 
   Widget _buildSearchBar() {
     return Consumer<OutgoingPaymentProvider>(
@@ -398,187 +650,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-
-  List<DataColumn> _buildColumns(Map widths) {
-    return [
-      DataColumn(label: _cell("NO", widths['no'], align: TextAlign.center)),
-      DataColumn(
-        label: _cell("STATUS", widths['status'], align: TextAlign.center),
-      ),
-      DataColumn(label: _cell("VIEW", widths['view'], align: TextAlign.center)),
-      DataColumn(label: _cell("PDF", widths['pdf'], align: TextAlign.center)),
-      DataColumn(
-        label: _cell("VENDOR", widths['vendor'], align: TextAlign.center),
-      ),
-      DataColumn(
-        label: _cell("INVOICE", widths['invoice'], align: TextAlign.center),
-      ),
-      DataColumn(label: _cell("DATE", widths['date'], align: TextAlign.center)),
-      DataColumn(
-        label: _cell("TOTAL", widths['total'], align: TextAlign.center),
-      ),
-      DataColumn(label: _cell("PAID", widths['paid'], align: TextAlign.center)),
-      DataColumn(
-        label: _cell("BALANCE", widths['balance'], align: TextAlign.center),
-      ),
-      DataColumn(label: _cell("", widths['spacer'], align: TextAlign.center)),
-      DataColumn(
-        label: _cell(
-          "PAYMENT DATE",
-          widths['payment_date'],
-          align: TextAlign.center,
-        ),
-      ),
-    ];
-  }
-
-
-  DataRow _buildRow(int index, Outgoing p, Map w, BuildContext context) {
-    return DataRow(
-      cells: [
-        _data("${index + 1}", w['no'], TextAlign.center),
-        _statusCell(p.status, w['status']),
-        _viewCell(context, p, w['view']),
-        _pdfCell(context, p, w['pdf']),
-        _data(p.vendorName ?? 'N/A', w['vendor'], TextAlign.center),
-        _data(p.invoiceNo ?? 'N/A', w['invoice'], TextAlign.center),
-        _data(_formatDate(p.invoiceDate), w['date'], TextAlign.center),
-        _data(_formatCurrency(p.payableAmount), w['total'], TextAlign.center),
-        _data(
-          _formatCurrency(p.totalPaidAmount ?? 0),
-          w['paid'],
-          TextAlign.center,
-        ),
-        _data(
-          _formatCurrency(p.remainingPayableAmount),
-          w['balance'],
-          TextAlign.center,
-        ),
-
-        DataCell(Container(width: w['spacer'])),
-        _data(_formatDate(p.paymentDate), w['payment_date'], TextAlign.center),
-      ],
-    );
-  }
-
-
-  Widget _cell(String t, double w, {TextAlign align = TextAlign.center}) {
-    return Container(
-      width: w,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      child: Text(
-        t,
-        textAlign: align,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  DataCell _data(String t, double w, TextAlign align) {
-    return DataCell(
-      SizedBox(
-        width: w,
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(
-            t,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: align,
-            style: const TextStyle(fontSize: 13, color: Colors.black),
-          ),
-        ),
-      ),
-    );
-  }
-
-  DataCell _statusCell(String? s, double width) {
-    final color = _getStatusColor(s);
-    return DataCell(
-      Container(
-        width: width,
-        padding: const EdgeInsets.all(4),
-        child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color),
-            ),
-            child: Text(
-              _getStatusText(s),
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  DataCell _viewCell(BuildContext c, Outgoing p, double w) {
-    return DataCell(
-      SizedBox(
-        width: w,
-        child: Center(
-          child: IconButton(
-            icon: const Icon(
-              Icons.remove_red_eye,
-              size: 22,
-              color: Colors.blueAccent,
-            ),
-            onPressed: () => showPaymentDetailsTable(c, p),
-          ),
-        ),
-      ),
-    );
-  }
-
-  DataCell _pdfCell(BuildContext c, Outgoing p, double w) {
-    return DataCell(
-      SizedBox(
-        width: w,
-        child: Center(
-          child: IconButton(
-            icon: const Icon(
-              Icons.picture_as_pdf,
-              color: Colors.redAccent,
-              size: 22,
-            ),
-            onPressed: () async {
-              try {
-                final pdf = await OutgoingPdf().generateOutgoingPdf(
-                  p.outgoingId,
-                );
-
-                await Printing.layoutPdf(
-                  onLayout: (_) => pdf.readAsBytesSync(),
-                );
-
-                ScaffoldMessenger.of(
-                  c,
-                ).showSnackBar(const SnackBar(content: Text("PDF generated")));
-              } catch (e) {
-                ScaffoldMessenger.of(
-                  c,
-                ).showSnackBar(SnackBar(content: Text("PDF error: $e")));
-              }
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-
   void showPaymentDetailsTable(BuildContext context, Outgoing payment) {
     showDialog(
       context: context,
@@ -586,12 +657,12 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         return Dialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20), 
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20), 
+              borderRadius: BorderRadius.circular(20),
             ),
             padding: const EdgeInsets.all(16),
             constraints: const BoxConstraints(maxWidth: 420),
@@ -630,7 +701,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                     ),
                   ),
                   const Divider(),
-
                   _detailRowAligned("Vendor", payment.vendorName),
                   _detailRowAligned("Invoice No", payment.invoiceNo),
                   _detailRowAligned(
@@ -653,9 +723,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                     "Payment Date",
                     _formatDate(payment.paymentDate),
                   ),
-
                   const SizedBox(height: 16),
-
                   Center(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
@@ -691,9 +759,8 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // LABEL
           SizedBox(
-            width: 100, 
+            width: 100,
             child: Text(
               label,
               style: const TextStyle(
@@ -702,7 +769,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
               ),
             ),
           ),
-
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 6),
             child: Text(
@@ -713,7 +779,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
               ),
             ),
           ),
-
           Expanded(
             child: Text(
               value ?? 'N/A',

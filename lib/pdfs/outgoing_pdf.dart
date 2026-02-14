@@ -2,26 +2,34 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 /// Outgoing PDF generator
 class OutgoingPdf {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
-  static const String businessUrl =
-      'http://192.168.29.252:8000/nextjstestapi/pobusiness';
+  static const String businessUrl = 'https://yenerp.com/purchaseapi/pobusiness';
   static const String vendorByNameUrl =
-      'http://192.168.29.252:8000/nextjstestapi/purchas/vendors/exact-name/';
+      'http://192.168.29.252:8000/nextjstestapi/vendors/exact-names/';
+
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   /// Fetch single Outgoing by id
   Future<Map<String, dynamic>> fetchFilteredOutgoings(String outgoingId) async {
     final uri = Uri.parse('$baseUrl/outgoingpayments/$outgoingId');
     try {
-      final response = await http.get(uri);
+      final response = await _dio.get(
+        uri.toString(),
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data is Map<String, dynamic> ? response.data : {};
         print('Parsing Outgoing from JSON. Keys: ${data.keys.toList()}');
         return data as Map<String, dynamic>;
       } else {
@@ -38,9 +46,12 @@ class OutgoingPdf {
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
     final uri = Uri.parse(businessUrl);
     try {
-      final response = await http.get(uri);
+      final response = await _dio.get(
+        uri.toString(),
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data is List ? response.data : [];
         if (data.isNotEmpty) {
           return (data.first as Map<String, dynamic>);
         } else {
@@ -64,10 +75,13 @@ class OutgoingPdf {
       final uri = Uri.parse('$vendorByNameUrl?name=$encoded');
 
       print('🔍 Fetching Vendor URL → $uri');
-      final response = await http.get(uri);
+      final response = await _dio.get(
+        uri.toString(),
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = response.data is Map<String, dynamic> ? response.data : {};
         if (data is List && data.isNotEmpty) {
           return data.first as Map<String, dynamic>;
         } else if (data is Map<String, dynamic>) {
@@ -78,7 +92,6 @@ class OutgoingPdf {
       } else if (response.statusCode == 404) {
         throw Exception('Vendor not found: $vendorName');
       } else {
-        print('Vendor API response: ${response.statusCode} ${response.body}');
         throw Exception(
           'Failed to load vendor details: ${response.statusCode}',
         );

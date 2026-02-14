@@ -2,37 +2,47 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class GRNPDF {
   static const String baseUrl = 'http://192.168.29.252:8000/nextjstestapi';
   static const String businessUrl =
-      'http://192.168.29.252:8000/nextjstestapi/pobusiness/';
+      'https://yenerp.com/purchaseapi/pobusiness/';
   static const String vendorUrl =
-      'http://192.168.29.252:8000/nextjstestapi/vendors/';
+      'http://192.168.29.252:8000/nextjstestapi/vendors/exact-names/';
+  final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
 
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
-    final response = await http.get(Uri.parse('$baseUrl/grns/$grnId'));
+    final response = await _dio.get(
+      '$baseUrl/grns/$grnId',
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
     if (response.statusCode == 200) {
-      final data = json.decode(response.body);
+      final data = response.data is Map<String, dynamic> ? response.data : {};
       print('Full GRN Data: $data');
       print('Item Details: ${data['itemDetails']}');
       return data;
     } else {
-      print('API Error: ${response.statusCode} - ${response.body}');
       throw Exception('Failed to load GRN: ${response.statusCode}');
     }
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await http.get(Uri.parse(businessUrl));
+    final response = await _dio.get(
+      businessUrl,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
+      final List<dynamic> data = response.data is List ? response.data : [];
       if (data.isNotEmpty) {
         return data.first as Map<String, dynamic>;
       } else {
@@ -45,10 +55,13 @@ class GRNPDF {
 
   Future<Map<String, dynamic>> fetchVendorsDetails({String? vendorName}) async {
     try {
-      final response = await http.get(Uri.parse(vendorUrl));
+      final response = await _dio.get(
+        vendorUrl,
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = response.data is List ? response.data : [];
 
         if (data.isEmpty) {
           print('⚠️ Vendor data is empty, using fallback.');

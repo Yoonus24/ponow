@@ -38,6 +38,9 @@ class ApInvoice {
   final String? shippingAddress;
   final String? billingAddress;
   final double? roundOffAdjustment;
+  final List<dynamic>? freights;
+  final double? totalFreightAmount;
+  final double? totalFreightTaxAmount;
 
   ApInvoice({
     this.invoiceId,
@@ -77,6 +80,9 @@ class ApInvoice {
     this.shippingAddress,
     this.billingAddress,
     this.roundOffAdjustment,
+    this.freights,
+    this.totalFreightAmount,
+    this.totalFreightTaxAmount,
   });
 
   factory ApInvoice.fromJson(Map<String, dynamic> json) {
@@ -123,6 +129,10 @@ class ApInvoice {
           (json['apRoundOff'] as num?)?.toDouble() ??
           (json['roundOffAdjustment'] as num?)?.toDouble() ??
           0.0,
+      freights: json['freights'] as List<dynamic>?,
+      totalFreightAmount: (json['totalFreightAmount'] as num?)?.toDouble(),
+      totalFreightTaxAmount: (json['totalFreightTaxAmount'] as num?)
+          ?.toDouble(),
     );
   }
 
@@ -166,6 +176,9 @@ class ApInvoice {
       'billingAddress': billingAddress,
       'apRoundOff': roundOffAdjustment ?? 0.0,
       'roundOffAdjustment': roundOffAdjustment ?? 0.0,
+      'freights': freights,
+      'totalFreightAmount': totalFreightAmount,
+      'totalFreightTaxAmount': totalFreightTaxAmount,
     };
   }
 }

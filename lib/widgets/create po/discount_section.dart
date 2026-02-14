@@ -424,7 +424,6 @@ class _DiscountSectionState extends State<DiscountSection> {
     );
   }
 
-
   Future<void> _handleApplyDiscount() async {
     if (_isApplying) return;
 
@@ -893,12 +892,22 @@ class _DiscountSectionState extends State<DiscountSection> {
                 : "(-) ${_fmt(parsedRoundOff.abs())}",
           ),
           const Divider(thickness: 1.5),
+          if (widget.notifier.totalFreightAmount > 0)
+            _summary(
+              "Freight Charges",
+              "(+) ${_fmt(widget.notifier.totalFreightAmount)}",
+            ),
+
+          if (widget.notifier.totalFreightTaxAmount > 0)
+            _summary(
+              "Freight Tax",
+              "(+) ${_fmt(widget.notifier.totalFreightTaxAmount)}",
+            ),
 
           _summary(
             "FINAL AMOUNT",
             _fmt(widget.notifier.totalOrderAmount ?? 0.0),
             bold: true,
-            color: Colors.green.shade700,
             size: 14,
           ),
         ],

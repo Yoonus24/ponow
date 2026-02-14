@@ -6,6 +6,7 @@ import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_calculator.dart';
 import '../column_filter.dart';
 
@@ -91,6 +92,11 @@ class ApprovedPOLogic {
   final ValueNotifier<double> receivedDiscountAmount = ValueNotifier<double>(
     0.0,
   );
+  final ValueNotifier<int> uiRefresh = ValueNotifier(0);
+
+  void refreshUI() {
+    uiRefresh.value++;
+  }
 
   Timer? _debounce;
 
@@ -134,13 +140,23 @@ class ApprovedPOLogic {
     discountPriceController.text = ro.toStringAsFixed(2);
 
     for (var item in po.items) {
-      final qty =
-          item.poQuantity ??
-          item.pendingTotalQuantity ??
-          ((item.count ?? 1) * (item.eachQuantity ?? 0));
+      final double pendingQty = item.pendingTotalQuantity ?? 0.0;
 
-      item.receivedQuantity = qty;
-      receivedQtyController[item]?.text = qty.toStringAsFixed(2);
+      double qtyToLoad = 0.0;
+
+      if (pendingQty > 0) {
+        qtyToLoad = pendingQty;
+      } else {
+        qtyToLoad = (item.poQuantity ?? 0) > 0
+            ? item.poQuantity!
+            : ((item.count ?? 1) * (item.eachQuantity ?? 0));
+      }
+
+      item.receivedQuantity = qtyToLoad;
+
+      if (receivedQtyController.containsKey(item)) {
+        receivedQtyController[item]!.text = qtyToLoad.toStringAsFixed(2);
+      }
     }
   }
 
@@ -226,6 +242,7 @@ class ApprovedPOLogic {
     discountInputController.clear();
 
     onUpdated();
+    refreshUI();
 
     showTopMessage(
       "Approved Discount Applied: ₹${_approvedExtraDiscount.toStringAsFixed(2)}",
@@ -238,7 +255,7 @@ class ApprovedPOLogic {
   }
 
   double get orderedDiscount {
-    return _poBaseDiscount; 
+    return _poBaseDiscount;
   }
 
   double get orderedFinalAmount {
@@ -252,11 +269,15 @@ class ApprovedPOLogic {
     );
   }
 
+  double get totalFreightAmount =>
+      (po.totalFreightAmount ?? 0.0) + (po.totalFreightTaxAmount ?? 0.0);
+
   double get receivedFinalAmount {
     final discount = po.pendingDiscountAmount ?? 0.0;
     final tax = po.pendingTaxAmount ?? 0.0;
     final roundOff = roundOffAmount.value;
-    return receivedSubTotal - discount + tax + roundOff;
+
+    return receivedSubTotal - discount + tax + totalFreightAmount + roundOff;
   }
 
   void recalculateFinalAmountAfterDiscount() {
@@ -269,7 +290,9 @@ class ApprovedPOLogic {
     final double tax = po.pendingTaxAmount ?? 0.0;
     final double roundOff = roundOffAmount.value;
 
-    po.totalOrderAmount = subTotal - discount + tax + roundOff;
+    final freight = totalFreightAmount;
+
+    po.totalOrderAmount = subTotal - discount + tax + freight + roundOff;
     po.pendingOrderAmount = po.totalOrderAmount;
 
     debugPrint("✅ FINAL AMOUNT RECALCULATED: ${po.totalOrderAmount}");
@@ -324,6 +347,7 @@ class ApprovedPOLogic {
         "Approved discount cleared (PO discount retained)",
         color: Colors.blueAccent,
       );
+      refreshUI();
     } catch (e) {
       showTopError("Error clearing approved discount: $e");
     }
@@ -541,6 +565,7 @@ class ApprovedPOLogic {
     required String varianceName,
     double? initialValue,
     required VoidCallback onValueSelected,
+    bool isItemField = true, // ⭐ NEW
   }) {
     suppressReceivedListener = true;
 
@@ -554,9 +579,21 @@ class ApprovedPOLogic {
         onValueSelected: (value) {
           if (controller == null) return;
 
+          final formatted = value.toStringAsFixed(2);
+
+          // ⭐ If NOT item field → only update text
+          if (!isItemField) {
+            controller.text = formatted;
+
+            onValueSelected();
+
+            suppressReceivedListener = false;
+            return;
+          }
+
+          // ⭐ Item calculator logic only below
           final item = po.items.firstWhere(
             (i) => receivedQtyController[i] == controller,
-            orElse: () => po.items.first,
           );
 
           final double orderedQty = (item.poQuantity ?? 0) > 0
@@ -568,6 +605,7 @@ class ApprovedPOLogic {
               ...receivedQtyErrors.value,
               item: "Cannot exceed ordered qty ($orderedQty)",
             };
+
             showTopError("Cannot exceed ordered qty ($orderedQty)");
             return;
           }
@@ -576,7 +614,6 @@ class ApprovedPOLogic {
           newMap.remove(item);
           receivedQtyErrors.value = newMap;
 
-          final formatted = value.toStringAsFixed(2);
           item.receivedQuantity = value;
           controller.text = formatted;
 
@@ -584,9 +621,7 @@ class ApprovedPOLogic {
 
           onValueSelected();
 
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            suppressReceivedListener = false;
-          });
+          suppressReceivedListener = false;
         },
       ),
     ).then((_) {
@@ -654,10 +689,9 @@ class ApprovedPOLogic {
     roundOffAmount.value = roundOffValue;
     discountPriceController.text = value;
 
-    recalculateFinalAmountAfterDiscount(); 
+    recalculateFinalAmountAfterDiscount();
 
-    onUpdated(); 
-
+    refreshUI();
     debugPrint('Round off updated: $roundOffValue');
   }
 
@@ -954,7 +988,7 @@ class ApprovedPOLogic {
           content: Text("Failed to convert PO to GRN"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 100), 
+          margin: EdgeInsets.fromLTRB(16, 0, 16, 100),
         ),
       );
     } finally {

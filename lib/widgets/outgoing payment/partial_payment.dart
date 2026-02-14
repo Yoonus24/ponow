@@ -26,12 +26,13 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   Timer? _debounceTimer;
   late final FocusNode _searchFocusNode;
 
+  // To prevent multiple simultaneous loads
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
-
     _searchFocusNode = FocusNode();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
@@ -60,15 +61,29 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   @override
   void didUpdateWidget(covariant PartialPaymentPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _loadData();
+    // FIXED: Use post frame callback to avoid calling during build
+    if (oldWidget.status != widget.status) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _loadData();
+        }
+      });
+    }
   }
 
   Future<void> _loadData() async {
+    // Prevent multiple simultaneous loads
+    if (_isLoading) return;
+    _isLoading = true;
+
     try {
       final provider = Provider.of<OutgoingPaymentProvider>(
         context,
         listen: false,
       );
+
+      _isLoadingNotifier.value = true;
+
       await provider.fetchFilteredOutgoings(
         status: 'Partially Paid',
         filterBy: 'invoiceDate',
@@ -88,6 +103,8 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       _isLoadingNotifier.value = false;
       _hasErrorNotifier.value = true;
       _errorMessageNotifier.value = 'Error loading data: $e';
+    } finally {
+      _isLoading = false;
     }
   }
 
@@ -137,8 +154,9 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
   @override
   Widget build(BuildContext context) {
-    Theme.of(context);
     final Color headerColor = Colors.blueAccent;
+    // FIXED: Make table horizontally scrollable to fix overflow
+    final isSmallScreen = MediaQuery.of(context).size.width < 1000;
 
     return Scaffold(
       body: SafeArea(
@@ -190,6 +208,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
                     return Column(
                       children: [
+                        // Header with search bar
                         Container(
                           color: Colors.white,
                           padding: const EdgeInsets.symmetric(
@@ -198,267 +217,239 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                           ),
                           child: Row(
                             children: [
-                              // Small black text
                               Text(
                                 'Partial Payment',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               const SizedBox(width: 5),
-
                               Expanded(flex: 2, child: _buildSearchBar()),
                             ],
                           ),
                         ),
 
-                        // Table
+                        // FIXED: Horizontally scrollable table to fix overflow
                         Expanded(
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: DataTable(
-                                headingRowHeight: 48,
-                                dataRowHeight: 56,
-                                headingRowColor: WidgetStatePropertyAll(
-                                  headerColor,
-                                ),
-                                columnSpacing: 16,
-                                dividerThickness: 1,
-                                columns: [
-                                  DataColumn(
-                                    label: _headerText('No', center: true),
-                                    numeric: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Table Header
+                                Container(
+                                  margin: const EdgeInsets.only(
+                                    left: 16,
+                                    right: 16,
+                                    top: 0,
                                   ),
-                                  DataColumn(
-                                    label: _headerText('View', center: true),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
                                   ),
-                                  DataColumn(
-                                    label: _headerText('PDF', center: true),
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Vendor Name',
-                                      center: true,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: headerColor,
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(4),
+                                      topRight: Radius.circular(4),
                                     ),
                                   ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Invoice No',
-                                      center: true,
-                                    ),
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Invoice Date',
-                                      center: true,
-                                    ),
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Total Amount',
-                                      center: true,
-                                    ),
-                                    numeric: true,
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Amount Paid',
-                                      center: true,
-                                    ),
-                                    numeric: true,
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Payment Date',
-                                      center: true,
-                                    ),
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Discount',
-                                      center: true,
-                                    ),
-                                    numeric: true,
-                                  ),
-                                  DataColumn(
-                                    label: _headerText(
-                                      'Payable Amount',
-                                      center: true,
-                                    ),
-                                    numeric: true,
-                                  ),
-                                ],
-                                rows: filteredList.asMap().entries.map((entry) {
-                                  final index = entry.key + 1;
-                                  final payment = entry.value;
-
-                                  return DataRow(
-                                    color: WidgetStatePropertyAll(
-                                      entry.key.isEven
-                                          ? Colors.white
-                                          : Colors.white,
-                                    ),
-                                    cells: [
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            '$index',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                          ),
-                                        ),
+                                  child: Row(
+                                    children: [
+                                      _buildHeaderCell(
+                                        'No',
+                                        width: 50,
+                                        center: true,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: IconButton(
-                                            icon: const Icon(
-                                              Icons.remove_red_eye,
-                                              size: 22,
-                                              color: Colors.black87,
-                                            ),
-                                            tooltip: 'View Details',
-                                            onPressed: () =>
-                                                showPaymentDetailsDialog(
-                                                  context,
-                                                  payment,
-                                                ),
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'View',
+                                        width: 70,
+                                        center: true,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: IconButton(
-                                            icon: const Icon(
-                                              Icons.picture_as_pdf,
-                                              color: Colors.redAccent,
-                                              size: 22,
-                                            ),
-                                            tooltip: 'View PDF',
-                                            onPressed: () =>
-                                                _generateAndViewPdf(payment),
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'PDF',
+                                        width: 70,
+                                        center: true,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            payment.vendorName ?? 'N/A',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Vendor Name',
+                                        width: 150,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            payment.invoiceNo ?? 'N/A',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Invoice No',
+                                        width: 120,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatDate(payment.invoiceDate),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Invoice Date',
+                                        width: 100,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatCurrency(
-                                              payment.payableAmount,
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Total Amount',
+                                        width: 110,
+                                        center: true,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatCurrency(
-                                              payment.totalPaidAmount,
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Amount Paid',
+                                        width: 110,
+                                        center: true,
                                       ),
-
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatDate(payment.paymentDate),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Payment Date',
+                                        width: 100,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatCurrency(
-                                              payment.discountDetails,
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Discount',
+                                        width: 90,
+                                        center: true,
                                       ),
-                                      DataCell(
-                                        Center(
-                                          child: Text(
-                                            _formatCurrency(
-                                              payment.totalPayableAmount,
-                                            ),
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
+                                      _buildHeaderCell(
+                                        'Payable Amount',
+                                        width: 120,
+                                        center: true,
                                       ),
                                     ],
-                                  );
-                                }).toList(),
-                              ),
+                                  ),
+                                ),
+                                // Table Rows
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  child: Column(
+                                    children: filteredList.asMap().entries.map((
+                                      entry,
+                                    ) {
+                                      final index = entry.key;
+                                      final payment = entry.value;
+                                      final serialNo = index + 1;
+
+                                      return Container(
+                                        height: 56,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.grey.shade300,
+                                              width: 0.5,
+                                            ),
+                                            left: BorderSide(
+                                              color: Colors.grey.shade300,
+                                              width: 0.5,
+                                            ),
+                                            right: BorderSide(
+                                              color: Colors.grey.shade300,
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            // No - Serial Number
+                                            _buildCell(
+                                              '$serialNo',
+                                              width: 50,
+                                              center: true,
+                                            ),
+
+                                            // View Button
+                                            _buildIconCell(
+                                              Icons.remove_red_eye,
+                                              color: Colors.black87,
+                                              onPressed: () =>
+                                                  showPaymentDetailsDialog(
+                                                    context,
+                                                    payment,
+                                                  ),
+                                              width: 70,
+                                            ),
+
+                                            // PDF Button
+                                            _buildIconCell(
+                                              Icons.picture_as_pdf,
+                                              color: Colors.redAccent,
+                                              onPressed: () =>
+                                                  _generateAndViewPdf(payment),
+                                              width: 70,
+                                            ),
+
+                                            // Vendor Name
+                                            _buildCell(
+                                              payment.vendorName ?? 'N/A',
+                                              width: 150,
+                                              center: true,
+                                            ),
+
+                                            // Invoice No
+                                            _buildCell(
+                                              payment.invoiceNo ?? 'N/A',
+                                              width: 120,
+                                              center: true,
+                                            ),
+
+                                            // Invoice Date
+                                            _buildCell(
+                                              _formatDate(payment.invoiceDate),
+                                              width: 100,
+                                              center: true,
+                                            ),
+
+                                            // Total Amount
+                                            _buildCell(
+                                              _formatCurrency(
+                                                payment.totalPayableAmount,
+                                              ),
+                                              width: 110,
+                                              center: true,
+                                              isBold: true,
+                                            ),
+
+                                            // Amount Paid
+                                            _buildCell(
+                                              _formatCurrency(
+                                                payment.totalPaidAmount,
+                                              ),
+                                              width: 110,
+                                              center: true,
+                                              isBold: true,
+                                            ),
+
+                                            // Payment Date
+                                            _buildCell(
+                                              _formatDate(payment.paymentDate),
+                                              width: 100,
+                                              center: true,
+                                            ),
+
+                                            // Discount
+                                            _buildCell(
+                                              _formatCurrency(
+                                                payment.discountDetails,
+                                              ),
+                                              width: 90,
+                                              center: true,
+                                              isBold: true,
+                                            ),
+
+                                            // Payable Amount
+                                            _buildCell(
+                                              _formatCurrency(
+                                                payment.payableAmount,
+                                              ),
+                                              width: 120,
+                                              center: true,
+                                              isBold: true,
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -474,107 +465,170 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     );
   }
 
-  Widget _headerText(String text, {bool center = true}) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontWeight: FontWeight.bold,
-        color: Colors.white,
-        fontSize: 12,
+  // Header cell builder
+  Widget _buildHeaderCell(
+    String text, {
+    required double width,
+    bool center = false,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: center ? Alignment.center : Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          fontSize: 12,
+        ),
+        textAlign: center ? TextAlign.center : TextAlign.left,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
       ),
-      textAlign: center ? TextAlign.center : null,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  // Data cell builder
+  Widget _buildCell(
+    String text, {
+    required double width,
+    bool center = false,
+    bool isBold = false,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: center ? Alignment.center : Alignment.centerLeft,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.black,
+          fontWeight: isBold ? FontWeight.w600 : FontWeight.normal,
+        ),
+        textAlign: center ? TextAlign.center : TextAlign.left,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+      ),
+    );
+  }
+
+  // Icon cell builder
+  Widget _buildIconCell(
+    IconData icon, {
+    required Color color,
+    required VoidCallback onPressed,
+    required double width,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      child: IconButton(
+        icon: Icon(icon, size: 20, color: color),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        iconSize: 20,
+      ),
     );
   }
 
   Widget _buildSearchBar() {
-    final provider = Provider.of<OutgoingPaymentProvider>(
-      context,
-      listen: false,
-    );
-    final suggestions = provider.payments
-        .where((p) => (p.status ?? '').toLowerCase() == 'partially paid')
-        .map((p) => (p.vendorName ?? '').trim())
-        .where((name) => name.isNotEmpty)
-        .toSet()
-        .toList();
+    // FIXED: Use consumer to avoid unnecessary rebuilds
+    return Consumer<OutgoingPaymentProvider>(
+      builder: (context, provider, child) {
+        final suggestions = provider.payments
+            .where((p) => (p.status ?? '').toLowerCase() == 'partially paid')
+            .map((p) => (p.vendorName ?? '').trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList();
 
-    return RawAutocomplete<String>(
-      textEditingController: _searchController,
-      focusNode: _searchFocusNode,
-      optionsBuilder: (TextEditingValue textEditingValue) {
-        if (textEditingValue.text.isEmpty) return suggestions;
-        return suggestions.where(
-          (option) => option.toLowerCase().contains(
-            textEditingValue.text.toLowerCase(),
-          ),
-        );
-      },
-      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-        return TextField(
-          controller: controller,
-          focusNode: focusNode,
-          maxLines: 1,
-          textAlignVertical: TextAlignVertical.center,
-          decoration: InputDecoration(
-            hintText: 'Search vendor or invoice',
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 20),
-                    onPressed: () {
-                      controller.clear();
-                      _onSearchChanged();
-                    },
-                  )
-                : null,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.grey),
-            ),
-            filled: true,
-            fillColor: Colors.grey[50],
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 12,
-            ),
-            constraints: const BoxConstraints(minHeight: 44, maxHeight: 48),
-          ),
-          style: const TextStyle(fontSize: 13),
-          onChanged: (_) => _onSearchChanged(),
-        );
-      },
-      optionsViewBuilder: (context, onSelected, options) {
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            color: Colors.white,
-            elevation: 8,
-            borderRadius: BorderRadius.circular(8),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200, maxWidth: 300),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                itemCount: options.length,
-                itemBuilder: (context, index) {
-                  final option = options.elementAt(index);
-                  return ListTile(
-                    tileColor: Colors.white,
-                    title: Text(
-                      option,
-                      style: const TextStyle(fontSize: 13, color: Colors.black),
-                    ),
-                    onTap: () {
-                      onSelected(option);
-                      _searchController.text = option;
-                      _onSearchChanged();
-                    },
-                  );
-                },
+        return RawAutocomplete<String>(
+          textEditingController: _searchController,
+          focusNode: _searchFocusNode,
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            if (textEditingValue.text.isEmpty) return suggestions;
+            return suggestions.where(
+              (option) => option.toLowerCase().contains(
+                textEditingValue.text.toLowerCase(),
               ),
-            ),
-          ),
+            );
+          },
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            return TextField(
+              controller: controller,
+              focusNode: focusNode,
+              maxLines: 1,
+              textAlignVertical: TextAlignVertical.center,
+              decoration: InputDecoration(
+                hintText: 'Search vendor or invoice',
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear, size: 20),
+                        onPressed: () {
+                          controller.clear();
+                          _onSearchChanged();
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Colors.grey),
+                ),
+                filled: true,
+                fillColor: Colors.grey[50],
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                constraints: const BoxConstraints(minHeight: 44, maxHeight: 48),
+              ),
+              style: const TextStyle(fontSize: 13),
+              onChanged: (_) => _onSearchChanged(),
+            );
+          },
+          optionsViewBuilder: (context, onSelected, options) {
+            return Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                color: Colors.white,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(8),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxHeight: 200,
+                    maxWidth: 300,
+                  ),
+                  child: ListView.builder(
+                    padding: EdgeInsets.zero,
+                    shrinkWrap: true,
+                    itemCount: options.length,
+                    itemBuilder: (context, index) {
+                      final option = options.elementAt(index);
+                      return ListTile(
+                        tileColor: Colors.white,
+                        title: Text(
+                          option,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black,
+                          ),
+                        ),
+                        onTap: () {
+                          onSelected(option);
+                          _searchController.text = option;
+                          _onSearchChanged();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -585,13 +639,11 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       context: context,
       builder: (context) => Dialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20), 
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20), 
+            borderRadius: BorderRadius.circular(20),
           ),
           padding: const EdgeInsets.all(16),
           constraints: const BoxConstraints(maxWidth: 420),
@@ -600,7 +652,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              
                 SizedBox(
                   height: 40,
                   child: Stack(

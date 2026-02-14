@@ -187,9 +187,9 @@ class POModalProvider with ChangeNotifier {
     final dio = Dio(
       BaseOptions(
         baseUrl: "http://192.168.29.252:8000/nextjstestapi",
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        sendTimeout: const Duration(seconds: 15),
         headers: {"Content-Type": "application/json"},
       ),
     );
@@ -197,7 +197,7 @@ class POModalProvider with ChangeNotifier {
     try {
       final response = await dio.patch(
         "/purchaseorders/$purchaseOrderId/items",
-        data: jsonEncode({"items": items}),
+        data: {"items": items},
       );
 
       if (response.statusCode == 200) {

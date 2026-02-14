@@ -17,6 +17,9 @@ class PendingOutgoingDialog extends StatelessWidget {
     final sgstTotal = _calculateTotalSGST();
     final cgstTotal = _calculateTotalCGST();
     final igstTotal = _calculateTotalIGST();
+    final freightTotal =
+        (outgoing.totalFreightAmount ?? 0.0) +
+        (outgoing.totalFreightTaxAmount ?? 0.0);
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -38,6 +41,7 @@ class PendingOutgoingDialog extends StatelessWidget {
                 sgstTotal,
                 cgstTotal,
                 igstTotal,
+                freightTotal,
               ),
               const SizedBox(height: 16),
               _buildCloseButton(context),
@@ -80,6 +84,7 @@ class PendingOutgoingDialog extends StatelessWidget {
     double sgstTotal,
     double cgstTotal,
     double igstTotal,
+    double freightTotal,
   ) {
     Widget row(String label, String value) {
       return Padding(
@@ -127,6 +132,9 @@ class PendingOutgoingDialog extends StatelessWidget {
         row('SGST', _formatCurrency(sgstTotal)),
         row('CGST', _formatCurrency(cgstTotal)),
         row('IGST', _formatCurrency(igstTotal)),
+        row('Freight Amt', _formatCurrency(outgoing.totalFreightAmount)),
+        row('Freight Tax', _formatCurrency(outgoing.totalFreightTaxAmount)),
+
         row('Payable', _formatCurrency(outgoing.payableAmount)),
         row('Paid', _formatCurrency(paidAmount)),
         row('Remaining', _formatCurrency(remainingAmount)),

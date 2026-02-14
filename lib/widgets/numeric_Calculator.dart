@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-// ignore: must_be_immutable
 class NumericCalculator extends StatefulWidget {
   String? varianceName;
   final Function(double) onValueSelected;
@@ -20,91 +20,195 @@ class NumericCalculator extends StatefulWidget {
 }
 
 class _NumericCalculatorState extends State<NumericCalculator> {
-  late ValueNotifier<String> displayNotifier;
-  bool _isNegative = false;
+  late TextEditingController _textController;
+  late FocusNode _focusNode;
+
+  late final ValueNotifier<bool> _isNegativeNotifier;
+  late final ValueNotifier<bool> _isInitialValueNotifier;
+  late final ValueNotifier<bool> _isFocusedNotifier;
 
   @override
   void initState() {
     super.initState();
 
-    String initialDisplay;
-    if (widget.initialValue != null && widget.initialValue! != 0) {
-      _isNegative = widget.initialValue! < 0;
-      initialDisplay = widget.initialValue!.abs().toStringAsFixed(2);
-    } else if (widget.controller?.text.isNotEmpty == true &&
-        widget.controller!.text != '0' &&
-        widget.controller!.text != '0.00') {
-      _isNegative = widget.controller!.text.startsWith('-');
-      initialDisplay = widget.controller!.text.replaceAll('-', '');
-    } else {
-      initialDisplay = '';
-    }
+    _isNegativeNotifier = ValueNotifier<bool>(false);
+    _isInitialValueNotifier = ValueNotifier<bool>(false);
+    _isFocusedNotifier = ValueNotifier<bool>(false);
 
-    displayNotifier = ValueNotifier<String>(
-      _isNegative && initialDisplay != '0'
-          ? '-$initialDisplay'
-          : initialDisplay,
-    );
+    _focusNode = FocusNode();
+    _textController = widget.controller ?? TextEditingController();
+
+    _focusNode.addListener(_onFocusChange);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      // ✅ Case 1: initialValue exists AND is not 0 → show formatted value
+      if (widget.initialValue != null && widget.initialValue != 0) {
+        String formattedValue = widget.initialValue!.toStringAsFixed(2);
+
+        _isNegativeNotifier.value = widget.initialValue! < 0;
+        _textController.text = formattedValue;
+        _isInitialValueNotifier.value = true;
+
+        _focusNode.requestFocus();
+        _textController.selection = TextSelection.collapsed(
+          offset: formattedValue.length,
+        );
+      }
+      // ✅ Case 2: controller has text → use it
+      else if (widget.controller?.text.isNotEmpty == true &&
+          widget.controller!.text != "0" &&
+          widget.controller!.text != "0.00") {
+        String text = widget.controller!.text;
+
+        _isNegativeNotifier.value = text.startsWith('-');
+        _textController.text = text;
+        _isInitialValueNotifier.value = false;
+
+        _focusNode.requestFocus();
+        _textController.selection = TextSelection.collapsed(
+          offset: text.length,
+        );
+      }
+      // ✅ Case 3: empty → keep field empty
+      else {
+        _textController.clear();
+        _isNegativeNotifier.value = false;
+        _isInitialValueNotifier.value = false;
+
+        _focusNode.requestFocus();
+      }
+    });
+  }
+
+  void _onFocusChange() {
+    _isFocusedNotifier.value = _focusNode.hasFocus;
   }
 
   @override
   void dispose() {
-    displayNotifier.dispose();
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _isNegativeNotifier.dispose();
+    _isInitialValueNotifier.dispose();
+    _isFocusedNotifier.dispose();
+
+    if (widget.controller == null) {
+      _textController.dispose();
+    }
     super.dispose();
   }
 
   void _appendToDisplay(String value) {
-    String current = displayNotifier.value;
-    bool isNegative = current.startsWith('-');
-    String display = isNegative ? current.substring(1) : current;
-
-    if (display.isEmpty || display == '0') {
-      display = value == '.' ? '0.' : value;
-    } else if (value == '.' && !display.contains('.')) {
-      display += value;
-    } else if (value != '.') {
-      if (display.contains('.')) {
-        final decimals = display.split('.').last;
-        if (decimals.length < 2) {
-          display += value;
-        }
-      } else {
-        display += value;
-      }
+    if (_isInitialValueNotifier.value) {
+      _textController.clear();
+      _isInitialValueNotifier.value = false;
     }
 
-    displayNotifier.value = isNegative ? '-$display' : display;
+    final text = _textController.text;
+    final selection = _textController.selection;
+
+    String newText;
+    int newPosition;
+
+    if (value == '.') {
+      if (!text.contains('.')) {
+        newText = text + '.';
+        newPosition = newText.length;
+      } else {
+        return;
+      }
+    } else {
+      newText = text.replaceRange(selection.start, selection.end, value);
+      newPosition = selection.start + value.length;
+    }
+
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newPosition),
+    );
+
+    _isNegativeNotifier.value = newText.startsWith('-');
+
+    _focusNode.requestFocus();
   }
 
   void _toggleSign() {
-    String current = displayNotifier.value;
-
-    if (current.startsWith('-')) {
-      displayNotifier.value = current.substring(1);
-    } else {
-      displayNotifier.value = '-$current';
+    if (_isInitialValueNotifier.value) {
+      _textController.clear();
+      _isInitialValueNotifier.value = false;
     }
+
+    String text = _textController.text;
+
+    if (text.startsWith('-')) {
+      // ✅ Remove minus if already negative
+      text = text.substring(1);
+    } else {
+      // ✅ Add minus
+      text = '-$text';
+    }
+
+    _textController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+
+    _isNegativeNotifier.value = text.startsWith('-');
+    _focusNode.requestFocus();
   }
 
   void _backspace() {
-    String current = displayNotifier.value;
-    bool isNegative = current.startsWith('-');
-    String display = isNegative ? current.substring(1) : current;
+    final text = _textController.text;
+    final selection = _textController.selection;
 
-    if (display.length > 1) {
-      display = display.substring(0, display.length - 1);
-    } else {
-      display = '0';
+    if (_isInitialValueNotifier.value) {
+      _textController.clear();
+      _isInitialValueNotifier.value = false;
+      _isNegativeNotifier.value = false;
+      _focusNode.requestFocus();
+      return;
     }
 
-    displayNotifier.value = isNegative && display != '0'
-        ? '-$display'
-        : display;
+    if (selection.start == 0 && selection.end == 0) {
+      _focusNode.requestFocus();
+      return;
+    }
+
+    String newText;
+    int newPosition;
+
+    if (selection.start == selection.end) {
+      if (selection.start > 0) {
+        newText = text.replaceRange(selection.start - 1, selection.start, '');
+        newPosition = selection.start - 1;
+      } else {
+        _focusNode.requestFocus();
+        return;
+      }
+    } else {
+      newText = text.replaceRange(selection.start, selection.end, '');
+      newPosition = selection.start;
+    }
+
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(
+        offset: newPosition.clamp(0, newText.length),
+      ),
+    );
+
+    _isNegativeNotifier.value = newText.startsWith('-');
+    _focusNode.requestFocus();
   }
 
   void _clear() {
-    displayNotifier.value = '';
+    _textController.clear();
+    _isNegativeNotifier.value = false;
+    _isInitialValueNotifier.value = false;
     widget.controller?.clear();
+    _focusNode.requestFocus();
   }
 
   @override
@@ -114,7 +218,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
       child: Material(
         color: Colors.transparent,
         child: Container(
-          width: 300,
+          width: 350,
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -130,41 +234,67 @@ class _NumericCalculatorState extends State<NumericCalculator> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ⭐ TITLE
               Text(
                 widget.varianceName ?? 'Enter Value',
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
-                  color: Colors.blueAccent,
+                  color: Colors.black87,
                 ),
               ),
 
               const SizedBox(height: 12),
 
-              // ⭐ DISPLAY BOX
-              ValueListenableBuilder<String>(
-                valueListenable: displayNotifier,
-                builder: (_, value, __) {
+              ValueListenableBuilder<bool>(
+                valueListenable: _isFocusedNotifier,
+                builder: (context, isFocused, child) {
                   return Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      vertical: 14,
+                      vertical: 8,
                       horizontal: 18,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.blue, width: 1.3),
+                      border: Border.all(
+                        color: isFocused ? Colors.grey : Colors.grey.shade600,
+                        width: 1.3,
+                      ),
                     ),
-                    child: Text(
-                      value,
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      keyboardType: TextInputType.none,
+                      readOnly: true,
+                      showCursor: true,
+                      cursorColor: Colors.grey.shade800,
+                      cursorWidth: 2,
+                      cursorHeight: 32,
+                      textAlign: TextAlign.right,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.3,
                       ),
-                      textAlign: TextAlign.right,
+                      decoration: const InputDecoration(
+                        hintText: '0',
+                        hintStyle: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'^-?\d*\.?\d{0,2}'),
+                        ),
+                      ],
+                      enableInteractiveSelection: true,
+                      enableIMEPersonalizedLearning: false,
                     ),
                   );
                 },
@@ -172,7 +302,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
               const SizedBox(height: 18),
 
-              // ⭐ KEYPAD
               _row(['1', '2', '3']),
               const SizedBox(height: 10),
               _row(['4', '5', '6']),
@@ -191,7 +320,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
               const SizedBox(height: 14),
 
-              // ⭐ ACTION BUTTONS (CLEAR & BACKSPACE)
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -203,14 +331,18 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
               const SizedBox(height: 16),
 
-              // ⭐ SUBMIT + CLOSE ROW
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildWideButton('Close', () => Navigator.of(context).pop()),
+                  _buildActionButton(
+                    'Close',
+                    () => Navigator.of(context).pop(),
+                  ),
                   const SizedBox(width: 14),
-                  _buildWideButton('Submit', () {
-                    final value = double.tryParse(displayNotifier.value) ?? 0;
+                  _buildActionButton('Submit', () {
+                    final text = _textController.text;
+                    final value =
+                        double.tryParse(text.isEmpty ? '0' : text) ?? 0;
                     widget.onValueSelected(value);
                     Navigator.of(context).pop();
                   }),
@@ -223,10 +355,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     );
   }
 
-  // ---------------------------------------------------------
-  // BUTTON BUILDERS
-  // ---------------------------------------------------------
-
   Widget _row(List<String> values) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -236,15 +364,21 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
   Widget _buildButton(String text, {VoidCallback? onPressed}) {
     return ElevatedButton(
-      onPressed: onPressed ?? () => _appendToDisplay(text),
+      onPressed: () {
+        if (onPressed != null) {
+          onPressed();
+        } else {
+          _appendToDisplay(text);
+        }
+      },
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue, // SAME COLOR
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.grey.shade300,
+        foregroundColor: Colors.black,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
         minimumSize: const Size(70, 52),
         elevation: 4,
-        shadowColor: Colors.blue.shade200,
+        shadowColor: Colors.grey.shade400,
       ),
       child: Text(
         text,
@@ -257,7 +391,26 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue, // SAME COLOR
+        backgroundColor: Colors.grey.shade300,
+        foregroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        minimumSize: const Size(115, 52),
+        elevation: 4,
+        shadowColor: Colors.grey.shade400,
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String text, VoidCallback onPressed) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(vertical: 14),
