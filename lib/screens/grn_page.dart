@@ -356,6 +356,26 @@ class _GRNPageState extends State<GRNPage> {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (provider.error != null) {
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              const SizedBox(height: 200),
+              Center(
+                child: Column(
+                  children: [
+                    Text(
+                      provider.error!,
+                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
         final list = _getFilteredGRNs(provider);
 
         if (list.isEmpty) {
@@ -366,7 +386,7 @@ class _GRNPageState extends State<GRNPage> {
               Center(
                 child: Text(
                   "No GRNs found",
-                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
                 ),
               ),
             ],

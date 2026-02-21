@@ -1,4 +1,6 @@
 // purchaseorders2/pdfs/approved_pdf.dart
+// ignore_for_file: unused_element
+
 import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -141,64 +143,70 @@ class PurchaseOrderService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+              pw.Table(
+                columnWidths: {
+                  0: pw.FlexColumnWidth(1),
+                  1: pw.FlexColumnWidth(3),
+                },
                 children: [
-                  if (logoImage != null)
-                    pw.Container(
-                      width: 120,
-                      height: 60,
-                      child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                    )
-                  else
-                    pw.Container(width: 120, height: 60, child: pw.SizedBox()),
-                  pw.Expanded(
-                    child: pw.Center(
-                      child: pw.Text(
-                        'PURCHASE ORDER',
-                        style: pw.TextStyle(
-                          fontSize: 20,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColor(38 / 255, 89 / 255, 198 / 255),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              pw.SizedBox(height: 8),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    mainAxisSize: pw.MainAxisSize.min,
+                  pw.TableRow(
                     children: [
-                      pw.Text(
-                        businessData['companyName']?.toString() ??
-                            'Company Name',
-                        style: pw.TextStyle(
-                          fontSize: 16,
-                          fontWeight: pw.FontWeight.bold,
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(right: 10),
+                        child: logoImage != null
+                            ? pw.Container(
+                                width: 60,
+                                height: 60,
+                                child: pw.Image(
+                                  logoImage,
+                                  fit: pw.BoxFit.contain,
+                                ),
+                              )
+                            : pw.SizedBox(),
+                      ),
+
+                      pw.Padding(
+                        padding: pw.EdgeInsets.only(left: 50),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Purchase Order',
+                              style: pw.TextStyle(
+                                fontSize: 14,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColor(0, 0, 128 / 255),
+                              ),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              businessData['companyName']?.toString() ?? '',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              _joinNonEmpty([
+                                businessData['address1']?.toString(),
+                                businessData['address2']?.toString(),
+                              ]),
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'Tel.No: ${businessData['phoneNo'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'E-Mail: ${businessData['emailId'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'GSTIN: ${businessData['gstIn'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
                         ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        _joinNonEmpty([
-                          businessData['address1']?.toString(),
-                          businessData['address2']?.toString(),
-                        ], separator: ', '),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'Tel: ${businessData['phoneNo']?.toString() ?? 'N/A'}',
-                      ),
-                      pw.Text(
-                        'Email: ${businessData['emailId']?.toString() ?? 'N/A'}',
-                      ),
-                      pw.Text(
-                        'GSTIN: ${businessData['gstIn']?.toString() ?? 'Not Provided'}',
                       ),
                     ],
                   ),
@@ -217,7 +225,7 @@ class PurchaseOrderService {
                 children: [
                   pw.TableRow(
                     decoration: pw.BoxDecoration(
-                      color: PdfColor(38 / 255, 89 / 255, 198 / 255),
+                      color: PdfColor(0, 0, 128 / 255),
                     ),
                     children: [
                       pw.Padding(
@@ -258,18 +266,14 @@ class PurchaseOrderService {
                         padding: pw.EdgeInsets.all(6),
                         child: pw.Text(
                           _joinNonEmpty([
-                            vendorData['vendorName']?.toString(),
-                            'GSTIN: ${vendorData['gstNumber']?.toString() ?? 'N/A'}',
-                            vendorData['address']?.toString() ??
-                                'Address Not Provided',
-                            vendorData['city']?.toString() ??
-                                'City Not Provided',
-                            vendorData['state']?.toString() ??
-                                'State Not Provided',
-                            vendorData['country']?.toString() ??
-                                'Country Not Provided',
-                            'Email: ${(vendorData['contactpersonEmail'] ?? vendorData['email'] ?? 'Not Provided').toString()}',
-                            'Phone: ${(vendorData['contactpersonPhone']?['\$numberLong'] ?? vendorData['phone'] ?? 'Not Provided').toString()}',
+                            poData['vendorName']?.toString(),
+                            'GSTIN: ${poData['gstNumber'] ?? 'N/A'}',
+                            poData['address']?.toString(),
+                            poData['city']?.toString(),
+                            poData['state']?.toString(),
+                            poData['country']?.toString(),
+                            'Email: ${poData['contactpersonEmail'] ?? 'Not Provided'}',
+                            'Phone: ${poData['vendorContact'] ?? 'Not Provided'}',
                           ], separator: '\n'),
                         ),
                       ),
@@ -299,15 +303,14 @@ class PurchaseOrderService {
                 ],
               ),
 
-              pw.SizedBox(height: 12),
-
+              // pw.SizedBox(height: 12),
               pw.Table(
                 border: pw.TableBorder.all(width: 0.5),
                 columnWidths: {
-                  0: pw.FlexColumnWidth(0.5),
+                  0: pw.FlexColumnWidth(0.7),
                   1: pw.FlexColumnWidth(2),
-                  2: pw.FlexColumnWidth(0.8),
-                  3: pw.FlexColumnWidth(0.8),
+                  2: pw.FlexColumnWidth(1.2),
+                  3: pw.FlexColumnWidth(1),
                   4: pw.FlexColumnWidth(0.8),
                   5: pw.FlexColumnWidth(1),
                   6: pw.FlexColumnWidth(1),
@@ -317,12 +320,12 @@ class PurchaseOrderService {
                 children: [
                   pw.TableRow(
                     decoration: pw.BoxDecoration(
-                      color: PdfColor(38 / 255, 89 / 255, 198 / 255),
+                      color: PdfColor(0, 0, 128 / 255),
                     ),
                     children: [
-                      _tableHeaderCell('SI No'),
+                      _tableHeaderCell('S.No'),
                       _tableHeaderCell('Description'),
-                      _tableHeaderCell('hsnCode'),
+                      _tableHeaderCell('HsnCode'),
                       _tableHeaderCell('Count'),
                       _tableHeaderCell('Qty'),
                       _tableHeaderCell('Po Qty'),
@@ -335,9 +338,6 @@ class PurchaseOrderService {
                 ],
               ),
 
-              pw.SizedBox(height: 12),
-
-              // Totals table
               pw.Container(
                 width: double.infinity,
                 child: pw.Table(
@@ -351,59 +351,53 @@ class PurchaseOrderService {
                       'Total Amount',
                       _safeFixedString(poData['pendingOrderAmount']),
                     ),
+
                     _twoCellRow(
                       'Total Discount',
                       _safeFixedString(poData['pendingDiscountAmount']),
                     ),
+
                     _twoCellRow(
-                      'CGST',
-                      _safeFixedString(
-                        _firstItemValue(itemsRaw, 'pendingCgst'),
-                      ),
+                      'CGST @ ${_getTaxPercentage(itemsRaw)}%',
+                      _safeFixedString(_calculateCgst(itemsRaw)),
                     ),
+
                     _twoCellRow(
-                      'SGST',
-                      _safeFixedString(
-                        _firstItemValue(itemsRaw, 'pendingSgst'),
-                      ),
+                      'SGST @ ${_getTaxPercentage(itemsRaw)}%',
+                      _safeFixedString(_calculateSgst(itemsRaw)),
                     ),
+
                     _twoCellRow(
                       'Round Off Amount',
-                      _safeFixedString(poData['roundOffAmount']),
+                      _safeFixedString(poData['roundOffValue']),
+                    ),
+
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Amount in Words: $amountInWords',
+                            style: pw.TextStyle(fontSize: 12),
+                            textAlign: pw.TextAlign.right,
+                            // same as others
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Total: ${_safeFixedString(poData['pendingOrderAmount'])}',
+                            style: pw.TextStyle(fontSize: 12), // normal
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
 
               pw.SizedBox(height: 12),
-
-              // Amount in words and total including tax
-              pw.Table(
-                columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(1),
-                },
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Amount in Words: $amountInWords',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Total [Including Tax]: ${_safeFixedString(poData['pendingOrderAmount'])}',
-                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
 
               pw.SizedBox(height: 16),
 
@@ -457,13 +451,51 @@ class PurchaseOrderService {
     return file;
   }
 
-  /// Try to load logo; if it fails, return null
+  double _getTaxPercentage(List<dynamic> items) {
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        final tax = _safeNum(item['taxPercentage']);
+
+        if (tax > 0) {
+          return tax / 2; // CGST / SGST split
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  double _calculateCgst(List<dynamic> items) {
+    double total = 0;
+
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        final tax = _safeNum(item['pendingTaxAmount']);
+        total += tax / 2;
+      }
+    }
+
+    return total;
+  }
+
+  double _calculateSgst(List<dynamic> items) {
+    double total = 0;
+
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        final tax = _safeNum(item['pendingTaxAmount']);
+        total += tax / 2;
+      }
+    }
+
+    return total;
+  }
+
   Future<pw.MemoryImage?> _tryLoadLogoImage(String assetPath) async {
     try {
       final data = await rootBundle.load(assetPath);
       return pw.MemoryImage(data.buffer.asUint8List());
     } catch (e) {
-      // asset not found or any error -> return null so PDF continues
       return null;
     }
   }
@@ -476,17 +508,28 @@ class PurchaseOrderService {
     );
   }
 
-  // Safe two-cell row
   pw.TableRow _twoCellRow(String left, String right) {
     return pw.TableRow(
       children: [
-        pw.Padding(padding: pw.EdgeInsets.all(6), child: pw.Text(left)),
-        pw.Padding(padding: pw.EdgeInsets.all(6), child: pw.Text(right)),
+        pw.Padding(
+          padding: pw.EdgeInsets.all(6),
+          child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(left, style: pw.TextStyle(fontSize: 12)),
+          ),
+        ),
+
+        pw.Padding(
+          padding: pw.EdgeInsets.all(6),
+          child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(right, style: pw.TextStyle(fontSize: 12)),
+          ),
+        ),
       ],
     );
   }
 
-  // Build rows for items with full null-safety
   List<pw.TableRow> _buildItemRows(List<dynamic> items) {
     if (items.isEmpty) {
       return [
@@ -536,13 +579,11 @@ class PurchaseOrderService {
     }).toList();
   }
 
-  // Convert dynamic/nullable to a fixed string with 2 decimals for numbers
   String _safeFixedString(dynamic value) {
     final num v = _safeNum(value);
     return v.toStringAsFixed(2);
   }
 
-  // Safely convert dynamic to num (double)
   double _safeNum(dynamic value) {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble();
@@ -553,7 +594,6 @@ class PurchaseOrderService {
     }
   }
 
-  // If items list has at least one item, try to return numeric field from first item
   dynamic _firstItemValue(List<dynamic> items, String key) {
     if (items.isEmpty) return 0;
     final first = items.first;
@@ -563,7 +603,6 @@ class PurchaseOrderService {
     return 0;
   }
 
-  // Build terms and conditions list; supports either [] or missing
   List<pw.Widget> _buildTermsAndConditions(dynamic terms) {
     if (terms is List && terms.isNotEmpty) {
       return terms.map<pw.Widget>((term) {

@@ -409,15 +409,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                   child: Column(
                                     children: [
                                       Text(
-                                        "Error: ${provider.error}",
+                                        "${provider.error}",
                                         style: const TextStyle(
-                                          color: Colors.red,
+                                          color: Colors.grey,
                                         ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      ElevatedButton(
-                                        onPressed: _onRefresh,
-                                        child: const Text("Retry"),
                                       ),
                                     ],
                                   ),

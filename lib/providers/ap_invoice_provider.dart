@@ -90,9 +90,10 @@ class APInvoiceProvider extends ChangeNotifier {
       } else {
         _setError('Failed to load invoices: ${response.statusMessage}');
       }
+    } on DioException catch (e) {
+      _setError(_getReadableError(e));
     } catch (e) {
-      print("❌ fetchAPInvoices error: $e");
-      _setError('Failed to load invoices: $e');
+      _setError("Something went wrong.");
     } finally {
       _setLoading(false);
     }
@@ -193,18 +194,47 @@ class APInvoiceProvider extends ChangeNotifier {
           ),
         );
       } else {
-        throw Exception('Return failed');
+        throw Exception("Return failed.");
       }
-    } catch (e) {
-      _setError(e.toString());
+    } on DioException catch (e) {
+      final message = _getReadableError(e);
+
+      _setError(message);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('❌ Return failed: $e'),
-          backgroundColor: Colors.red,
+          content: Text(message),
+          backgroundColor: Colors.grey.shade200,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      const message = "Something went wrong.";
+      _setError(message);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } finally {
       _setLoading(false);
+    }
+  }
+
+  String _getReadableError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionError:
+        return "No internet connection.";
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.sendTimeout:
+        return "Request timed out.";
+      case DioExceptionType.badResponse:
+        return "Server error.";
+      default:
+        return "Unexpected error.";
     }
   }
 

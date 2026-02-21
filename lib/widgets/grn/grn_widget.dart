@@ -185,8 +185,7 @@ class _GRNWidgetState extends State<GRNWidget> {
                           'Debit',
                           style: TextStyle(
                             color: grn.hasDebitCreditNotes == true
-                                ? Colors
-                                      .white 
+                                ? Colors.white
                                 : Colors.grey,
                             fontSize: 11,
                           ),
@@ -210,7 +209,7 @@ class _GRNWidgetState extends State<GRNWidget> {
                           onPressed: () async {
                             try {
                               final service = GRNPDF();
-                              final pdfFile = await service.generateGrnPdf(
+                              final pdfFile = await service.generateGRNPdf(
                                 grn.grnId ?? '',
                               );
                               await Printing.layoutPdf(

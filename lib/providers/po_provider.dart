@@ -507,8 +507,10 @@ class POProvider extends ChangeNotifier {
       } else {
         _error = 'Failed: ${response.statusCode} - ${response.data}';
       }
+    } on DioException catch (e) {
+      _setError(_getReadableError(e));
     } catch (e) {
-      _error = e.toString();
+      _setError("Something went wrong. Please try again.");
     } finally {
       _setLoadingState(false);
     }
@@ -752,9 +754,9 @@ class POProvider extends ChangeNotifier {
         );
       }
     } on DioException catch (e) {
-      _setError(_formatDioError(e));
-    } catch (error) {
-      _setError(error.toString());
+      _setError(_getReadableError(e));
+    } catch (e) {
+      _setError("Something went wrong. Please try again.");
     } finally {
       _setLoadingState(false);
     }
@@ -877,7 +879,7 @@ class POProvider extends ChangeNotifier {
 
         notifyListeners();
 
-        return fetchedVendors; 
+        return fetchedVendors;
       }
 
       return [];
@@ -1694,8 +1696,10 @@ class POProvider extends ChangeNotifier {
           "Failed to update PO: ${response.statusCode} - ${response.data}",
         );
       }
-    } catch (error) {
-      _setError(error.toString());
+    } on DioException catch (e) {
+      _setError(_getReadableError(e));
+    } catch (e) {
+      _setError("Something went wrong. Please try again.");
     } finally {
       _setLoadingState(false);
     }
@@ -1825,7 +1829,7 @@ class POProvider extends ChangeNotifier {
   Future<void> fetchFreightNames() async {
     try {
       final response = await _dio.get(
-        'https://192.168.29.184:8000/nextjstestapi/freights/',
+        'http://192.168.29.184:8000/nextjstestapi/freights/',
       );
 
       if (response.statusCode == 200) {
@@ -2191,16 +2195,34 @@ class POProvider extends ChangeNotifier {
     };
   }
 
-  String _formatDioError(DioException e) {
+  String _getReadableError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
-        return 'Connection timeout. Please check your network.';
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return "Request timed out.";
+
       case DioExceptionType.connectionError:
-        return 'No internet connection.';
+        return "No internet connection.";
+
       case DioExceptionType.badResponse:
-        return 'Server error: ${e.response?.statusCode}';
+        final statusCode = e.response?.statusCode ?? 0;
+
+        if (statusCode >= 500) {
+          return "Server error.";
+        } else if (statusCode == 404) {
+          return "Data not found.";
+        } else if (statusCode == 400) {
+          return "Invalid request.";
+        } else {
+          return "Something went wrong.";
+        }
+
+      case DioExceptionType.cancel:
+        return "Request cancelled.";
+
       default:
-        return 'Failed to load purchase orders: ${e.message}';
+        return "Unexpected error.";
     }
   }
 

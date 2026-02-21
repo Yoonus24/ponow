@@ -1,3 +1,5 @@
+// ignore_for_file: library_private_types_in_public_api, unnecessary_to_list_in_spreads, use_build_context_synchronously, unnecessary_non_null_assertion, unnecessary_null_comparison, avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
@@ -36,10 +38,7 @@ class _GRNModalState extends State<GRNReturn> {
 
   // Scroll controllers for synchronized scrolling
   final ScrollController _verticalScrollController = ScrollController();
-  final ScrollController _headerHorizontalScrollController = ScrollController();
-  final ScrollController _bodyHorizontalScrollController = ScrollController();
   final ScrollController _fixedColumnScrollController = ScrollController();
-
   final ScrollController _rightHeaderHorizontal = ScrollController();
   final ScrollController _rightBodyHorizontal = ScrollController();
 
@@ -71,7 +70,7 @@ class _GRNModalState extends State<GRNReturn> {
     quantityErrorsNotifier = ValueNotifier<Map<int, String?>>({});
     reasonErrorsNotifier = ValueNotifier<Map<int, String?>>({});
 
-    // Setup scroll synchronization
+    // Setup vertical scroll synchronization
     _verticalScrollController.addListener(_syncVerticalScroll);
     _fixedColumnScrollController.addListener(_syncVerticalScroll);
   }
@@ -86,14 +85,17 @@ class _GRNModalState extends State<GRNReturn> {
   }
 
   void _syncHorizontalScroll() {
+    // Sync right header with right body
     _rightHeaderHorizontal.addListener(() {
-      if (_rightBodyHorizontal.offset != _rightHeaderHorizontal.offset) {
+      if (_rightBodyHorizontal.hasClients &&
+          _rightBodyHorizontal.offset != _rightHeaderHorizontal.offset) {
         _rightBodyHorizontal.jumpTo(_rightHeaderHorizontal.offset);
       }
     });
 
     _rightBodyHorizontal.addListener(() {
-      if (_rightHeaderHorizontal.offset != _rightBodyHorizontal.offset) {
+      if (_rightHeaderHorizontal.hasClients &&
+          _rightHeaderHorizontal.offset != _rightBodyHorizontal.offset) {
         _rightHeaderHorizontal.jumpTo(_rightBodyHorizontal.offset);
       }
     });
@@ -115,9 +117,9 @@ class _GRNModalState extends State<GRNReturn> {
     originalQuantities.clear();
     originalEachQuantities.clear();
     _verticalScrollController.dispose();
-    _headerHorizontalScrollController.dispose();
-    _bodyHorizontalScrollController.dispose();
     _fixedColumnScrollController.dispose();
+    _rightHeaderHorizontal.dispose();
+    _rightBodyHorizontal.dispose();
     _isSubmitting.dispose();
 
     super.dispose();
@@ -128,370 +130,270 @@ class _GRNModalState extends State<GRNReturn> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'GRN No: ${grn.randomId}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 16.0,
+              ), // adjust 12–24 if needed
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'GRN No: ${grn.randomId}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: 250,
-                      child: Text(
-                        'Vendor: ${grn.vendorName ?? 'N/A'}',
-                        style: const TextStyle(fontSize: 15),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: true,
+                      SizedBox(
+                        width: 250,
+                        child: Text(
+                          'Vendor: ${grn.vendorName ?? 'N/A'}',
+                          style: const TextStyle(fontSize: 15),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
+                        ),
                       ),
-                    ),
-                    Text('Date: ${formatDate(grn.grnDate)}'),
-                  ],
-                ),
-              ],
+                      Text('Date: ${formatDate(grn.grnDate)}'),
+                    ],
+                  ),
+                ],
+              ),
             ),
+
             const SizedBox(height: 14.0),
 
             // Return Options Section
-            ValueListenableBuilder<bool>(
-              valueListenable: isReturnAllEnabledNotifier,
-              builder: (context, isReturnAllEnabled, _) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Consumer<GRNProvider>(
-                            builder: (context, grnProvider, child) {
-                              if (grnProvider.isLoading) {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
-                                );
-                              }
-                              if (grnProvider.error != null) {
-                                return Text(
-                                  grnProvider.error!,
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontSize: 13.0,
-                                  ),
-                                );
-                              }
-
-                              final reasons = List<String>.from(
-                                grnProvider.returnReasons,
-                              );
-
-                              return ValueListenableBuilder<Map<int, String>>(
-                                valueListenable: itemReasonsNotifier,
-                                builder: (context, itemReasons, _) {
-                                  return Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Autocomplete<String>(
-                                        optionsBuilder:
-                                            (
-                                              TextEditingValue textEditingValue,
-                                            ) {
-                                              return reasons
-                                                  .where(
-                                                    (reason) => reason
-                                                        .toLowerCase()
-                                                        .contains(
-                                                          textEditingValue.text
-                                                              .toLowerCase(),
-                                                        ),
-                                                  )
-                                                  .toList();
-                                            },
-                                        onSelected: (String selection) {
-                                          if (isReturnAllEnabled) {
-                                            final updatedReasons =
-                                                <int, String>{};
-                                            for (
-                                              int i = 0;
-                                              i <
-                                                  (grn.itemDetails?.length ??
-                                                      0);
-                                              i++
-                                            ) {
-                                              updatedReasons[i] = selection;
-                                            }
-                                            itemReasonsNotifier.value =
-                                                updatedReasons;
-                                            _updateItems();
-                                          }
-                                        },
-                                        fieldViewBuilder:
-                                            (
-                                              BuildContext context,
-                                              TextEditingController
-                                              textEditingController,
-                                              FocusNode focusNode,
-                                              VoidCallback onFieldSubmitted,
-                                            ) {
-                                              return TextField(
-                                                controller:
-                                                    textEditingController,
-                                                focusNode: focusNode,
-                                                onChanged: (value) {
-                                                  if (isReturnAllEnabled) {
-                                                    final updatedReasons =
-                                                        <int, String>{};
-                                                    for (
-                                                      int i = 0;
-                                                      i <
-                                                          (grn
-                                                                  .itemDetails
-                                                                  ?.length ??
-                                                              0);
-                                                      i++
-                                                    ) {
-                                                      updatedReasons[i] = value;
-                                                    }
-                                                    itemReasonsNotifier.value =
-                                                        updatedReasons;
-                                                    _updateItems();
-                                                  }
-                                                },
-                                                decoration: InputDecoration(
-                                                  labelText:
-                                                      'Return Reason (for Return All)',
-                                                  hintText: 'Reason',
-                                                  border:
-                                                      const OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(
-                                                              Radius.circular(
-                                                                8.0,
-                                                              ),
-                                                            ),
-                                                      ),
-                                                  disabledBorder:
-                                                      const OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.all(
-                                                              Radius.circular(
-                                                                8.0,
-                                                              ),
-                                                            ),
-                                                      ),
-                                                  contentPadding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8.0,
-                                                        vertical: 6.0,
-                                                      ),
-                                                  isDense: true,
-                                                ),
-                                                style: TextStyle(
-                                                  fontSize: 13.0,
-                                                  color: isReturnAllEnabled
-                                                      ? Colors.black
-                                                      : Colors.grey,
-                                                ),
-                                                maxLines: 2,
-                                                readOnly: !isReturnAllEnabled,
-                                                enabled: isReturnAllEnabled,
-                                              );
-                                            },
-                                        optionsViewBuilder:
-                                            (
-                                              BuildContext context,
-                                              AutocompleteOnSelected<String>
-                                              onSelected,
-                                              Iterable<String> options,
-                                            ) {
-                                              return Align(
-                                                alignment: Alignment.topLeft,
-                                                child: Material(
-                                                  color: Colors.white,
-                                                  elevation: 4.0,
-                                                  child: SizedBox(
-                                                    height: 200.0,
-                                                    child: options.isEmpty
-                                                        ? const ListTile(
-                                                            title: Text(
-                                                              'No reasons found',
-                                                            ),
-                                                          )
-                                                        : ListView.builder(
-                                                            padding:
-                                                                EdgeInsets.zero,
-                                                            itemCount:
-                                                                options.length,
-                                                            itemBuilder:
-                                                                (
-                                                                  BuildContext
-                                                                  context,
-                                                                  int index,
-                                                                ) {
-                                                                  final String
-                                                                  option = options
-                                                                      .elementAt(
-                                                                        index,
-                                                                      );
-                                                                  return GestureDetector(
-                                                                    onTap: () =>
-                                                                        onSelected(
-                                                                          option,
-                                                                        ),
-                                                                    child: ListTile(
-                                                                      title: Text(
-                                                                        option,
-                                                                        style: const TextStyle(
-                                                                          fontSize:
-                                                                              13,
-                                                                        ),
-                                                                      ),
-                                                                      dense:
-                                                                          true,
-                                                                    ),
-                                                                  );
-                                                                },
-                                                          ),
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                      ),
-                                    ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: isReturnAllEnabledNotifier,
+                builder: (context, isReturnAllEnabled, _) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Consumer<GRNProvider>(
+                              builder: (context, grnProvider, child) {
+                                if (grnProvider.isLoading) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(),
                                   );
-                                },
-                              );
-                            },
+                                }
+                                if (grnProvider.error != null) {
+                                  return Text(
+                                    grnProvider.error!,
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontSize: 13.0,
+                                    ),
+                                  );
+                                }
+
+                                final reasons = List<String>.from(
+                                  grnProvider.returnReasons,
+                                );
+
+                                return ValueListenableBuilder<Map<int, String>>(
+                                  valueListenable: itemReasonsNotifier,
+                                  builder: (context, itemReasons, _) {
+                                    return Autocomplete<String>(
+                                      optionsBuilder:
+                                          (TextEditingValue textEditingValue) {
+                                            return reasons
+                                                .where(
+                                                  (reason) => reason
+                                                      .toLowerCase()
+                                                      .contains(
+                                                        textEditingValue.text
+                                                            .toLowerCase(),
+                                                      ),
+                                                )
+                                                .toList();
+                                          },
+                                      onSelected: (String selection) {
+                                        if (isReturnAllEnabled) {
+                                          final updatedReasons =
+                                              <int, String>{};
+                                          for (
+                                            int i = 0;
+                                            i < (grn.itemDetails?.length ?? 0);
+                                            i++
+                                          ) {
+                                            updatedReasons[i] = selection;
+                                          }
+                                          itemReasonsNotifier.value =
+                                              updatedReasons;
+                                          _updateItems();
+                                        }
+                                      },
+                                      fieldViewBuilder:
+                                          (
+                                            BuildContext context,
+                                            TextEditingController
+                                            textEditingController,
+                                            FocusNode focusNode,
+                                            VoidCallback onFieldSubmitted,
+                                          ) {
+                                            return TextField(
+                                              controller: textEditingController,
+                                              focusNode: focusNode,
+                                              onChanged: (value) {
+                                                if (isReturnAllEnabled) {
+                                                  final updatedReasons =
+                                                      <int, String>{};
+                                                  for (
+                                                    int i = 0;
+                                                    i <
+                                                        (grn
+                                                                .itemDetails
+                                                                ?.length ??
+                                                            0);
+                                                    i++
+                                                  ) {
+                                                    updatedReasons[i] = value;
+                                                  }
+                                                  itemReasonsNotifier.value =
+                                                      updatedReasons;
+                                                  _updateItems();
+                                                }
+                                              },
+                                              decoration: const InputDecoration(
+                                                labelText: 'Return all Reason',
+                                                hintText: 'Reason',
+                                                border: OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              enabled: isReturnAllEnabled,
+                                            );
+                                          },
+                                    );
+                                  },
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          flex: 1,
-                          child: ValueListenableBuilder<bool>(
-                            valueListenable: enableReturnSelectedFieldsNotifier,
-                            builder: (context, enableReturnSelectedFields, _) {
-                              return ValueListenableBuilder<bool>(
-                                valueListenable:
-                                    isSpecificQuantityReturnNotifier,
-                                builder: (context, isSpecificQuantityReturn, _) {
-                                  return Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      ElevatedButton(
-                                        onPressed:
-                                            (enableReturnSelectedFields ||
-                                                isSpecificQuantityReturn)
-                                            ? null
-                                            : () {
-                                                print('Return All clicked');
+
+                          const SizedBox(width: 15),
+
+                          Flexible(
+                            child: ValueListenableBuilder<bool>(
+                              valueListenable: isSpecificQuantityReturnNotifier,
+                              builder: (context, isSpecificQuantityReturn, _) {
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    /// RETURN ALL BUTTON
+                                    ElevatedButton(
+                                      onPressed: isSpecificQuantityReturn
+                                          ? null
+                                          : () {
+                                              if (isReturnAllEnabled) {
+                                                isReturnAllEnabledNotifier
+                                                        .value =
+                                                    false;
+                                                scenarioNotifier.value = null;
+                                                itemReasonsNotifier.value = {};
+                                                itemsNotifier.value = null;
+                                              } else {
                                                 isReturnAllEnabledNotifier
                                                         .value =
                                                     true;
-                                                enableReturnSelectedFieldsNotifier
-                                                        .value =
-                                                    false;
                                                 isSpecificQuantityReturnNotifier
                                                         .value =
                                                     false;
                                                 scenarioNotifier.value = 'full';
                                                 itemsNotifier.value = null;
-                                              },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isReturnAllEnabled
-                                              ? Colors.blueAccent
-                                              : Colors.blueAccent,
-                                          foregroundColor: Colors.white,
-                                          minimumSize: const Size(120, 40),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 12,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Return All',
-                                          style: TextStyle(fontSize: 14),
-                                        ),
+                                              }
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isReturnAllEnabled
+                                            ? Colors.blueAccent
+                                            : Colors.grey.shade300,
+                                        foregroundColor: isReturnAllEnabled
+                                            ? Colors.white
+                                            : Colors.black,
                                       ),
-                                      const SizedBox(height: 8),
-                                      ElevatedButton(
-                                        onPressed:
-                                            (isReturnAllEnabled ||
-                                                enableReturnSelectedFields)
-                                            ? null
-                                            : () {
-                                                print(
-                                                  'Return Specific clicked',
+                                      child: const Text('Return All'),
+                                    ),
+
+                                    const SizedBox(height: 8),
+
+                                    /// RETURN SPECIFIC BUTTON
+                                    ElevatedButton(
+                                      onPressed: isReturnAllEnabled
+                                          ? null
+                                          : () {
+                                              if (isSpecificQuantityReturn) {
+                                                isSpecificQuantityReturnNotifier
+                                                        .value =
+                                                    false;
+                                                scenarioNotifier.value = null;
+                                                selectedRowsNotifier
+                                                    .value = List<bool>.filled(
+                                                  grn.itemDetails?.length ?? 0,
+                                                  false,
                                                 );
+                                                itemsNotifier.value = null;
+                                              } else {
                                                 isSpecificQuantityReturnNotifier
                                                         .value =
                                                     true;
                                                 isReturnAllEnabledNotifier
                                                         .value =
                                                     false;
-                                                enableReturnSelectedFieldsNotifier
-                                                        .value =
-                                                    false;
                                                 scenarioNotifier.value =
                                                     'quantity_wise';
                                                 _updateItems();
-                                              },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              isSpecificQuantityReturn
-                                              ? Colors.blueAccent
-                                              : Colors.blueAccent,
-                                          foregroundColor: Colors.white,
-                                          minimumSize: const Size(120, 40),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 12,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Return Specific',
-                                          style: TextStyle(fontSize: 14),
-                                        ),
+                                              }
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            isSpecificQuantityReturn
+                                            ? Colors.blueAccent
+                                            : Colors.grey.shade300,
+                                        foregroundColor:
+                                            isSpecificQuantityReturn
+                                            ? Colors.white
+                                            : Colors.black,
                                       ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
+                                      child: const Text('Return Specific'),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16.0),
-                  ],
-                );
-              },
+                        ],
+                      ),
+
+                      const SizedBox(height: 16.0),
+                    ],
+                  );
+                },
+              ),
             ),
 
             Expanded(
-              child: Card(
-                elevation: 2,
+              child: Container(
+                width: double.infinity, // Full width use pannu
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Column(
                   children: [
+                    // Fixed Header Row
                     Container(
                       height: 60,
                       decoration: BoxDecoration(
@@ -499,9 +401,14 @@ class _GRNModalState extends State<GRNReturn> {
                         border: Border(
                           bottom: BorderSide(color: Colors.grey.shade300),
                         ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(8),
+                          topRight: Radius.circular(8),
+                        ),
                       ),
                       child: Row(
                         children: [
+                          // Fixed Item Column Header
                           Container(
                             width: 130,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -513,119 +420,121 @@ class _GRNModalState extends State<GRNReturn> {
                               ),
                             ),
                           ),
+                          // Scrollable Headers - Remaining space full ah use pannu
                           Expanded(
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               controller: _rightHeaderHorizontal,
                               physics: const ClampingScrollPhysics(),
                               child: Container(
-                                width: 1240,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 20),
-                                  child: const Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Received Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                // Fixed width remove panni, content width automatic ah varum
+                                padding: const EdgeInsets.only(
+                                  left: 20,
+                                  right: 20,
+                                ),
+                                child: const Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Received Qty',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Returned Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Returned Qty',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Returnable Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Returnable Qty',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Return Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Return Qty',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Nos',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Nos',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Each Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Each Qty',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 180,
-                                        child: Text(
-                                          'Return Reason',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 180,
+                                      child: Text(
+                                        'Return Reason',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Unit Price',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Unit Price',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          'Total Price',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 120,
+                                      child: Text(
+                                        'Total Price',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                      SizedBox(
-                                        width: 80,
-                                        child: Text(
-                                          'Select',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 14,
-                                          ),
+                                    ),
+                                    SizedBox(
+                                      width: 80,
+                                      child: Text(
+                                        'Select',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -634,10 +543,12 @@ class _GRNModalState extends State<GRNReturn> {
                       ),
                     ),
 
+                    // Scrollable Body
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Fixed Item Column
                           SizedBox(
                             width: 130,
                             child: ValueListenableBuilder<List<bool>>(
@@ -679,213 +590,217 @@ class _GRNModalState extends State<GRNReturn> {
                             ),
                           ),
 
+                          // Scrollable Content - Full remaining width use pannu
                           Expanded(
                             child: SingleChildScrollView(
                               controller: _rightBodyHorizontal,
                               scrollDirection: Axis.horizontal,
                               physics: const ClampingScrollPhysics(),
                               child: SizedBox(
-                                width: 1360,
-                                child: ValueListenableBuilder<List<bool>>(
-                                  valueListenable: selectedRowsNotifier,
-                                  builder: (context, selectedRows, _) {
-                                    return ValueListenableBuilder<bool>(
-                                      valueListenable:
-                                          enableReturnSelectedFieldsNotifier,
-                                      builder: (context, enableReturnSelectedFields, _) {
-                                        return ValueListenableBuilder<bool>(
-                                          valueListenable:
-                                              isSpecificQuantityReturnNotifier,
-                                          builder: (context, isSpecificQuantityReturn, _) {
-                                            return ValueListenableBuilder<
-                                              Map<int, String>
-                                            >(
-                                              valueListenable:
-                                                  itemReasonsNotifier,
-                                              builder: (context, itemReasons, _) {
-                                                if (grn.itemDetails?.isEmpty ??
-                                                    true) {
-                                                  return const Center(
-                                                    child: Padding(
-                                                      padding: EdgeInsets.all(
-                                                        20.0,
-                                                      ),
-                                                      child: Text(
-                                                        'No items found',
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-
-                                                return ListView.builder(
-                                                  controller:
-                                                      _verticalScrollController,
-                                                  padding: EdgeInsets.zero,
-                                                  itemCount:
-                                                      grn.itemDetails!.length,
-                                                  itemBuilder: (context, index) {
-                                                    final item =
-                                                        grn.itemDetails![index];
-                                                    final returnableQuantity =
-                                                        (item.receivedQuantity ??
-                                                            0) -
-                                                        (item.returnedQuantity ??
-                                                            0);
-                                                    final returnQtyController =
-                                                        TextEditingController(
-                                                          text:
-                                                              item.returnedQuantity
-                                                                  ?.toStringAsFixed(
-                                                                    2,
-                                                                  ) ??
-                                                              '0.00',
-                                                        );
-
-                                                    return Container(
-                                                      height: 60,
-                                                      decoration: BoxDecoration(
-                                                        border: Border(
-                                                          bottom: BorderSide(
-                                                            color: Colors
-                                                                .grey
-                                                                .shade300,
-                                                          ),
+                                // Fixed width remove panni, width auto ah content based ah varum
+                                child: SingleChildScrollView(
+                                  controller: _verticalScrollController,
+                                  physics: const ClampingScrollPhysics(),
+                                  child: ValueListenableBuilder<List<bool>>(
+                                    valueListenable: selectedRowsNotifier,
+                                    builder: (context, selectedRows, _) {
+                                      return ValueListenableBuilder<bool>(
+                                        valueListenable:
+                                            enableReturnSelectedFieldsNotifier,
+                                        builder: (context, enableReturnSelectedFields, _) {
+                                          return ValueListenableBuilder<bool>(
+                                            valueListenable:
+                                                isSpecificQuantityReturnNotifier,
+                                            builder: (context, isSpecificQuantityReturn, _) {
+                                              return ValueListenableBuilder<
+                                                Map<int, String>
+                                              >(
+                                                valueListenable:
+                                                    itemReasonsNotifier,
+                                                builder: (context, itemReasons, _) {
+                                                  if (grn
+                                                          .itemDetails
+                                                          ?.isEmpty ??
+                                                      true) {
+                                                    return const Center(
+                                                      child: Padding(
+                                                        padding: EdgeInsets.all(
+                                                          20.0,
                                                         ),
-                                                        color: Colors.white,
-                                                      ),
-                                                      child: Row(
-                                                        children: [
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildCenteredText(
-                                                              item.receivedQuantity
-                                                                      ?.toStringAsFixed(
-                                                                        2,
-                                                                      ) ??
-                                                                  '0.00',
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildCenteredText(
-                                                              item.returnedQuantity
-                                                                      ?.toStringAsFixed(
-                                                                        2,
-                                                                      ) ??
-                                                                  '0.00',
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildCenteredText(
-                                                              returnableQuantity
-                                                                  .toStringAsFixed(
-                                                                    2,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildReturnQtyField(
-                                                              returnQtyController,
-                                                              item,
-                                                              index,
-                                                              selectedRows,
-                                                              isSpecificQuantityReturn,
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildReadOnlyField(
-                                                              item.nos?.toStringAsFixed(
-                                                                    2,
-                                                                  ) ??
-                                                                  '0.00',
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildReadOnlyField(
-                                                              item.eachQuantity
-                                                                      ?.toStringAsFixed(
-                                                                        2,
-                                                                      ) ??
-                                                                  '0.00',
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 180,
-                                                            child: _buildReasonField(
-                                                              item,
-                                                              index,
-                                                              selectedRows,
-                                                              enableReturnSelectedFields,
-                                                              isSpecificQuantityReturn,
-                                                              itemReasons,
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildCenteredText(
-                                                              item.unitPrice
-                                                                      ?.toStringAsFixed(
-                                                                        2,
-                                                                      ) ??
-                                                                  '0.00',
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: _buildCenteredText(
-                                                              (item.totalPrice ??
-                                                                      0)
-                                                                  .toStringAsFixed(
-                                                                    2,
-                                                                  ),
-                                                            ),
-                                                          ),
-                                                          SizedBox(
-                                                            width: 80,
-                                                            child: Center(
-                                                              child: Checkbox(
-                                                                value:
-                                                                    selectedRows[index],
-                                                                onChanged:
-                                                                    (enableReturnSelectedFields ||
-                                                                        isSpecificQuantityReturn)
-                                                                    ? (
-                                                                        bool?
-                                                                        value,
-                                                                      ) {
-                                                                        final updatedSelectedRows =
-                                                                            List<
-                                                                              bool
-                                                                            >.from(
-                                                                              selectedRows,
-                                                                            );
-                                                                        updatedSelectedRows[index] =
-                                                                            value ??
-                                                                            false;
-                                                                        selectedRowsNotifier.value =
-                                                                            updatedSelectedRows;
-                                                                        _updateItems();
-                                                                      }
-                                                                    : null,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
+                                                        child: Text(
+                                                          'No items found',
+                                                        ),
                                                       ),
                                                     );
-                                                  },
-                                                );
-                                              },
-                                            );
-                                          },
-                                        );
-                                      },
-                                    );
-                                  },
+                                                  }
+
+                                                  return Column(
+                                                    children: List.generate(grn.itemDetails!.length, (
+                                                      index,
+                                                    ) {
+                                                      final item = grn
+                                                          .itemDetails![index];
+                                                      final returnableQuantity =
+                                                          (item.receivedQuantity ??
+                                                              0) -
+                                                          (item.returnedQuantity ??
+                                                              0);
+                                                      final returnQtyController =
+                                                          TextEditingController(
+                                                            text:
+                                                                item.returnedQuantity
+                                                                    ?.toStringAsFixed(
+                                                                      2,
+                                                                    ) ??
+                                                                '0.00',
+                                                          );
+
+                                                      return Container(
+                                                        height: 60,
+                                                        decoration: BoxDecoration(
+                                                          border: Border(
+                                                            bottom: BorderSide(
+                                                              color: Colors
+                                                                  .grey
+                                                                  .shade300,
+                                                            ),
+                                                          ),
+                                                          color: Colors.white,
+                                                        ),
+                                                        child: Row(
+                                                          children: [
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildCenteredText(
+                                                                item.receivedQuantity
+                                                                        ?.toStringAsFixed(
+                                                                          2,
+                                                                        ) ??
+                                                                    '0.00',
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildCenteredText(
+                                                                item.returnedQuantity
+                                                                        ?.toStringAsFixed(
+                                                                          2,
+                                                                        ) ??
+                                                                    '0.00',
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildCenteredText(
+                                                                returnableQuantity
+                                                                    .toStringAsFixed(
+                                                                      2,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildReturnQtyField(
+                                                                returnQtyController,
+                                                                item,
+                                                                index,
+                                                                selectedRows,
+                                                                isSpecificQuantityReturn,
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildReadOnlyField(
+                                                                item.nos?.toStringAsFixed(
+                                                                      2,
+                                                                    ) ??
+                                                                    '0.00',
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildReadOnlyField(
+                                                                item.eachQuantity
+                                                                        ?.toStringAsFixed(
+                                                                          2,
+                                                                        ) ??
+                                                                    '0.00',
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 180,
+                                                              child: _buildReasonField(
+                                                                item,
+                                                                index,
+                                                                selectedRows,
+                                                                enableReturnSelectedFields,
+                                                                isSpecificQuantityReturn,
+                                                                itemReasons,
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildCenteredText(
+                                                                item.unitPrice
+                                                                        ?.toStringAsFixed(
+                                                                          2,
+                                                                        ) ??
+                                                                    '0.00',
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 120,
+                                                              child: _buildCenteredText(
+                                                                (item.totalPrice ??
+                                                                        0)
+                                                                    .toStringAsFixed(
+                                                                      2,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 80,
+                                                              child: Center(
+                                                                child: Checkbox(
+                                                                  value:
+                                                                      selectedRows[index],
+                                                                  onChanged:
+                                                                      (enableReturnSelectedFields ||
+                                                                          isSpecificQuantityReturn)
+                                                                      ? (
+                                                                          bool?
+                                                                          value,
+                                                                        ) {
+                                                                          final updatedSelectedRows =
+                                                                              List<
+                                                                                bool
+                                                                              >.from(
+                                                                                selectedRows,
+                                                                              );
+                                                                          updatedSelectedRows[index] =
+                                                                              value ??
+                                                                              false;
+                                                                          selectedRowsNotifier.value =
+                                                                              updatedSelectedRows;
+                                                                          _updateItems();
+                                                                        }
+                                                                      : null,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                    }),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          );
+                                        },
+                                      );
+                                    },
+                                  ),
                                 ),
                               ),
                             ),
@@ -897,9 +812,9 @@ class _GRNModalState extends State<GRNReturn> {
                 ),
               ),
             ),
-
+            SizedBox(height: 16.0),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
+              padding: const EdgeInsets.only(right: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

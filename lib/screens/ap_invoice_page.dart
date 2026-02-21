@@ -356,36 +356,53 @@ class _APInvoicePageState extends State<APInvoicePage> {
     return ValueListenableBuilder<String>(
       valueListenable: _invoiceType,
       builder: (context, selected, _) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Row(
-            children: [
-              Text(
-                "Invoice Type",
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blueGrey[800],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _typeButton("Goods", selected),
-              const SizedBox(width: 6),
-              _typeButton("Service", selected),
-              const Spacer(),
-              ValueListenableBuilder<Set<String>>(
-                valueListenable: _statusFilters,
-                builder: (context, filters, _) {
-                  final bool hasCustomFilter =
-                      !(filters.length == 1 &&
-                          filters.contains("Outgoing Posted"));
+        final width = MediaQuery.of(context).size.width;
 
-                  return Container(
+        final iconSize = width * 0.055;
+        final textSize = width < 360 ? 12.5 : 14.5;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: ValueListenableBuilder<Set<String>>(
+            valueListenable: _statusFilters,
+            builder: (context, filters, _) {
+              final bool hasCustomFilter =
+                  !(filters.length == 1 && filters.contains("Outgoing Posted"));
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  /// ✅ LEFT SIDE (takes available space)
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        /// Text (full visible)
+                        Text(
+                          "Invoice Type",
+                          style: TextStyle(
+                            fontSize: textSize,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blueGrey[800],
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        /// Compact buttons (no flex stretch)
+                        _typeButtonCompact("Goods", selected),
+                        const SizedBox(width: 6),
+                        _typeButtonCompact("Service", selected),
+                      ],
+                    ),
+                  ),
+
+                  /// ✅ RIGHT SIDE ICON (fixed)
+                  Container(
                     decoration: BoxDecoration(
                       color: hasCustomFilter ? Colors.grey.shade200 : null,
                       borderRadius: BorderRadius.circular(20),
                     ),
-
                     child: PopupMenuButton<String>(
                       color: Colors.white,
                       offset: const Offset(0, 45),
@@ -393,15 +410,13 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 4,
-                      icon: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Icon(
-                            Icons.filter_list_rounded,
-                            color: Colors.blueGrey[700],
-                            size: 28,
-                          ),
-                        ],
+                      icon: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Icon(
+                          Icons.filter_list_rounded,
+                          color: Colors.blueGrey[700],
+                          size: iconSize,
+                        ),
                       ),
                       itemBuilder: (_) => [
                         _statusMenuItem(
@@ -419,7 +434,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         _statusMenuItem(title: "Returned", value: "Returned"),
                         const PopupMenuDivider(),
                         PopupMenuItem(
-                          enabled: true,
                           child: TextButton(
                             onPressed: () {
                               _statusFilters.value = {"Outgoing Posted"};
@@ -433,39 +447,33 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         ),
                       ],
                     ),
-                  );
-                },
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           ),
         );
       },
     );
   }
 
-  Widget _typeButton(String type, String selected) {
-    final isSelected = selected == type;
+  Widget _typeButtonCompact(String type, String selected) {
+    final isSelected = type == selected;
 
-    return Material(
-      elevation: isSelected ? 2 : 0,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: () => _invoiceType.value = type,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blueAccent : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(24),
-            border: isSelected ? null : Border.all(color: Colors.grey.shade300),
-          ),
-          child: Text(
-            type,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.blueGrey[800],
-              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-              fontSize: 14.5,
-            ),
+    return GestureDetector(
+      onTap: () => _invoiceType.value = type,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blueAccent : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          type,
+          style: TextStyle(
+            fontSize: 12.5,
+            color: isSelected ? Colors.white : Colors.black,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ),
@@ -546,6 +554,30 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                     );
                                   }
 
+                                  if (provider.error != null) {
+                                    return ListView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      children: [
+                                        const SizedBox(height: 200),
+                                        Center(
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                provider.error!,
+                                                style: const TextStyle(
+                                                  fontSize: 15,
+                                                  color: Colors.grey,
+                                                ),
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
                                   var list = provider.apInvoices;
 
                                   list = list.where((inv) {
@@ -579,7 +611,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                       child: Text(
                                         "No invoices found",
                                         style: TextStyle(
-                                          fontSize: 17,
+                                          fontSize: 14,
                                           color: Colors.grey,
                                         ),
                                       ),

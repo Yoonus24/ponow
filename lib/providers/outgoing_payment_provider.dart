@@ -193,23 +193,23 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> removeOutgoingPayment(String outgoingId) async {
-    try {
-      _payments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
-      _allPayments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
+  // Future<void> removeOutgoingPayment(String outgoingId) async {
+  //   try {
+  //     _payments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
+  //     _allPayments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
 
-      final response = await dio.delete(
-        '$_baseUrl/outgoingpayments/$outgoingId',
-      );
+  //     final response = await dio.delete(
+  //       '$_baseUrl/outgoingpayments/$outgoingId',
+  //     );
 
-      if (response.statusCode == 200) {
-        print('✅ Outgoing payment removed from backend');
-        notifyListeners();
-      }
-    } catch (e) {
-      print('⚠️ Error removing outgoing: $e');
-    }
-  }
+  //     if (response.statusCode == 200) {
+  //       print('✅ Outgoing payment removed from backend');
+  //       notifyListeners();
+  //     }
+  //   } catch (e) {
+  //     print('⚠️ Error removing outgoing: $e');
+  //   }
+  // }
 
   Future<List<Outgoing>> fetchFilteredOutgoings({
     DateTime? fromDate,
@@ -332,42 +332,42 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> testBackendResponse() async {
-    try {
-      if (kDebugMode) {
-        print('🧪 TESTING BACKEND RESPONSE DIRECTLY');
-      }
+  // Future<void> testBackendResponse() async {
+  //   try {
+  //     if (kDebugMode) {
+  //       print('🧪 TESTING BACKEND RESPONSE DIRECTLY');
+  //     }
 
-      final response = await dio.get(
-        '$_baseUrl/outgoingpayments/?status=Pending&limit=2',
-      );
+  //     final response = await dio.get(
+  //       '$_baseUrl/outgoingpayments/?status=Pending&limit=2',
+  //     );
 
-      if (kDebugMode) {
-        print('🧪 Test Response status: ${response.statusCode}');
-        print('🧪 Test Response type: ${response.data.runtimeType}');
+  //     if (kDebugMode) {
+  //       print('🧪 Test Response status: ${response.statusCode}');
+  //       print('🧪 Test Response type: ${response.data.runtimeType}');
 
-        if (response.data is List) {
-          print('🧪 Response is List with ${response.data.length} items');
-          for (int i = 0; i < response.data.length; i++) {
-            print('🧪 Item $i: ${response.data[i]}');
-            if (response.data[i] is Map) {
-              print(
-                '🧪 Item $i keys: ${(response.data[i] as Map).keys.toList()}',
-              );
-            }
-          }
-        } else if (response.data is Map) {
-          print(
-            '🧪 Response is Map with keys: ${(response.data as Map).keys.toList()}',
-          );
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('🧪 Test failed: $e');
-      }
-    }
-  }
+  //       if (response.data is List) {
+  //         print('🧪 Response is List with ${response.data.length} items');
+  //         for (int i = 0; i < response.data.length; i++) {
+  //           print('🧪 Item $i: ${response.data[i]}');
+  //           if (response.data[i] is Map) {
+  //             print(
+  //               '🧪 Item $i keys: ${(response.data[i] as Map).keys.toList()}',
+  //             );
+  //           }
+  //         }
+  //       } else if (response.data is Map) {
+  //         print(
+  //           '🧪 Response is Map with keys: ${(response.data as Map).keys.toList()}',
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     if (kDebugMode) {
+  //       print('🧪 Test failed: $e');
+  //     }
+  //   }
+  // }
 
   Future<String> saveOutgoingPayment(Outgoing outgoing) async {
     try {
@@ -677,4 +677,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     dio.close();
     super.dispose();
   }
+
+  Future<void> fetchPayments() async {}
 }

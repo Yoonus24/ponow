@@ -1,3 +1,6 @@
+// outgoing_pdf.dart
+// ignore_for_file: unused_element
+
 import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -6,12 +9,11 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-/// Outgoing PDF generator
 class OutgoingPdf {
   static const String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
-  static const String businessUrl = 'https://yenerp.com/purchaseapi/pobusiness';
-  static const String vendorByNameUrl =
-      'http://192.168.29.184:8000/nextjstestapi/vendors/exact-names/';
+  static const String businessUrl = 'http://yenerp.com/purchaseapi/pobusiness/';
+  static const String vendorBaseUrl =
+      'http://192.168.29.184:8000/nextjstestapi/vendors/exact-name/';
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -20,777 +22,711 @@ class OutgoingPdf {
     ),
   );
 
-  /// Fetch single Outgoing by id
-  Future<Map<String, dynamic>> fetchFilteredOutgoings(String outgoingId) async {
-    final uri = Uri.parse('$baseUrl/outgoingpayments/$outgoingId');
-    try {
-      final response = await _dio.get(
-        uri.toString(),
-        options: Options(receiveTimeout: const Duration(seconds: 30)),
-      );
-      if (response.statusCode == 200) {
-        final data = response.data is Map<String, dynamic> ? response.data : {};
-        print('Parsing Outgoing from JSON. Keys: ${data.keys.toList()}');
-        return data as Map<String, dynamic>;
-      } else {
-        print('API Error fetchFilteredOutgoings: ${response.statusCode}');
-        throw Exception('Failed to load outgoing: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching outgoing $outgoingId: $e');
-      rethrow;
+  Future<Map<String, dynamic>> fetchOutgoing(String outgoingId) async {
+    final uri = '$baseUrl/outgoingpayments/$outgoingId';
+
+    final response = await _dio.get(
+      uri,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
+
+    final dynamic decoded = response.data;
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
     }
+
+    throw Exception('Unexpected Outgoing format: expected JSON object');
   }
 
-  /// Fetch business details
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final uri = Uri.parse(businessUrl);
-    try {
-      final response = await _dio.get(
-        uri.toString(),
-        options: Options(receiveTimeout: const Duration(seconds: 30)),
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data is List ? response.data : [];
-        if (data.isNotEmpty) {
-          return (data.first as Map<String, dynamic>);
-        } else {
-          throw Exception('Business data list is empty');
-        }
-      } else {
-        throw Exception(
-          'Failed to load business details: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      print('Error fetching business details: $e');
-      rethrow;
+    final response = await _dio.get(
+      businessUrl,
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
+
+    final List<dynamic> data = response.data;
+
+    if (data.isNotEmpty && data.first is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(data.first);
     }
+
+    return <String, dynamic>{};
   }
 
-  /// Fetch vendor by exact name
-  Future<Map<String, dynamic>> fetchVendorByName(String vendorName) async {
-    try {
-      final encoded = Uri.encodeQueryComponent(vendorName);
-      final uri = Uri.parse('$vendorByNameUrl?name=$encoded');
+  Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
+    if (vendorId.trim().isEmpty) return {};
 
-      print('🔍 Fetching Vendor URL → $uri');
-      final response = await _dio.get(
-        uri.toString(),
-        options: Options(receiveTimeout: const Duration(seconds: 30)),
-      );
+    final response = await _dio.get(
+      '$vendorBaseUrl$vendorId',
+      options: Options(receiveTimeout: const Duration(seconds: 30)),
+    );
 
-      if (response.statusCode == 200) {
-        final data = response.data is Map<String, dynamic> ? response.data : {};
-        if (data is List && data.isNotEmpty) {
-          return data.first as Map<String, dynamic>;
-        } else if (data is Map<String, dynamic>) {
-          return data;
-        } else {
-          throw Exception('Unexpected vendor payload');
-        }
-      } else if (response.statusCode == 404) {
-        throw Exception('Vendor not found: $vendorName');
-      } else {
-        throw Exception(
-          'Failed to load vendor details: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      print('Error fetching vendor: $e');
-      rethrow;
+    final dynamic decoded = response.data;
+
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
     }
+
+    if (decoded is List && decoded.isNotEmpty) {
+      return Map<String, dynamic>.from(decoded.first);
+    }
+
+    return {};
   }
 
-  /// Generate PDF file for outgoing
   Future<File> generateOutgoingPdf(String outgoingId) async {
+    if (outgoingId.trim().isEmpty) {
+      throw Exception('outgoingId is empty');
+    }
+
+    final Map<String, dynamic> outgoingData = await fetchOutgoing(outgoingId);
+    final Map<String, dynamic> businessData = await fetchBusinessDetails();
+
+    final vendorId = (outgoingData['vendorId'] ?? '').toString();
+    final Map<String, dynamic> vendorData = await fetchVendorById(vendorId);
+
+    final List<dynamic> itemsRaw = (outgoingData['itemDetails'] is List)
+        ? List<dynamic>.from(outgoingData['itemDetails'])
+        : <dynamic>[];
+
+    pw.MemoryImage? logoImage;
     try {
-      // Fetch data
-      final outgoing = await fetchFilteredOutgoings(outgoingId);
-      final businessData = await fetchBusinessDetails();
+      logoImage = await _tryLoadLogoImage('assets/bestmummy.png');
+    } catch (_) {
+      logoImage = null;
+    }
 
-      // Fetch vendor
-      Map<String, dynamic> vendorData = {};
-      final vendorName = (outgoing['vendorName'] ?? '').toString().trim();
-      if (vendorName.isNotEmpty) {
-        try {
-          vendorData = await fetchVendorByName(vendorName);
-        } catch (e) {
-          print('Vendor fetch by name failed for "$vendorName": $e');
-          vendorData = {};
-        }
-      } else {
-        print('No vendorName present in outgoing JSON; vendorData left empty');
+    String safeFormatDate(String? dateValue) {
+      if (dateValue == null) return 'N/A';
+      try {
+        // Handle timezone format like "2026-02-19T05:12:33.328000+05:30"
+        final cleanDate = dateValue.split('+').first.split('.').first;
+        final dt = DateTime.parse(cleanDate);
+        return DateFormat('dd-MM-yyyy').format(dt);
+      } catch (_) {
+        return dateValue;
       }
+    }
 
-      // Items array safe parsing
-      final rawItems = outgoing['itemDetails'];
-      final List<dynamic> items = rawItems is List
-          ? rawItems
-          : (rawItems == null ? <dynamic>[] : <dynamic>[rawItems]);
+    final formattedOutgoingDate =
+        (outgoingData['outgoingDate'] != null &&
+            outgoingData['outgoingDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(outgoingData['outgoingDate'].toString())
+        : 'N/A';
 
-      // Load logo
-      final logoImage = await _loadLogoImage();
+    final invoiceDate =
+        (outgoingData['invoiceDate'] != null &&
+            outgoingData['invoiceDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(outgoingData['invoiceDate'].toString())
+        : 'N/A';
 
-      // Prepare derived fields
-      final dateFormat = DateFormat('dd-MM-yyyy');
-      final formattedOrderDate = outgoing['invoiceDate'] != null
-          ? _tryFormatDateString(outgoing['invoiceDate'].toString(), dateFormat)
-          : outgoingId;
-      final invoiceDate = outgoing['invoiceDate'] != null
-          ? _tryFormatDateString(outgoing['invoiceDate'].toString(), dateFormat)
-          : 'N/A';
+    final poDate =
+        (outgoingData['poDate'] != null &&
+            outgoingData['poDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(outgoingData['poDate'].toString())
+        : 'N/A';
 
-      final paidAmount = _calculatePaidAmountFromMap(outgoing);
+    final apInvoiceDate =
+        (outgoingData['apinvoiceDate'] != null &&
+            outgoingData['apinvoiceDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(outgoingData['apinvoiceDate'].toString())
+        : 'N/A';
 
-      final payableAmount = (outgoing['payableAmount'] is num)
-          ? (outgoing['payableAmount'] as num).toDouble()
-          : (outgoing['totalPayableAmount'] is num
-                ? (outgoing['totalPayableAmount'] as num).toDouble()
-                : 0.0);
+    final totalPayableAmount = _safeNum(outgoingData['totalPayableAmount']);
+    final paidAmount = _safeNum(outgoingData['paidAmount']);
+    final remainingAmount = totalPayableAmount - paidAmount;
+    final amountInWords = _amountInWords(totalPayableAmount);
 
-      final amountInWords = _amountInWords(payableAmount);
+    // Calculate tax percentage from items
+    final taxPercentage = _getTaxPercentage(itemsRaw);
 
-      // Debug prints
-      print('Generating PDF Table Rows for items (count=${items.length}):');
-      for (var it in items) {
-        print(' - item: ${it ?? {}}');
-      }
+    // Calculate CGST and SGST totals
+    final cgstTotal = _calculateCgst(itemsRaw);
+    final sgstTotal = _calculateSgst(itemsRaw);
 
-      // Build PDF
-      final pdf = pw.Document();
+    final pdf = pw.Document();
 
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.all(20),
-          build: (pw.Context ctx) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                // Header Section
-                _buildHeaderSection(logoImage, outgoing, outgoingId),
-                pw.SizedBox(height: 20),
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: pw.EdgeInsets.all(20),
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Header - EXACT same as GRNPDF/APInvoicePDF
+              pw.Table(
+                columnWidths: {
+                  0: pw.FlexColumnWidth(1),
+                  1: pw.FlexColumnWidth(3),
+                },
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(right: 10),
+                        child: logoImage != null
+                            ? pw.Container(
+                                width: 60,
+                                height: 60,
+                                child: pw.Image(
+                                  logoImage,
+                                  fit: pw.BoxFit.contain,
+                                ),
+                              )
+                            : pw.SizedBox(),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.only(left: 50),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'OUTGOING PAYMENT',
+                              style: pw.TextStyle(
+                                fontSize: 14,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColor(0, 0, 128 / 255),
+                              ),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              businessData['companyName']?.toString() ?? '',
+                              style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              _joinNonEmpty([
+                                businessData['address1']?.toString(),
+                                businessData['address2']?.toString(),
+                              ]),
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'Tel.No: ${businessData['phoneNo'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'E-Mail: ${businessData['emailId'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'GSTIN: ${businessData['gstIn'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
 
-                // Vendor/Business/Outgoing Details Table
-                _buildDetailsTable(
-                  outgoing,
-                  businessData,
-                  vendorData,
-                  formattedOrderDate,
-                  outgoingId,
+              pw.SizedBox(height: 12),
+
+              // Vendor/Billing/Outgoing Details Table - EXACT same styling
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  0: pw.FlexColumnWidth(2),
+                  1: pw.FlexColumnWidth(1.5),
+                  2: pw.FlexColumnWidth(1.5),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: PdfColor(0, 0, 128 / 255),
+                    ),
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Vendor Details',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Billing Address',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Outgoing Details',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          _joinNonEmpty([
+                            outgoingData['vendorName']?.toString(),
+                            'GSTIN: ${outgoingData['gstNumber'] ?? 'N/A'}',
+                            outgoingData['address']?.toString(),
+                            outgoingData['city']?.toString(),
+                            outgoingData['state']?.toString(),
+                            outgoingData['country']?.toString(),
+                            'Email: ${outgoingData['contactpersonEmail'] ?? 'Not Provided'}',
+                          ], separator: '\n'),
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          _joinNonEmpty([
+                            outgoingData['billingAddress']?.toString() ??
+                                'No.40, Kenikarai',
+                            outgoingData['shippingAddress']?.toString() ??
+                                'Ramanathapuram',
+                          ]),
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Outgoing No: ${outgoingData['randomId']?.toString() ?? outgoingId}\n'
+                          'Outgoing Date: $formattedOutgoingDate\n'
+                          'Invoice No: ${outgoingData['invoiceNo'] ?? 'N/A'}\n'
+                          'Invoice Date: $invoiceDate\n'
+                          'PO Date: $poDate\n'
+                          'AP Invoice Date: $apInvoiceDate\n'
+                          'Payment Terms: ${outgoingData['paymentTerms']?.toString() ?? 'N/A'}\n'
+                          'Currency: ${outgoingData['currency']?.toString() ?? 'INR'}',
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // Items Table - EXACT same columns as GRN/AP
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  0: pw.FlexColumnWidth(0.7),
+                  1: pw.FlexColumnWidth(2),
+                  2: pw.FlexColumnWidth(1.2),
+                  3: pw.FlexColumnWidth(1),
+                  4: pw.FlexColumnWidth(0.8),
+                  5: pw.FlexColumnWidth(1),
+                  6: pw.FlexColumnWidth(1),
+                  7: pw.FlexColumnWidth(0.8),
+                  8: pw.FlexColumnWidth(1.2),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: PdfColor(0, 0, 128 / 255),
+                    ),
+                    children: [
+                      _tableHeaderCell('S.No'),
+                      _tableHeaderCell('Description'),
+                      _tableHeaderCell('HsnCode'),
+                      _tableHeaderCell('Count'),
+                      _tableHeaderCell('Qty'),
+                      _tableHeaderCell('PO Qty'),
+                      _tableHeaderCell('Unit Price'),
+                      _tableHeaderCell('Tax %'),
+                      _tableHeaderCell('Amount'),
+                    ],
+                  ),
+                  ..._buildItemRows(itemsRaw),
+                ],
+              ),
+
+              // Summary Table - EXACT same layout
+              pw.Container(
+                width: double.infinity,
+                child: pw.Table(
+                  border: pw.TableBorder.all(width: 0.5),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(2),
+                    1: pw.FlexColumnWidth(1),
+                  },
+                  children: [
+                    _twoCellRow(
+                      'Total Amount',
+                      _safeFixedString(outgoingData['totalPrice']),
+                    ),
+                    _twoCellRow(
+                      'Total Discount',
+                      _safeFixedString(outgoingData['discountDetails']),
+                    ),
+                    if (taxPercentage > 0) ...[
+                      _twoCellRow(
+                        'CGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
+                        _safeFixedString(cgstTotal),
+                      ),
+                      _twoCellRow(
+                        'SGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
+                        _safeFixedString(sgstTotal),
+                      ),
+                    ] else ...[
+                      _twoCellRow('CGST @ 0%', '0.00'),
+                      _twoCellRow('SGST @ 0%', '0.00'),
+                    ],
+                    _twoCellRow('Paid Amount', _safeFixedString(paidAmount)),
+                    _twoCellRow(
+                      'Remaining Amount',
+                      _safeFixedString(remainingAmount),
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Amount in Words: $amountInWords',
+                            style: pw.TextStyle(fontSize: 12),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Total Payable: ${_safeFixedString(totalPayableAmount)}',
+                            style: pw.TextStyle(fontSize: 12),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                pw.SizedBox(height: 20),
+              ),
 
-                // Items Table
-                _buildItemsTable(outgoing, items, invoiceDate),
-                pw.SizedBox(height: 20),
+              pw.SizedBox(height: 12),
 
-                // Summary Table
-                _buildSummaryTable(outgoing, paidAmount, payableAmount),
-                pw.SizedBox(height: 20),
+              // Payment Status
+              pw.Container(
+                padding: pw.EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(width: 0.5),
+                  color: PdfColor(0.9, 0.9, 0.9),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Text(
+                      'Payment Status: ',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      outgoingData['status']?.toString() ?? 'Pending',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        color: outgoingData['status'] == 'Pending'
+                            ? PdfColors.red
+                            : PdfColors.green,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-                // Amount in Words and Total
-                _buildAmountSection(amountInWords, payableAmount),
-              ],
-            );
-          },
-        ),
-      );
+              pw.SizedBox(height: 16),
 
-      // Save and return
-      final output = await getTemporaryDirectory();
-      final file = File(
-        "${output.path}/outgoing_${outgoing['randomId'] ?? outgoingId}.pdf",
-      );
-      await file.writeAsBytes(await pdf.save());
-      return file;
+              // Terms & Conditions
+              pw.Text(
+                'Terms & Conditions',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              ..._buildTermsAndConditions(outgoingData['termsAndConditions']),
+
+              pw.SizedBox(height: 16),
+
+              // Declaration
+              pw.Text(
+                'Declaration:',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                outgoingData['declaration']?.toString() ??
+                    'We declare that this payment is made against the mentioned invoices and all particulars are true and correct.',
+                style: pw.TextStyle(fontSize: 11),
+              ),
+
+              pw.SizedBox(height: 20),
+
+              // Footer
+              pw.Row(
+                children: [
+                  pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
+                  pw.Text('Authorized Signatory'),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    final output = await getTemporaryDirectory();
+    final filename =
+        'outgoing_${outgoingData['randomId']?.toString() ?? outgoingId}.pdf';
+    final file = File('${output.path}/$filename');
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
+
+  double _getTaxPercentage(List<dynamic> items) {
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        final tax = _safeNum(
+          item['purchasetaxName'] ?? item['taxPercentage'] ?? 0,
+        );
+        if (tax > 0) {
+          return tax;
+        }
+      }
+    }
+    return 0;
+  }
+
+  double _calculateCgst(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += _safeNum(item['cgst']);
+      }
+    }
+    return total;
+  }
+
+  double _calculateSgst(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += _safeNum(item['sgst']);
+      }
+    }
+    return total;
+  }
+
+  Future<pw.MemoryImage?> _tryLoadLogoImage(String assetPath) async {
+    try {
+      final data = await rootBundle.load(assetPath);
+      return pw.MemoryImage(data.buffer.asUint8List());
     } catch (e) {
-      print('Error generating outgoing PDF: $e');
-      rethrow;
+      return null;
     }
   }
 
-  /// Build Header Section
-  pw.Widget _buildHeaderSection(
-    pw.ImageProvider logoImage,
-    Map<String, dynamic> outgoing,
-    String outgoingId,
-  ) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Image(logoImage, width: 200, height: 100),
-            pw.SizedBox(height: 5),
-            pw.Text(
-              'Payment Method: ${outgoing['paymentMethod'] ?? 'N/A'}',
-              style: pw.TextStyle(
-                fontSize: 15,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1.0),
-              ),
-            ),
-          ],
-        ),
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.end,
-          children: [
-            pw.Text(
-              'PENDING PAYMENT',
-              style: pw.TextStyle(
-                fontSize: 20,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1.0),
-              ),
-            ),
-            pw.SizedBox(height: 5),
-            pw.Text(
-              'Outgoing No: ${outgoing['randomId'] ?? outgoingId}',
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Build Details Table - CORRECTED VERSION
-  pw.Widget _buildDetailsTable(
-    Map<String, dynamic> outgoing,
-    Map<String, dynamic> businessData,
-    Map<String, dynamic> vendorData,
-    String formattedOrderDate,
-    String outgoingId,
-  ) {
-    return pw.Table(
-      border: pw.TableBorder.all(),
-      columnWidths: {
-        0: pw.FlexColumnWidth(2),
-        1: pw.FlexColumnWidth(2),
-        2: pw.FlexColumnWidth(1.5),
-      },
-      children: [
-        // Header Row - Each header correctly aligned with its column
-        pw.TableRow(
-          decoration: pw.BoxDecoration(
-            color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1.0),
-          ),
-          children: [
-            // VENDOR DETAILS Header - Left aligned with vendor details column
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                'VENDOR DETAILS',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-              ),
-            ),
-            // BUSINESS DETAILS Header - Center aligned with business details column
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                'BUSINESS DETAILS',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-              ),
-            ),
-            // OUTGOING DETAILS Header - Right aligned with outgoing details column
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                'OUTGOING DETAILS',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-        // Content Row - Each data column properly aligned under its header
-        pw.TableRow(
-          children: [
-            // VENDOR DETAILS Column - Left aligned
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  _buildDetailRow(
-                    'Name:',
-                    '${vendorData['vendorName'] ?? outgoing['vendorName'] ?? 'N/A'}',
-                  ),
-                  _buildDetailRow(
-                    'GSTIN:',
-                    '${vendorData['gstNumber'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Address:',
-                    '${vendorData['address'] ?? outgoing['address'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'City:',
-                    '${vendorData['city'] ?? outgoing['city'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'State:',
-                    '${vendorData['state'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Country:',
-                    '${vendorData['country'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Email:',
-                    '${vendorData['contactpersonEmail'] ?? outgoing['contactpersonEmail'] ?? 'Not Provided'}',
-                  ),
-                ],
-              ),
-            ),
-            // BUSINESS DETAILS Column - Center aligned
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  _buildDetailRow('Business Name:', 'Best Mummy'),
-                  _buildDetailRow(
-                    'GSTIN:',
-                    '${businessData['gstIn'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Address:',
-                    '${businessData['address1'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Phone:',
-                    '${businessData['phoneNo'] ?? 'Not Provided'}',
-                  ),
-                  _buildDetailRow(
-                    'Email:',
-                    '${businessData['emailId'] ?? 'Not Provided'}',
-                  ),
-                ],
-              ),
-            ),
-            // OUTGOING DETAILS Column - Right aligned
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  _buildDetailRow(
-                    'Outgoing No:',
-                    '${outgoing['randomId'] ?? outgoingId}',
-                  ),
-                  pw.SizedBox(height: 10),
-                  _buildDetailRow('Date:', formattedOrderDate),
-                  pw.SizedBox(height: 10),
-                  _buildDetailRow(
-                    'Invoice No:',
-                    '${outgoing['invoiceNo'] ?? 'N/A'}',
-                  ),
-                  pw.SizedBox(height: 10),
-                  _buildDetailRow('Invoice Date:', formattedOrderDate),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Helper: Build detail row with label and value
-  pw.Widget _buildDetailRow(String label, String value) {
+  pw.Widget _tableHeaderCell(String title) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 4),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+      padding: pw.EdgeInsets.all(6),
+      child: pw.Text(
+        title,
+        style: pw.TextStyle(
+          fontSize: 10,
+          color: PdfColors.white,
+          fontWeight: pw.FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  pw.TableRow _twoCellRow(String left, String right) {
+    return pw.TableRow(
+      children: [
+        pw.Padding(
+          padding: pw.EdgeInsets.all(6),
+          child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(left, style: pw.TextStyle(fontSize: 11)),
           ),
-          pw.SizedBox(width: 5),
-          pw.Expanded(
+        ),
+        pw.Padding(
+          padding: pw.EdgeInsets.all(6),
+          child: pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(right, style: pw.TextStyle(fontSize: 11)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<pw.TableRow> _buildItemRows(List<dynamic> items) {
+    if (items.isEmpty) {
+      return [
+        pw.TableRow(
+          children: List.generate(
+            9,
+            (index) => pw.Padding(
+              padding: pw.EdgeInsets.all(6),
+              child: pw.Text(index == 1 ? 'No items' : ''),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return items.asMap().entries.map<pw.TableRow>((entry) {
+      final index = entry.key;
+      final item = entry.value ?? {};
+
+      // Get tax percentage
+      String taxPercentage = '';
+      if (item.containsKey('purchasetaxName') &&
+          item['purchasetaxName'] != null) {
+        taxPercentage = _safeNum(item['purchasetaxName']).toStringAsFixed(2);
+      }
+
+      return pw.TableRow(
+        children: [
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text('${index + 1}', style: pw.TextStyle(fontSize: 9)),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
             child: pw.Text(
-              value,
-              style: const pw.TextStyle(fontSize: 10),
-              maxLines: 2,
+              item['itemName']?.toString() ?? '',
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              item['hsnCode']?.toString() ?? '',
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              '1', // Count default to 1 if not available
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              _safeFixedString(item['quantity']),
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              _safeFixedString(
+                item['quantity'],
+              ), // PO Qty same as Qty if not available
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              _safeFixedString(item['unitPrice']),
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              taxPercentage.isEmpty ? '' : '$taxPercentage%',
+              style: pw.TextStyle(fontSize: 9),
+            ),
+          ),
+          pw.Padding(
+            padding: pw.EdgeInsets.all(5),
+            child: pw.Text(
+              _safeFixedString(item['totalPrice']),
+              style: pw.TextStyle(fontSize: 9),
             ),
           ),
         ],
-      ),
-    );
+      );
+    }).toList();
   }
 
-  /// Build Items Table
-  pw.Widget _buildItemsTable(
-    Map<String, dynamic> outgoing,
-    List<dynamic> items,
-    String invoiceDate,
-  ) {
-    return pw.Table(
-      border: pw.TableBorder.all(),
-      columnWidths: {
-        0: pw.FlexColumnWidth(1), // Invoice No
-        1: pw.FlexColumnWidth(1), // Invoice Date
-        2: pw.FlexColumnWidth(1.5), // Vendor Name
-        3: pw.FlexColumnWidth(1.2), // Item Name
-        4: pw.FlexColumnWidth(0.8), // Tax Details
-        5: pw.FlexColumnWidth(0.8), // Tax Amount
-        6: pw.FlexColumnWidth(1), // Without Tax
-        7: pw.FlexColumnWidth(1), // With Tax
-      },
-      children: [
-        // Header Row
-        pw.TableRow(
-          decoration: pw.BoxDecoration(
-            color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1.0),
-          ),
-          children: [
-            _buildHeaderCell('INVOICE NO'),
-            _buildHeaderCell('INVOICE DATE'),
-            _buildHeaderCell('VENDOR NAME'),
-            _buildHeaderCell('ITEM NAME'),
-            _buildHeaderCell('TAX %'),
-            _buildHeaderCell('TAX AMOUNT'),
-            _buildHeaderCell('WITHOUT TAX'),
-            _buildHeaderCell('WITH TAX'),
-          ],
-        ),
-        // Data Rows
-        if (items.isEmpty)
-          pw.TableRow(
-            children: List.generate(8, (_) {
-              return pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                alignment: pw.Alignment.center,
-                child: pw.Text('N/A', textAlign: pw.TextAlign.center),
-              );
-            }),
-          )
-        else
-          ...items.map((raw) {
-            final item = (raw is Map<String, dynamic>)
-                ? raw
-                : <String, dynamic>{};
-            final taxPercent = (item['purchasetaxName'] is num)
-                ? (item['purchasetaxName'] as num).toDouble()
-                : 0.0;
-            final taxAmount = (item['taxAmount'] is num)
-                ? (item['taxAmount'] as num).toDouble()
-                : 0.0;
-
-            // Calculate without tax and with tax values
-            String withoutTaxValue = '0.00';
-            String withTaxValue = '0.00';
-            try {
-              if (taxPercent != 0) {
-                withoutTaxValue =
-                    ((taxAmount / (taxPercent / 100)) *
-                            (100 / (100 + taxPercent)))
-                        .toStringAsFixed(2);
-                withTaxValue = (taxAmount / (taxPercent / 100)).toStringAsFixed(
-                  2,
-                );
-              } else {
-                final tp = (item['totalPrice'] is num)
-                    ? (item['totalPrice'] as num).toDouble()
-                    : 0.0;
-                withoutTaxValue = tp.toStringAsFixed(2);
-                withTaxValue = tp.toStringAsFixed(2);
-              }
-            } catch (_) {
-              withoutTaxValue = '0.00';
-              withTaxValue = '0.00';
-            }
-
-            return pw.TableRow(
-              children: [
-                _buildDataCell(outgoing['invoiceNo']?.toString() ?? 'N/A'),
-                _buildDataCell(invoiceDate),
-                _buildDataCell(outgoing['vendorName']?.toString() ?? 'N/A'),
-                _buildDataCell(item['itemName']?.toString() ?? 'N/A'),
-                _buildDataCell(taxPercent.toStringAsFixed(2)),
-                _buildDataCell(taxAmount.toStringAsFixed(2)),
-                _buildDataCell(withoutTaxValue),
-                _buildDataCell(withTaxValue),
-              ],
-            );
-          }).toList(),
-      ],
-    );
+  String _safeFixedString(dynamic value) {
+    final num v = _safeNum(value);
+    return v.toStringAsFixed(2);
   }
 
-  /// Build Summary Table
-  pw.Widget _buildSummaryTable(
-    Map<String, dynamic> outgoing,
-    double paidAmount,
-    double payableAmount,
-  ) {
-    final remainingAmount = (outgoing['totalPayableAmount'] is num)
-        ? (outgoing['totalPayableAmount'] as num).toDouble() - paidAmount
-        : payableAmount - paidAmount;
-
-    return pw.Table(
-      border: pw.TableBorder.all(),
-      columnWidths: {0: pw.FlexColumnWidth(2), 1: pw.FlexColumnWidth(1)},
-      children: [
-        // Header Row
-        pw.TableRow(
-          decoration: pw.BoxDecoration(
-            color: PdfColor(38 / 255, 89 / 255, 198 / 255, 0.1),
-          ),
-          children: [
-            _buildHeaderCell('DESCRIPTION', alignLeft: true),
-            _buildHeaderCell('AMOUNT', alignLeft: false),
-          ],
-        ),
-        // Discount Row
-        pw.TableRow(
-          children: [
-            _buildDataCell('Discount', alignLeft: true),
-            _buildDataCell(
-              '${(outgoing['discountDetails'] is num ? (outgoing['discountDetails'] as num).toDouble().toStringAsFixed(2) : (outgoing['discountDetails']?.toString() ?? '0.00'))}',
-              alignLeft: false,
-            ),
-          ],
-        ),
-        // Paid Amount Row
-        pw.TableRow(
-          children: [
-            _buildDataCell('Paid Amount', alignLeft: true),
-            _buildDataCell(paidAmount.toStringAsFixed(2), alignLeft: false),
-          ],
-        ),
-        // Remaining Amount Row
-        pw.TableRow(
-          children: [
-            _buildDataCell('Remaining Payable Amount', alignLeft: true),
-            _buildDataCell(
-              remainingAmount.toStringAsFixed(2),
-              alignLeft: false,
-            ),
-          ],
-        ),
-        // Total Row
-        pw.TableRow(
-          children: [
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              alignment: pw.Alignment.centerLeft,
-              child: pw.Text(
-                'TOTAL PAYABLE AMOUNT',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              alignment: pw.Alignment.center,
-              child: pw.Text(
-                payableAmount.toStringAsFixed(2),
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  /// Build Amount Section
-  pw.Widget _buildAmountSection(String amountInWords, double payableAmount) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        // Amount in Words
-        pw.Expanded(
-          flex: 3,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Amount in Words:',
-                style: pw.TextStyle(
-                  fontWeight: pw.FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              pw.SizedBox(height: 5),
-              pw.Text(
-                amountInWords,
-                style: pw.TextStyle(
-                  fontSize: 11,
-                  fontStyle: pw.FontStyle.italic,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Total Amount
-        pw.Expanded(
-          flex: 1,
-          child: pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.black, width: 1),
-              borderRadius: pw.BorderRadius.circular(5),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'TOTAL',
-                  style: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-                pw.SizedBox(height: 5),
-                pw.Text(
-                  'Rs. ${payableAmount.toStringAsFixed(2)}',
-                  style: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    fontSize: 16,
-                    color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1.0),
-                  ),
-                ),
-                pw.SizedBox(height: 5),
-                pw.Text(
-                  '(Including Tax)',
-                  style: pw.TextStyle(
-                    fontSize: 10,
-                    fontStyle: pw.FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Helper: Build header cell
-  pw.Widget _buildHeaderCell(String text, {bool alignLeft = false}) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      alignment: alignLeft ? pw.Alignment.centerLeft : pw.Alignment.center,
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          color: PdfColors.white,
-          fontWeight: pw.FontWeight.bold,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
-
-  /// Helper: Build data cell
-  pw.Widget _buildDataCell(String text, {bool alignLeft = false}) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      alignment: alignLeft ? pw.Alignment.centerLeft : pw.Alignment.center,
-      child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
-    );
-  }
-
-  /// Helper: try formatting date strings safely
-  String _tryFormatDateString(String input, DateFormat fmt) {
+  double _safeNum(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
     try {
-      final clean = input.split('.').first.split('+').first.trim();
-      final dt = DateTime.parse(clean);
-      return fmt.format(dt);
+      return double.parse(value.toString());
     } catch (_) {
-      return input.length > 10 ? input.substring(0, 10) : input;
+      return 0.0;
     }
   }
 
-  /// Load logo from assets
-  Future<pw.MemoryImage> _loadLogoImage() async {
-    try {
-      final data = await rootBundle.load('assets/bestmummy.png');
-      return pw.MemoryImage(data.buffer.asUint8List());
-    } catch (e) {
-      print('Error loading logo image: $e');
-      rethrow;
-    }
-  }
-
-  /// Calculate paid amount from outgoing map
-  double _calculatePaidAmountFromMap(Map<String, dynamic> payment) {
-    final status = (payment['status'] ?? '').toString().toLowerCase();
-    if (status == 'fully paid' || status == 'fullypaid') {
-      return (payment['totalPayableAmount'] is num)
-          ? (payment['totalPayableAmount'] as num).toDouble()
-          : 0.0;
-    } else if (status == 'partially paid' || status == 'partiallypaid') {
-      return (payment['partialAmount'] is num)
-          ? (payment['partialAmount'] as num).toDouble()
-          : 0.0;
-    } else if (status == 'advance paid' || status == 'advancepaid') {
-      return (payment['advanceAmount'] is num)
-          ? (payment['advanceAmount'] as num).toDouble()
-          : 0.0;
+  List<pw.Widget> _buildTermsAndConditions(dynamic terms) {
+    if (terms is List && terms.isNotEmpty) {
+      return terms.map<pw.Widget>((term) {
+        return pw.Text(
+          '- ${term?.toString() ?? ''}',
+          style: pw.TextStyle(fontSize: 11),
+        );
+      }).toList();
     } else {
-      final advance = (payment['advanceAmount'] is num)
-          ? (payment['advanceAmount'] as num).toDouble()
-          : 0.0;
-      final partial = (payment['partialAmount'] is num)
-          ? (payment['partialAmount'] as num).toDouble()
-          : 0.0;
-      final full = (payment['fullPaymentAmount'] is num)
-          ? (payment['fullPaymentAmount'] as num).toDouble()
-          : 0.0;
-      return advance + partial + full;
+      return [
+        pw.Text(
+          '1. This payment is against the mentioned invoices.',
+          style: pw.TextStyle(fontSize: 11),
+        ),
+        pw.Text(
+          '2. Subject to Ramanathapuram Jurisdiction Only.',
+          style: pw.TextStyle(fontSize: 11),
+        ),
+      ];
     }
   }
 
-  // Convert amount to words (INR, paise)
   String _amountInWords(double amount) {
-    if (amount == 0) return 'Zero Rupees Only';
-
-    final wholeNumber = amount.toInt();
-    final fraction = ((amount - wholeNumber) * 100).round();
-
-    final wholeWords = _convertNumberToWords(wholeNumber);
+    if (amount <= 0) return 'Zero only';
+    final whole = amount.floor();
+    final fraction = ((amount - whole) * 100).round();
+    final wholeWords = _convertNumberToWords(whole);
     final fractionWords = fraction > 0
-        ? ' and ${_convertNumberToWords(fraction)} Paise'
+        ? ' and ${_convertNumberToWords(fraction)} paise'
         : '';
-
-    return '${wholeWords[0].toUpperCase()}${wholeWords.substring(1)} Rupees$fractionWords Only';
+    final capitalized = wholeWords.isNotEmpty
+        ? wholeWords[0].toUpperCase() + wholeWords.substring(1)
+        : 'Zero';
+    return '$capitalized$fractionWords only';
   }
 
-  // Convert number to words (Indian system)
   String _convertNumberToWords(int number) {
     if (number == 0) return 'zero';
-
     final units = [
       '',
       'one',
@@ -828,42 +764,54 @@ class OutgoingPdf {
       'ninety',
     ];
 
-    if (number < 10) return units[number];
-    if (number < 20) return teens[number - 10];
-    if (number < 100) {
-      final ten = tens[number ~/ 10];
-      final unit = units[number % 10];
-      return unit.isEmpty ? ten : '$ten $unit';
+    String threeDigits(int n) {
+      String str = '';
+      if (n >= 100) {
+        str += '${units[n ~/ 100]} hundred';
+        if (n % 100 != 0) str += ' ';
+      }
+      final rem = n % 100;
+      if (rem >= 20) {
+        str += tens[rem ~/ 10];
+        if (rem % 10 != 0) str += ' ${units[rem % 10]}';
+      } else if (rem >= 10) {
+        str += teens[rem - 10];
+      } else if (rem > 0) {
+        str += units[rem];
+      }
+      return str;
     }
-    if (number < 1000) {
-      final hundred = units[number ~/ 100];
-      final remainder = number % 100;
-      final remainderWords = remainder > 0
-          ? ' ${_convertNumberToWords(remainder)}'
-          : '';
-      return '$hundred hundred$remainderWords';
+
+    final parts = <String>[];
+    if (number >= 10000000) {
+      final crore = number ~/ 10000000;
+      parts.add('${threeDigits(crore)} crore');
+      number = number % 10000000;
     }
-    if (number < 100000) {
-      final thousand = _convertNumberToWords(number ~/ 1000);
-      final remainder = number % 1000;
-      final remainderWords = remainder > 0
-          ? ' ${_convertNumberToWords(remainder)}'
-          : '';
-      return '$thousand thousand$remainderWords';
+    if (number >= 100000) {
+      final lakh = number ~/ 100000;
+      parts.add('${threeDigits(lakh)} lakh');
+      number = number % 100000;
     }
-    if (number < 10000000) {
-      final lakh = _convertNumberToWords(number ~/ 100000);
-      final remainder = number % 100000;
-      final remainderWords = remainder > 0
-          ? ' ${_convertNumberToWords(remainder)}'
-          : '';
-      return '$lakh lakh$remainderWords';
+    if (number >= 1000) {
+      final thousand = number ~/ 1000;
+      parts.add('${threeDigits(thousand)} thousand');
+      number = number % 1000;
     }
-    final crore = _convertNumberToWords(number ~/ 10000000);
-    final remainder = number % 10000000;
-    final remainderWords = remainder > 0
-        ? ' ${_convertNumberToWords(remainder)}'
-        : '';
-    return '$crore crore$remainderWords';
+    if (number > 0) {
+      parts.add(threeDigits(number));
+    }
+    return parts.join(' ').trim();
+  }
+
+  String _joinNonEmpty(List<String?> values, {String separator = ', '}) {
+    final List<String> nonEmpty = [];
+    for (var s in values) {
+      if (s != null) {
+        final trimmed = s.toString().trim();
+        if (trimmed.isNotEmpty) nonEmpty.add(trimmed);
+      }
+    }
+    return nonEmpty.join(separator);
   }
 }

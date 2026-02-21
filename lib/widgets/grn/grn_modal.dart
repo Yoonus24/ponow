@@ -286,24 +286,23 @@ class _GRNModalState extends State<GRNModal> {
     final double freightTax = grn.totalFreightTaxAmount ?? 0.0;
     final double freightTotal = freightAmount + freightTax;
 
-    // 🔹 AUTO ROUND (already stored in GRN)
-    final double grnRounded =
-        grn.grnAmount ?? grn.totalReceivedAmount ?? itemTotal;
+    final double backendFinal =
+        grn.grnAmount ?? grn.totalReceivedAmount ?? (itemTotal + freightTotal);
 
-    final double autoRound = grnRounded - itemTotal;
+    final double autoRound = backendFinal - (itemTotal + freightTotal);
 
-    // 🔹 MANUAL ROUND
     final double manualRound = grn.roundOffAdjustment ?? 0.0;
 
-    // 🔥 FINAL TOTAL = item + freight + auto + manual
-    final double finalTotal =
-        itemTotal + freightTotal + autoRound + manualRound;
+    final double finalTotal = (itemTotal + freightTotal) + manualRound;
 
     return {
       'totalItemsAmount': itemTotal,
       'freightAmount': freightTotal,
-      'roundOff': autoRound + manualRound,
+      'roundOff': manualRound,
+      'autoRound': autoRound,
+
       'totalReceivedAmount': finalTotal,
+
       'totalSGST': totalSGST,
       'totalCGST': totalCGST,
       'totalIGST': totalIGST,
@@ -327,18 +326,17 @@ class _GRNModalState extends State<GRNModal> {
           return;
         }
 
-        setState(() {
-          roundOffNotifier.value = doubleVal;
+        // Update model
+        grn.roundOffAdjustment = doubleVal;
+        grn.grnRoundOffAmount = doubleVal;
 
-          // 🔥 Update BOTH fields to stay safe
-          grn.roundOffAdjustment = doubleVal;
-          grn.grnRoundOffAmount = doubleVal;
-        });
+        // Update notifier
+        roundOffNotifier.value = doubleVal;
 
-        // 🔥 Force totals refresh
+        // Recalculate totals
         totalsNotifier.value = _recalculateGRNTotal();
 
-        print('✅ Manual Round Off Updated: $doubleVal');
+        print('Manual Round Off Updated: $doubleVal');
       },
     );
   }
@@ -565,12 +563,30 @@ class _GRNModalState extends State<GRNModal> {
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blueAccent, // text color
+            ),
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text("Cancel"),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
+
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent, // button color
+              foregroundColor: Colors.white, // text color
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(25),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text("Convert"),
+            child: const Text(
+              "Convert",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -581,41 +597,32 @@ class _GRNModalState extends State<GRNModal> {
     try {
       isConverting.value = true;
 
-      // 🔢 STEP 1: Calculate item total
+      // 🔹 Step 1: Exact item total (NO rounding)
       final double itemTotal = (grn.itemDetails ?? []).fold<double>(
         0.0,
         (sum, item) => sum + (item.finalPrice ?? 0.0),
       );
 
-      // 🔢 STEP 2: Get GRN rounded amount (AUTO rounded)
-      final double grnRounded =
-          grn.grnAmount ?? grn.totalReceivedAmount ?? itemTotal;
-
-      // 🔢 STEP 3: Calculate AUTO round difference
-      final double autoRound = grnRounded - itemTotal;
-
-      // 🔢 STEP 4: Get manual round entered by user
+      // 🔹 Step 2: Manual round ONLY (user input)
       final double manualRound = grn.roundOffAdjustment ?? 0.0;
 
-      // 🔢 STEP 5: Combine auto + manual
-      final double totalRoundToSend = autoRound + manualRound;
+      // 🔹 Step 3: FINAL AP amount (same as UI)
+      final double apFinal = itemTotal + manualRound;
 
-      // 🔢 STEP 6: Final AP amount (for log only)
-      final double apFinal = itemTotal + totalRoundToSend;
+      print('🧮 Item Total   : $itemTotal');
+      print('🧮 Manual Round : $manualRound');
+      print('➡️ AP Final     : $apFinal');
 
-      print('🧮 Item Total      : $itemTotal');
-      print('🧮 GRN Rounded     : $grnRounded');
-      print('🧮 Auto Round      : $autoRound');
-      print('🧮 Manual Round    : $manualRound');
-      print('🧮 Total Round     : $totalRoundToSend');
-      print('➡️ AP Final        : $apFinal');
-
+      // 🔥 IMPORTANT: send ONLY manual round (no auto round)
       final result = await context
           .read<GRNProvider>()
           .convertGrnToApAndOutgoing(
             grnId: grn.grnId ?? '',
             discountPrice: grn.discountPrice ?? 0.0,
-            roundOffAdjustment: totalRoundToSend,
+
+            // ✅ FIXED HERE
+            roundOffAdjustment: manualRound,
+
             itemUpdates:
                 grn.itemDetails
                     ?.map(

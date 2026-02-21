@@ -24,7 +24,7 @@ class GRNProvider with ChangeNotifier {
 
   static const String _baseApi = 'http://192.168.29.184:8000/nextjstestapi';
   static const String _grnBase = '$_baseApi/grns';
-  static const String _grnListEndpoint = '$_grnBase/getAll';
+  static const String _grnListEndpoint = '$_grnBase/';
 
   static const String _returnReasonsEndpoint =
       '$_grnBase/getgrn/return-reasons';
@@ -68,12 +68,14 @@ class GRNProvider with ChangeNotifier {
 
   void setFilterStatus(String status) {
     _filterStatus = status;
+    _skip = 0; // ✅ reset pagination
+
     print('🔎 Filter Status (raw): $_filterStatus');
 
     if (status == 'returned') {
       fetchReturnedGRNs();
     } else {
-      fetchFilteredGRNs();
+      fetchFilteredGRNs(status: normalizeStatus(status));
     }
   }
 
@@ -199,10 +201,45 @@ class GRNProvider with ChangeNotifier {
         _grns = [];
       }
     } catch (e) {
-      _error = "Error fetching GRNs: $e";
+      if (e is DioException) {
+        _error = _getReadableError(e);
+      } else {
+        _error = "Something went wrong.";
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  String _getReadableError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return "Request timed out.";
+
+      case DioExceptionType.connectionError:
+        return "No internet connection.";
+
+      case DioExceptionType.badResponse:
+        final statusCode = e.response?.statusCode ?? 0;
+
+        if (statusCode >= 500) {
+          return "Server error.";
+        } else if (statusCode == 404) {
+          return "Data not found.";
+        } else if (statusCode == 400) {
+          return "Invalid request.";
+        } else {
+          return "Something went wrong.";
+        }
+
+      case DioExceptionType.cancel:
+        return "Request cancelled.";
+
+      default:
+        return "Unexpected error.";
     }
   }
 
@@ -236,16 +273,15 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final currentDate = DateTime.now();
+      final currentDate = ServerTimeService.now;
+
       final formattedDate = DateFormat(
         'yyyy-MM-ddTHH:mm:ss',
       ).format(currentDate);
 
-      grn.status = newStatus;
-      grn.lastUpdatedDate = formattedDate;
-
       final response = await _dio.patch(
         '$_grnBase/${grn.grnId}',
+        data: {"status": newStatus, "lastUpdatedDate": formattedDate},
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -255,10 +291,12 @@ class GRNProvider with ChangeNotifier {
       if (response.statusCode == 200) {
         final updatedGrn = GRN.fromJson(response.data);
         final index = _grns.indexWhere((item) => item.grnId == grn.grnId);
+
         if (index != -1) {
           _grns[index] = updatedGrn;
           notifyListeners();
         }
+
         return true;
       } else {
         throw Exception('Failed to update GRN: ${response.data}');
@@ -491,7 +529,8 @@ class GRNProvider with ChangeNotifier {
 
       final requestBody = {
         "scenario": data.scenario?.toLowerCase() ?? "",
-        "returnedDate": (data.returnedDate ?? DateTime.now()).toIso8601String(),
+        "returnedDate": (data.returnedDate ?? ServerTimeService.now)
+            .toIso8601String(),
         "returnedBy": data.returnedBy,
         "comments": data.comments ?? "",
         "items": data.items

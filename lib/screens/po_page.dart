@@ -48,8 +48,8 @@ class _POPageState extends State<POPage> {
                   const SizedBox(height: 200),
                   Center(
                     child: Text(
-                      'Error: ${poProvider.error}',
-                      style: const TextStyle(color: Colors.red),
+                      '${poProvider.error}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
                     ),
                   ),
                 ],
@@ -64,13 +64,13 @@ class _POPageState extends State<POPage> {
 
             if (pendingOrders.isEmpty) {
               return ListView(
-                physics: const AlwaysScrollableScrollPhysics(), 
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 200),
                   Center(
                     child: Text(
                       'No pending purchase orders available.',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                      style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ),
                 ],
