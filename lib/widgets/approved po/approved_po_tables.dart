@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_logic.dart';
 import 'package:purchaseorders2/widgets/approved po/table_components.dart';
 
@@ -468,8 +469,7 @@ class ApprovedPOTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
               child: InkWell(
                 onTap: () async {
-                  DateTime initialDate = DateTime.now();
-
+                  DateTime initialDate = ServerTimeService.now;
                   if ((item.expiryDate).isNotEmpty) {
                     try {
                       final parts = item.expiryDate.split('-');
@@ -484,7 +484,7 @@ class ApprovedPOTable extends StatelessWidget {
                   final DateTime? picked = await showDatePicker(
                     context: context,
                     initialDate: initialDate,
-                    firstDate: DateTime.now(),
+                    firstDate: ServerTimeService.now,
                     lastDate: DateTime(2101),
                     builder: (context, child) {
                       return Theme(

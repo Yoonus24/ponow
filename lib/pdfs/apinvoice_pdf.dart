@@ -12,7 +12,7 @@ import 'package:flutter/services.dart' show rootBundle;
 class APInvoicePDF {
   static const String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
   static const String businessUrl =
-      'https://yenerp.com/purchaseapi/pobusiness/';
+      'http://192.168.29.184:8000/nextjstestapi/pobusiness/';
   static const String vendorBaseUrl =
       'http://192.168.29.184:8000/nextjstestapi/vendors/exact-name/';
 

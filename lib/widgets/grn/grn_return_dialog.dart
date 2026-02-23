@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../../models/grn.dart';
 import '../../providers/grn_provider.dart';
 import 'package:provider/provider.dart';
@@ -63,7 +64,7 @@ class _GRNModalState extends State<GRNReturn> {
     scenarioNotifier = ValueNotifier<String?>(null);
     grnId = grn.grnId ?? '';
     returnedBy = 'user123';
-    returnDateNotifier = ValueNotifier<DateTime?>(DateTime.now());
+    returnDateNotifier = ValueNotifier<DateTime?>(ServerTimeService.now);
     itemReasonsNotifier = ValueNotifier<Map<int, String>>({});
     itemsNotifier = ValueNotifier<List<Map<String, dynamic>>?>([]);
     reasonErrorNotifier = ValueNotifier<String?>(null);
@@ -1766,7 +1767,7 @@ class _GRNModalState extends State<GRNReturn> {
   String formatDate(String? date) {
     if (date == null || date.isEmpty) return 'No Date';
     try {
-      final DateTime parsedDate = DateTime.parse(date);
+      final DateTime parsedDate = DateTime.parse(date).toUtc().toLocal();
       return DateFormat('dd MMM yyyy').format(parsedDate);
     } catch (e) {
       print('Error formatting date $date: $e');

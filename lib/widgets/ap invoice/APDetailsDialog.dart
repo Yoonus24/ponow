@@ -244,7 +244,7 @@
 //   static String _formatDate(String? date) {
 //     if (date == null || date.isEmpty) return 'No Date';
 //     try {
-//       final DateTime parsedDate = DateTime.parse(date);
+//       final DateTime parsedDate = DateTime.parse(date).toUtc().toLocal();
 //       return DateFormat('dd MMM yyyy').format(parsedDate);
 //     } catch (e) {
 //       return date;

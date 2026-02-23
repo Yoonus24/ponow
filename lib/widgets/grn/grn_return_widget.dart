@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/grn/view_grn_modal.dart';
 
 class GRNReturnWidget extends StatefulWidget {
@@ -323,7 +324,7 @@ class _GRNReturnWidgetState extends State<GRNReturnWidget> {
                                                     allReturnEntries[i]['returnDate'] ??
                                                         '',
                                                   ) ??
-                                                  DateTime.now(),
+                                                  ServerTimeService.now,
                                             ),
                                             textAlign: TextAlign.center,
                                             style: const TextStyle(

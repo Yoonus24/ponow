@@ -315,7 +315,9 @@ class GRNDetailsDialog extends StatelessWidget {
   String _formatDate(String? date) {
     if (date == null || date.isEmpty) return 'N/A';
     try {
-      return DateFormat('dd-MM-yyyy').format(DateTime.parse(date));
+      return DateFormat(
+        'dd-MM-yyyy',
+      ).format(DateTime.parse(date).toUtc().toLocal());
     } catch (e) {
       return date;
     }

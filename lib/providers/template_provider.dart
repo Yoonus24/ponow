@@ -164,6 +164,8 @@ class TemplateProvider extends ChangeNotifier {
   }
 
   PO convertTemplateToPO(POTemplate template) {
+    final now = ServerTimeService.now.toIso8601String();
+
     return PO(
       purchaseOrderId: '',
       vendorName: template.vendorName,
@@ -185,8 +187,8 @@ class TemplateProvider extends ChangeNotifier {
       gstNumber: template.gstNumber,
       creditLimit: template.creditLimit,
       poStatus: 'Pending for Approve',
-      orderDate: DateTime.now().toIso8601String(),
-      createdDate: DateTime.now().toIso8601String(),
+      orderDate: now,
+      createdDate: now,
       randomId: '',
     );
   }

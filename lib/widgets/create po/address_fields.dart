@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../../models/shippingandbillingaddress.dart';
 
 class AddressFields {
@@ -26,8 +27,8 @@ class AddressFields {
               DateTime orderDate =
                   notifier.orderedDateController.text.isNotEmpty
                   ? (parseDate(notifier.orderedDateController.text) ??
-                        DateTime.now())
-                  : DateTime.now();
+                        ServerTimeService.now)
+                  : ServerTimeService.now;
 
               final selectedValue = await showMenu<int>(
                 context: context,

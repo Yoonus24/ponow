@@ -370,27 +370,6 @@ class POProvider extends ChangeNotifier {
     });
   }
 
-  // Future<String> getServerDate() async {
-  //   try {
-  //     final response = await _dio.get("https://yenerp.com/liveapi/datetime");
-
-  //     if (response.statusCode == 200) {
-  //       final date = response.data["current_date"];
-  //       final time = response.data["current_time"];
-
-  //       final combined = "$date $time";
-
-  //       final parsed = DateFormat("dd-MM-yyyy hh:mm a").parse(combined);
-
-  //       return parsed.toIso8601String();
-  //     }
-  //   } catch (e) {
-  //     print("❌ Server time failed → fallback device time");
-  //   }
-
-  //   return DateTime.now().toIso8601String();
-  // }
-
   Future<void> fetchPOsWithFilters({
     String? status,
     String? vendorName,
@@ -1163,8 +1142,6 @@ class POProvider extends ChangeNotifier {
 
   Future<void> approvePo(String purchaseOrderId, String status, PO po) async {
     try {
-      await ServerTimeService.refresh();
-
       final now = ServerTimeService.now.toIso8601String();
 
       final Map<String, dynamic> body = {
@@ -1316,10 +1293,32 @@ class POProvider extends ChangeNotifier {
         orElse: () => throw Exception("PO not found"),
       );
 
-      // ✅ Update GRN with round-off + freight
+      // 🔥 ✅ FIX START — calculate correct GRN total
+      final double itemTotal = currentPo.items.fold(
+        0.0,
+        (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
+      );
+
+      final double freight =
+          (currentPo.totalFreightAmount ?? 0.0) +
+          (currentPo.totalFreightTaxAmount ?? 0.0);
+
+      final double round = roundOffAdjustment ?? 0.0;
+
+      final double finalTotal = itemTotal + freight + round;
+
+      print('🧮 PO Item Total : $itemTotal');
+      print('🚚 Freight       : $freight');
+      print('🔄 Round         : $round');
+      print('✅ GRN Final     : $finalTotal');
+      // 🔥 ✅ FIX END
+
+      // ✅ Update GRN with round-off + freight + FINAL TOTAL
       final Map<String, dynamic> updateBody = {
         'roundOffAdjustment': roundOffAdjustment ?? 0.0,
         'grnRoundOffAmount': roundOffAdjustment ?? 0.0,
+
+        'grnAmount': finalTotal,
 
         // ✅ Freight copy from PO → GRN
         'freights': currentPo.freights?.map((f) => f.toJson()).toList() ?? [],
@@ -1535,141 +1534,10 @@ class POProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      await ServerTimeService.refresh();
-
-      String formatDateForBackend(String? dateStr) {
-        if (dateStr == null || dateStr.isEmpty) return "";
-
-        try {
-          if (dateStr.contains('-') && dateStr.split('-')[0].length == 4) {
-            return dateStr;
-          }
-
-          if (dateStr.contains('-') && dateStr.split('-')[0].length == 2) {
-            final parts = dateStr.split('-');
-            if (parts.length == 3) {
-              return "${parts[2]}-${parts[1]}-${parts[0]}";
-            }
-          }
-
-          final date = DateTime.tryParse(dateStr);
-          if (date != null) {
-            return DateFormat('yyyy-MM-dd').format(date);
-          }
-
-          return dateStr;
-        } catch (_) {
-          return dateStr;
-        }
-      }
-
+      final now = ServerTimeService.now.toIso8601String();
       final Map<String, dynamic> updateData = {
+        "lastUpdatedDate": now,
         "vendorName": po.vendorName,
-        "vendorContact": po.vendorContact ?? "",
-        "expectedDeliveryDate": formatDateForBackend(po.expectedDeliveryDate),
-        "orderedDate": formatDateForBackend(po.orderedDate),
-        "items": po.items.map((item) {
-          double base =
-              (item.quantity ?? 0.0) *
-              (item.newPrice ?? item.existingPrice ?? 0.0);
-
-          double befTaxToSend = item.befTaxDiscount ?? 0.0;
-          if (item.befTaxDiscountType == 'amount') {
-            befTaxToSend = base > 0
-                ? ((item.befTaxDiscountAmount ?? 0.0) / base) * 100
-                : 0.0;
-          }
-
-          double afterBef = base - (item.befTaxDiscountAmount ?? 0.0);
-
-          double afTaxToSend = item.afTaxDiscount ?? 0.0;
-          if (item.afTaxDiscountType == 'amount') {
-            afTaxToSend = afterBef > 0
-                ? ((item.afTaxDiscountAmount ?? 0.0) / afterBef) * 100
-                : 0.0;
-          }
-
-          String? expiryDate = item.expiryDate;
-          if (expiryDate != null && expiryDate.isNotEmpty) {
-            expiryDate = formatDateForBackend(expiryDate);
-          } else {
-            expiryDate = null;
-          }
-
-          return {
-            "itemId": item.itemId ?? "",
-            "itemName": item.itemName ?? "",
-            "quantity": item.quantity ?? 0.0,
-            "poQuantity": item.poQuantity ?? item.quantity ?? 0.0,
-            "purchasecategoryName": item.purchasecategoryName ?? "",
-            "purchasesubcategoryName": item.purchasesubcategoryName ?? "",
-            "uom": item.uom ?? "",
-            "count": item.count ?? 1.0,
-            "eachQuantity": item.eachQuantity ?? 0.0,
-            "receivedQuantity": item.receivedQuantity ?? 0.0,
-            "damagedQuantity": item.damagedQuantity ?? 0.0,
-            "taxPercentage": item.taxPercentage ?? 0.0,
-            "existingPrice": item.existingPrice ?? 0.0,
-            "newPrice": item.newPrice ?? 0.0,
-            "taxType": item.taxType ?? 'cgst_sgst',
-            "befTaxDiscount": double.parse(befTaxToSend.toStringAsFixed(2)),
-            "afTaxDiscount": double.parse(afTaxToSend.toStringAsFixed(2)),
-            "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
-            "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
-            "befTaxDiscountType": item.befTaxDiscountType ?? 'percentage',
-            "afTaxDiscountType": item.afTaxDiscountType ?? 'percentage',
-            "discountAmount": item.discountAmount ?? 0.0,
-            "taxAmount": item.taxAmount ?? 0.0,
-            "barcode": item.barcode ?? "",
-            "pendingCount": item.pendingCount ?? item.count ?? 1.0,
-            "pendingQuantity": item.pendingQuantity ?? item.eachQuantity ?? 0.0,
-            "pendingTotalQuantity":
-                item.pendingTotalQuantity ?? item.quantity ?? 0.0,
-            "pendingBefTaxDiscountAmount":
-                item.pendingBefTaxDiscountAmount ??
-                item.befTaxDiscountAmount ??
-                0.0,
-            "pendingAfTaxDiscountAmount":
-                item.pendingAfTaxDiscountAmount ??
-                item.afTaxDiscountAmount ??
-                0.0,
-            "pendingTaxAmount": item.pendingTaxAmount ?? item.taxAmount ?? 0.0,
-            "pendingDiscountAmount":
-                item.pendingDiscountAmount ?? item.discountAmount ?? 0.0,
-            "pendingSgst": item.pendingSgst ?? 0.0,
-            "pendingCgst": item.pendingCgst ?? 0.0,
-            "pendingIgst": item.pendingIgst ?? 0.0,
-            "pendingTotalPrice":
-                item.pendingTotalPrice ?? item.totalPrice ?? 0.0,
-            "pendingFinalPrice":
-                item.pendingFinalPrice ?? item.finalPrice ?? 0.0,
-            "status": item.status ?? "active",
-            "expiryDate": expiryDate,
-          };
-        }).toList(),
-        "totalOrderAmount": po.totalOrderAmount ?? 0.0,
-        "pendingOrderAmount":
-            po.pendingOrderAmount ?? po.totalOrderAmount ?? 0.0,
-        "pendingDiscountAmount": po.pendingDiscountAmount ?? 0.0,
-        "pendingTaxAmount": po.pendingTaxAmount ?? 0.0,
-        "paymentTerms": po.paymentTerms ?? "",
-        "shippingAddress": po.shippingAddress ?? "",
-        "billingAddress": po.billingAddress ?? "",
-        "contactpersonEmail": po.contactpersonEmail ?? "",
-        "address": po.address ?? "",
-        "country": po.country ?? "",
-        "state": po.state ?? "",
-        "city": po.city ?? "",
-        "postalCode": po.postalCode ?? 0,
-        "gstNumber": po.gstNumber ?? "",
-        "creditLimit": po.creditLimit ?? 0,
-        "poStatus": po.poStatus ?? "Pending",
-        "lastUpdatedDate": ServerTimeService.now.toIso8601String(),
-        "roundOffAdjustment": po.roundOffAdjustment ?? 0.0,
-        "roundOffValue": po.roundOffAdjustment ?? 0.0,
-        "freightDetails": po.freights?.map((f) => f.toJson()).toList() ?? [],
-        "totalFreightAmount": po.totalFreightAmount ?? 0.0,
-        "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
       };
 
       final response = await _dio.patch(
@@ -1717,7 +1585,6 @@ class POProvider extends ChangeNotifier {
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
 
-      // ✅ NEW — fetch PO for freight sync
       final PO po = _pos.firstWhere(
         (p) => p.purchaseOrderId == poId,
         orElse: () => throw Exception("PO not found for freight sync"),
@@ -1785,8 +1652,6 @@ class POProvider extends ChangeNotifier {
         "roundOffAdjustment": roundOffAdjustment ?? 0.0,
         "grnRoundOffAmount": roundOffAdjustment ?? 0.0,
         "poId": poId,
-
-        // ✅ NEW — freight sync
         "freights": po.freights?.map((f) => f.toJson()).toList() ?? [],
         "totalFreightAmount": po.totalFreightAmount ?? 0.0,
         "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
@@ -1829,7 +1694,7 @@ class POProvider extends ChangeNotifier {
   Future<void> fetchFreightNames() async {
     try {
       final response = await _dio.get(
-        'http://192.168.29.184:8000/nextjstestapi/freights/',
+        'https://yenerp.com/nextjstestapi/freights/',
       );
 
       if (response.statusCode == 200) {
@@ -1958,7 +1823,9 @@ class POProvider extends ChangeNotifier {
           return "${parts[2]}-${parts[1]}-${parts[0]}";
         }
       }
-      return DateFormat('yyyy-MM-dd').format(DateTime.parse(date));
+      return DateFormat(
+        'yyyy-MM-dd',
+      ).format(DateTime.parse(date).toUtc().toLocal());
     } catch (e) {
       return date;
     }
@@ -1988,8 +1855,8 @@ class POProvider extends ChangeNotifier {
     _error = null;
 
     try {
-      await ServerTimeService.refresh();
-      final String formattedDate = ServerTimeService.now.toIso8601String();
+      final String now = ServerTimeService.now.toIso8601String();
+
       String formatDateForBackend(String dateString) {
         if (dateString.isEmpty) return "";
         try {
@@ -2095,7 +1962,6 @@ class POProvider extends ChangeNotifier {
 
       final double roundOffValue = po.roundOffAdjustment ?? 0.0;
 
-      // ✅ Include freight in final amount
       final double finalAmount =
           totalPendingAmount +
           totalFreightAmount +
@@ -2106,9 +1972,9 @@ class POProvider extends ChangeNotifier {
           finalAmount > (selectedVendorDetails.creditLimit ?? 0);
 
       final updatedPO = po.copyWith(
-        orderDate: formattedDate,
-        createdDate: formattedDate,
-        lastUpdatedDate: formattedDate,
+        orderDate: now,
+        createdDate: now,
+        lastUpdatedDate: now,
         approvedDate: null,
         rejectedDate: null,
         invoiceDate: null,

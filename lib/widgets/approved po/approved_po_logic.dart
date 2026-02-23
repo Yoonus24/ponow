@@ -718,7 +718,7 @@ class ApprovedPOLogic {
   Future<void> selectInvoiceDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: ServerTimeService.now,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
       builder: (context, child) {
@@ -749,8 +749,7 @@ class ApprovedPOLogic {
   }
 
   Future<void> selectExpiryDate(BuildContext context, Item item) async {
-    final DateTime now = DateTime.now();
-
+    final DateTime now = ServerTimeService.now;
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: now,
@@ -933,9 +932,20 @@ class ApprovedPOLogic {
         );
       }).toList();
 
-      final DateTime parsedInvoiceDate = DateFormat(
+      final pickedDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
+
+      final now = ServerTimeService.now;
+
+      final DateTime parsedInvoiceDate = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        now.hour,
+        now.minute,
+        now.second,
+      );
 
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,

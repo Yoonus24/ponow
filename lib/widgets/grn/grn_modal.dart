@@ -112,53 +112,56 @@ class _GRNModalState extends State<GRNModal> {
   @override
   void initState() {
     super.initState();
+
     grn = widget.grn;
+
+    // ✅ Sync header scroll with body scroll
+    _contentScrollController.addListener(() {
+      if (_headerScrollController.hasClients) {
+        _headerScrollController.jumpTo(_contentScrollController.offset);
+      }
+    });
+
+    // ✅ FIX: Do NOT load auto round into field
+    // Manual round only
+    grn.roundOffAdjustment = 0.0;
+
+    roundOffController.text = '0.00';
+    roundOffNotifier.value = 0.0;
 
     commonDiscountController.text = (grn.discountPrice ?? 0.0).toStringAsFixed(
       2,
     );
     commonDiscountNotifier.value = grn.discountPrice ?? 0.0;
 
-    roundOffController.text = (grn.roundOffAdjustment ?? 0.0).toStringAsFixed(
-      2,
-    );
-    roundOffNotifier.value = grn.roundOffAdjustment ?? 0.0;
-
-    print('Round Off from GRN: ${grn.roundOffAdjustment}');
-    print('Total Received from GRN: ${grn.totalReceivedAmount}');
-
     if (grn.itemDetails != null) {
       for (var item in grn.itemDetails!) {
         String itemId = item.itemId ?? 'item_${grn.itemDetails!.indexOf(item)}';
 
-        String initialExpiryDate = item.expiryDate ?? '';
-        if (initialExpiryDate.isNotEmpty) {
-          try {
-            DateTime parsedDate = DateTime.parse(initialExpiryDate);
-            initialExpiryDate = DateFormat('dd-MM-yyyy').format(parsedDate);
-          } catch (e) {
-            print('Error parsing expiry date for item $itemId: $e');
-          }
-        }
-
         expiryDateControllers[itemId] = TextEditingController(
-          text: initialExpiryDate,
+          text: _formatExpiryDate(item.expiryDate),
         );
+
         nosControllers[itemId] = TextEditingController(
           text: item.nos?.toString() ?? '0',
         );
+
         eachQuantityControllers[itemId] = TextEditingController(
           text: item.eachQuantity?.toString() ?? '0',
         );
+
         receivedQtyControllers[itemId] = TextEditingController(
           text: item.receivedQuantity?.toString() ?? '0',
         );
+
         returnedQtyControllers[itemId] = TextEditingController(
           text: item.returnedQuantity?.toString() ?? '0',
         );
+
         befTaxDiscountControllers[itemId] = TextEditingController(
           text: item.befTaxDiscount?.toString() ?? '0',
         );
+
         afTaxDiscountControllers[itemId] = TextEditingController(
           text: item.afTaxDiscount?.toString() ?? '0',
         );
@@ -166,6 +169,7 @@ class _GRNModalState extends State<GRNModal> {
         befTaxDiscountNotifiers[itemId] = ValueNotifier(
           item.befTaxDiscount ?? 0.0,
         );
+
         afTaxDiscountNotifiers[itemId] = ValueNotifier(
           item.afTaxDiscount ?? 0.0,
         );
@@ -175,15 +179,17 @@ class _GRNModalState extends State<GRNModal> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       totalsNotifier.value = _recalculateGRNTotal();
     });
+  }
 
-    _contentScrollController.addListener(() {
-      if (_contentScrollController.hasClients &&
-          _headerScrollController.hasClients) {
-        if (_contentScrollController.position.activity?.isScrolling ?? false) {
-          _headerScrollController.jumpTo(_contentScrollController.offset);
-        }
-      }
-    });
+  String _formatExpiryDate(String? date) {
+    if (date == null || date.isEmpty) return '';
+
+    try {
+      final parsed = DateTime.parse(date);
+      return DateFormat('dd-MM-yyyy').format(parsed);
+    } catch (e) {
+      return date; // fallback
+    }
   }
 
   @override
@@ -275,6 +281,8 @@ class _GRNModalState extends State<GRNModal> {
     double totalCGST = 0.0;
     double totalIGST = 0.0;
 
+    double totalDiscount = grn.totalDiscount?.toDouble() ?? 0.0;
+
     for (final item in grn.itemDetails ?? []) {
       itemTotal += item.finalPrice ?? 0.0;
       totalSGST += item.sgst ?? 0.0;
@@ -286,23 +294,23 @@ class _GRNModalState extends State<GRNModal> {
     final double freightTax = grn.totalFreightTaxAmount ?? 0.0;
     final double freightTotal = freightAmount + freightTax;
 
-    final double backendFinal =
-        grn.grnAmount ?? grn.totalReceivedAmount ?? (itemTotal + freightTotal);
+    final double baseTotal =
+        grn.totalReceivedAmount?.toDouble() ?? (itemTotal + freightTotal);
+    // ❌ AUTO ROUND COMPLETELY REMOVED
+    double autoRound = 0.0;
 
-    final double autoRound = backendFinal - (itemTotal + freightTotal);
-
+    // ✅ Manual only
     final double manualRound = grn.roundOffAdjustment ?? 0.0;
 
-    final double finalTotal = (itemTotal + freightTotal) + manualRound;
+    final double finalTotal = baseTotal + manualRound;
 
     return {
       'totalItemsAmount': itemTotal,
       'freightAmount': freightTotal,
       'roundOff': manualRound,
-      'autoRound': autoRound,
-
+      'autoRound': autoRound, // always 0
       'totalReceivedAmount': finalTotal,
-
+      'totalDiscount': totalDiscount,
       'totalSGST': totalSGST,
       'totalCGST': totalCGST,
       'totalIGST': totalIGST,
@@ -318,25 +326,17 @@ class _GRNModalState extends State<GRNModal> {
     showNumericCalculator(
       context: context,
       controller: roundOffController,
-      varianceName: 'Round Off Adjustment',
+      varianceName: 'Manual Round Off',
       onValueSelected: () {
         final doubleVal = double.tryParse(roundOffController.text) ?? 0.0;
 
-        if (!_validateRoundOff(doubleVal)) {
-          return;
-        }
+        if (!_validateRoundOff(doubleVal)) return;
 
-        // Update model
         grn.roundOffAdjustment = doubleVal;
-        grn.grnRoundOffAmount = doubleVal;
-
-        // Update notifier
         roundOffNotifier.value = doubleVal;
-
-        // Recalculate totals
         totalsNotifier.value = _recalculateGRNTotal();
 
-        print('Manual Round Off Updated: $doubleVal');
+        print('Manual Round Updated: $doubleVal');
       },
     );
   }
@@ -358,7 +358,11 @@ class _GRNModalState extends State<GRNModal> {
     VoidCallback onConfirm,
   ) {
     final totals = _recalculateGRNTotal();
-    final double roundOff = totals['roundOff'] ?? 0.0;
+
+    // ✅ combined round
+    final double roundOff =
+        (totals['roundOff'] ?? 0.0) + (totals['autoRound'] ?? 0.0);
+
     if (!_validateRoundOff(roundOff)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -384,107 +388,16 @@ class _GRNModalState extends State<GRNModal> {
                 const SizedBox(height: 16),
 
                 if (roundOff != 0)
-                  Column(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Round Off Adjustment:',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey[700],
-                            ),
-                          ),
-                          Text(
-                            '₹ ${roundOff.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[900],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+                      Text('Round Off Adjustment:'),
+                      Text('₹ ${roundOff.toStringAsFixed(2)}'),
                     ],
                   ),
 
-                const Text(
-                  "Item Details:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: const [
-                          _HeaderCell(text: 'Item Name', width: 100),
-                          _HeaderCell(text: 'Received Qty', width: 80),
-                          _HeaderCell(text: 'Returned Qty', width: 80),
-                          _HeaderCell(text: 'Total Price', width: 80),
-                          _HeaderCell(text: 'Final Price', width: 80),
-                        ],
-                      ),
-                      ...List.generate(grn.itemDetails?.length ?? 0, (index) {
-                        final item = grn.itemDetails![index];
-                        return Row(
-                          children: [
-                            _DataCell(text: item.itemName ?? '', width: 100),
-                            _DataCell(
-                              text: '${item.receivedQuantity ?? 0}',
-                              width: 80,
-                            ),
-                            _DataCell(
-                              text: '${item.returnedQuantity ?? 0}',
-                              width: 80,
-                            ),
-                            _DataCell(
-                              text: (item.totalPrice ?? 0).toStringAsFixed(2),
-                              width: 80,
-                            ),
-                            _DataCell(
-                              text: (item.finalPrice ?? 0).toStringAsFixed(2),
-                              width: 80,
-                            ),
-                          ],
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "Summary:",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
 
-                _buildSummaryRow(
-                  "Applied Discount",
-                  totals['commonDiscount']?.toStringAsFixed(2) ?? '0.00',
-                ),
-                if (roundOff != 0)
-                  _buildSummaryRow(
-                    "Round Off Adjustment",
-                    roundOff.toStringAsFixed(2),
-                  ),
-                _buildSummaryRow(
-                  "Total SGST",
-                  totals['totalSGST']?.toStringAsFixed(2) ?? '0.00',
-                ),
-                _buildSummaryRow(
-                  "Total CGST",
-                  totals['totalCGST']?.toStringAsFixed(2) ?? '0.00',
-                ),
-                _buildSummaryRow(
-                  "Total IGST",
-                  totals['totalIGST']?.toStringAsFixed(2) ?? '0.00',
-                ),
                 _buildSummaryRow(
                   "Total Received Amount",
                   totals['totalReceivedAmount']?.toStringAsFixed(2) ?? '0.00',
@@ -544,43 +457,32 @@ class _GRNModalState extends State<GRNModal> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text(
-          "Convert GRN to AP + Outgoing",
+          "Convert to AP",
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("This will create:"),
-            SizedBox(height: 6),
-            Text("• AP Invoice"),
-            Text("• Outgoing Payment"),
-            Text("• Update vendor payable"),
-            SizedBox(height: 12),
-            Text("Continue?"),
-          ],
+        content: const Text(
+          "Are you sure you want to convert this GRN to AP + Outgoing?",
+          style: TextStyle(fontSize: 14),
         ),
         actions: [
           TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blueAccent, // text color
-            ),
             onPressed: () => Navigator.pop(dialogContext, false),
+            style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             child: const Text(
               "Cancel",
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
-
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent, // button color
-              foregroundColor: Colors.white, // text color
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(25),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text(
@@ -597,32 +499,33 @@ class _GRNModalState extends State<GRNModal> {
     try {
       isConverting.value = true;
 
-      // 🔹 Step 1: Exact item total (NO rounding)
-      final double itemTotal = (grn.itemDetails ?? []).fold<double>(
-        0.0,
-        (sum, item) => sum + (item.finalPrice ?? 0.0),
-      );
+      final totals = _recalculateGRNTotal();
 
-      // 🔹 Step 2: Manual round ONLY (user input)
-      final double manualRound = grn.roundOffAdjustment ?? 0.0;
+      final double manualRound = totals['roundOff'] ?? 0.0;
 
-      // 🔹 Step 3: FINAL AP amount (same as UI)
-      final double apFinal = itemTotal + manualRound;
+      // ✅ ONLY manual (backend supports only this)
+      double finalRound = manualRound;
 
-      print('🧮 Item Total   : $itemTotal');
-      print('🧮 Manual Round : $manualRound');
-      print('➡️ AP Final     : $apFinal');
+      finalRound = double.parse(finalRound.toStringAsFixed(2));
 
-      // 🔥 IMPORTANT: send ONLY manual round (no auto round)
+      if (finalRound > 2.0) finalRound = 2.0;
+      if (finalRound < -2.0) finalRound = -2.0;
+
+      final double uiFinal = totals['totalReceivedAmount'] ?? 0.0;
+      final double backendBase = grn.grnAmount ?? 0.0;
+
+      print('➡️ FINAL FIX MODE');
+      print('➡️ Manual Round : $manualRound');
+      print('➡️ UI Final     : $uiFinal');
+      print('➡️ Backend Base : $backendBase');
+      print('➡️ Sent Round   : $finalRound');
+
       final result = await context
           .read<GRNProvider>()
           .convertGrnToApAndOutgoing(
             grnId: grn.grnId ?? '',
             discountPrice: grn.discountPrice ?? 0.0,
-
-            // ✅ FIXED HERE
-            roundOffAdjustment: manualRound,
-
+            roundOffAdjustment: finalRound,
             itemUpdates:
                 grn.itemDetails
                     ?.map(
@@ -640,7 +543,7 @@ class _GRNModalState extends State<GRNModal> {
       if (result['success'] == true && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Converted AP + Outgoing successfully'),
+            content: Text('GRN converted successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -1163,7 +1066,14 @@ class _GRNModalState extends State<GRNModal> {
                   final double totalItemsAmount =
                       totals['totalItemsAmount'] ?? 0.0;
                   final double discount = totals['totalDiscount'] ?? 0.0;
-                  final double roundOff = totals['roundOff'] ?? 0.0;
+
+                  // ✅ Split values
+                  final double manualRound = totals['roundOff'] ?? 0.0;
+                  final double autoRound = totals['autoRound'] ?? 0.0;
+
+                  // ❌ DO NOT show auto round in UI
+                  final double roundOff = manualRound;
+
                   final double totalReceivedAmount =
                       totals['totalReceivedAmount'] ?? 0.0;
 
@@ -1200,16 +1110,18 @@ class _GRNModalState extends State<GRNModal> {
                         '${discount.toStringAsFixed(2)}',
                         compact: true,
                       ),
+
                       _buildSummaryRow(
                         "Freight Charges",
                         totals['freightAmount']?.toStringAsFixed(2) ?? '0.00',
                         compact: true,
                       ),
 
-                      if (roundOff != 0)
+                      // ✅ ONLY manual round shown
+                      if (manualRound != 0)
                         _buildSummaryRow(
                           "Round Off Adjustment",
-                          '${roundOff > 0 ? '+' : ''}${roundOff.toStringAsFixed(2)}',
+                          '${manualRound > 0 ? '+' : ''}${manualRound.toStringAsFixed(2)}',
                           compact: true,
                         ),
 
@@ -1229,6 +1141,7 @@ class _GRNModalState extends State<GRNModal> {
                         compact: true,
                       ),
 
+                      // ✅ FIELD (manual only)
                       ValueListenableBuilder<String?>(
                         valueListenable: roundOffErrorNotifier,
                         builder: (context, error, _) {
@@ -1275,7 +1188,7 @@ class _GRNModalState extends State<GRNModal> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            roundOff.toStringAsFixed(2),
+                                            manualRound.toStringAsFixed(2),
                                             style: TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.bold,

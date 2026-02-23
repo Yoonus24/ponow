@@ -342,18 +342,17 @@ class GRNProvider with ChangeNotifier {
         orElse: () => throw Exception('GRN not found'),
       );
 
-      final double grnAmount = grn.grnAmount ?? grn.totalReceivedAmount ?? 0.0;
+      final double grnAmount = grn.grnAmount ?? 0.0;
       final double finalApRoundOff = roundOffAdjustment;
 
       print('🧮 ROUND OFF FLOW');
       print('GRN Amount        : $grnAmount');
       print('Manual Round Off  : $finalApRoundOff');
-      print('➡️ AP Final Amount: ${grnAmount + finalApRoundOff}');
-
+      print('➡️ Expected AP (UI): ${grnAmount + finalApRoundOff}');
       final response = await _dio.patch(
         '$_grnBase/convert-to-ap/ap-to-outgoing/$grnId',
         queryParameters: {'apRoundOff': finalApRoundOff.toStringAsFixed(2)},
-        data: jsonEncode(itemsJson),
+        data: itemsJson,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -550,7 +549,7 @@ class GRNProvider with ChangeNotifier {
 
       final response = await _dio.patch(
         '$_grnBase/$grnId/return',
-        data: jsonEncode(requestBody),
+        data: requestBody,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 

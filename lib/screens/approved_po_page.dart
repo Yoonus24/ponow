@@ -84,17 +84,13 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   }
 
   Future<void> _pickDate() async {
-    Provider.of<POProvider>(context, listen: false);
-
-    DateTime initialDate = DateTime.now();
+    DateTime initialDate;
 
     try {
-      final now = ServerTimeService.now;
-      final serverDate = now.toIso8601String();
-      if (serverDate.isNotEmpty) {
-        initialDate = DateTime.parse(serverDate);
-      }
-    } catch (_) {}
+      initialDate = ServerTimeService.now; 
+    } catch (_) {
+      initialDate = DateTime.now(); 
+    }
 
     final picked = await showDatePicker(
       context: context,

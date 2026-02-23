@@ -418,7 +418,9 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
   String _formatDate(String? date) {
     if (date == null) return "N/A";
     try {
-      return DateFormat('dd/MM/yyyy').format(DateTime.parse(date));
+      return DateFormat(
+        'dd/MM/yyyy',
+      ).format(DateTime.parse(date).toUtc().toLocal());
     } catch (_) {
       return date;
     }

@@ -142,24 +142,6 @@ class PurchaseOrderLogic {
     triggerUIRefresh();
   }
 
-  // String getServerDateForSubmission() {
-  //   if (_serverDate == null || _serverDate!.isEmpty) {
-  //     return DateTime.now().toIso8601String(); // fallback safety
-  //   }
-
-  //   // convert dd-MM-yyyy to ISO format
-  //   final parts = _serverDate!.split("-");
-  //   if (parts.length == 3) {
-  //     final day = parts[0];
-  //     final month = parts[1];
-  //     final year = parts[2];
-
-  //     return "$year-$month-$day";
-  //   }
-
-  //   return _serverDate!;
-  // }
-
   void _fetchSupportingDataInBackground() {
     Future.wait([
       notifier.fetchAllVendors1(),

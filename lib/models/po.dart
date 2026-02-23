@@ -367,6 +367,17 @@ class PO {
     }
   }
 
+  String get formattedCreatedDate {
+    if (createdDate == null || createdDate!.isEmpty) return 'N/A';
+
+    try {
+      final date = DateTime.parse(createdDate!).toLocal();
+      return DateFormat('dd-MM-yyyy hh:mm a').format(date);
+    } catch (_) {
+      return createdDate!;
+    }
+  }
+
   String get formattedOrderedDate {
     if (orderedDate == null || orderedDate!.isEmpty) return 'N/A';
     try {

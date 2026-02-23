@@ -75,7 +75,7 @@ class POTemplate {
       location: po.location,
       locationName: po.locationName,
 
-      createdDate: DateTime.now(),
+      createdDate: ServerTimeService.now,
       randomId: po.randomId ?? '',
       isActive: true,
     );
@@ -112,7 +112,7 @@ class POTemplate {
       creditLimit: json['creditLimit'] ?? 0,
       createdDate: json['createdDate'] != null
           ? DateTime.parse(json['createdDate'])
-          : DateTime.now(),
+          : ServerTimeService.now,
       randomId: json['randomId']?.toString() ?? '',
       isActive: json['isActive'] ?? true,
       location: json['location'] ?? '',

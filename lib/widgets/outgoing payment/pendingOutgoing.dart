@@ -6,6 +6,7 @@ import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
 import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/ap%20invoice/ap_viewinvoice_modal.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/grn_details_screen.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/payment_dialogue.dart';
@@ -101,7 +102,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
     final dueDate = outgoing.invoiceDate!.add(Duration(days: creditDays));
 
-    final today = DateTime.now();
+    final today = ServerTimeService.now;
     return dueDate.difference(today).inDays;
   }
 
@@ -143,10 +144,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         listen: false,
       );
 
-      debugPrint('🔍 Loading data with filters:');
-      debugPrint('  - Vendor: ${_selectedVendorNotifier.value}');
-      debugPrint('  - Invoice: ${_selectedInvoiceNotifier.value}');
-
       final String? vendorNameForApi =
           (_selectedVendorNotifier.value == null ||
               _selectedVendorNotifier.value!.isEmpty ||
@@ -160,40 +157,23 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           ? null
           : _selectedInvoiceNotifier.value!.trim();
 
-      debugPrint('🔍 API Parameters:');
-      debugPrint(
-        '  - vendorNameForApi: $vendorNameForApi (is null: ${vendorNameForApi == null})',
-      );
-      debugPrint(
-        '  - invoiceNoForApi: $invoiceNoForApi (is null: ${invoiceNoForApi == null})',
-      );
+      debugPrint("🔥 CALLING API WITH:");
+      debugPrint("vendor: $vendorNameForApi");
+      debugPrint("invoice: $invoiceNoForApi");
 
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
         filterBy: 'invoiceDate',
         limit: 100,
         vendorName: vendorNameForApi,
-        invoiceNo: invoiceNoForApi,
+        invoiceNo: invoiceNoForApi, 
       );
 
-      debugPrint('✅ Data loaded: ${provider.payments.length} payments');
-      debugPrint(
-        '✅ First few vendors: ${provider.payments.take(3).map((p) => p.vendorName).toList()}',
-      );
+      debugPrint("✅ AFTER API: ${provider.payments.length}");
 
-      if (provider.error.isNotEmpty && mounted) {
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          SnackBar(content: Text('Data load error: ${provider.error}')),
-        );
-      }
       _refreshDataNotifier.value = !_refreshDataNotifier.value;
     } catch (e) {
       debugPrint('❌ Error loading data: $e');
-      if (mounted) {
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(content: Text('Failed to load data')),
-        );
-      }
     }
   }
 
@@ -266,7 +246,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
     final totalTax = sgst + cgst + igst;
 
-    Text _row(String label, double value, {bool bold = false}) {
+    Text row(String label, double value, {bool bold = false}) {
       return Text(
         '$label : ${value.toStringAsFixed(2)}',
         style: TextStyle(
@@ -281,15 +261,15 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _row('SGST', sgst),
-        _row('CGST', cgst),
-        _row('IGST', igst),
+        row('SGST', sgst),
+        row('CGST', cgst),
+        row('IGST', igst),
 
         const SizedBox(height: 6),
         const Divider(color: Colors.white54, thickness: 1),
         const SizedBox(height: 4),
 
-        _row('TOTAL TAX', totalTax, bold: true),
+        row('TOTAL TAX', totalTax, bold: true),
       ],
     );
   }
@@ -573,7 +553,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         );
       }
     } catch (e) {
-      debugPrint('Error showing GRN details: $e');
       _scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('not found')),
       );
@@ -609,62 +588,18 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         );
       }
     } catch (e) {
-      debugPrint('Error showing AP Invoice details: $e');
       _scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('AP Invoice details not found')),
       );
     }
   }
 
-  String? _getGrnRandomId(String? grnId, List<GRN> grnList) {
-    debugPrint(
-      'Looking for GRN ID: $grnId in grnList: ${grnList.map((g) => g.grnId).toList()}',
-    );
-    if (grnId == null || grnList.isEmpty) {
-      debugPrint('GRN ID is null or grnList is empty');
-      return null;
-    }
-    try {
-      final grn = grnList.firstWhere(
-        (grn) => grn.grnId == grnId,
-        orElse: () => GRN(grnId: '', grnVerifiedDate: '', itemDetails: []),
-      );
-      debugPrint('Found GRN: ${grn.grnId}, randomId: ${grn.randomId}');
-      return grn.randomId;
-    } catch (e) {
-      debugPrint('GRN lookup failed for $grnId: $e');
-      return null;
-    }
-  }
 
-  String? _getApRandomId(String? invoiceId, List<ApInvoice> apInvoices) {
-    debugPrint(
-      'Looking for Invoice ID: $invoiceId in apInvoices: ${apInvoices.map((ap) => ap.invoiceId).toList()}',
-    );
-    if (invoiceId == null || apInvoices.isEmpty) {
-      debugPrint('Invoice ID is null or apInvoices is empty');
-      return null;
-    }
-    try {
-      final apInvoice = apInvoices.firstWhere(
-        (ap) => ap.invoiceId == invoiceId,
-        orElse: () => ApInvoice(randomId: ''),
-      );
-      debugPrint(
-        'Found AP Invoice: ${apInvoice.invoiceId}, randomId: ${apInvoice.randomId}',
-      );
-      return apInvoice.randomId;
-    } catch (e) {
-      debugPrint('AP Invoice lookup failed for $invoiceId: $e');
-      return null;
-    }
-  }
 
   void _handleVendorSelected(String? value) {
     _selectedVendorNotifier.value = (value == null || value == 'All Vendors')
         ? null
         : value;
-
     _loadData();
   }
 
@@ -694,8 +629,14 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     displayStringForOption: (option) => option,
 
                     optionsBuilder: (TextEditingValue textEditingValue) {
-                      final options = ['All Vendors', ...provider.vendorNames];
-
+                      final options = [
+                        'All Vendors',
+                        ...provider.payments
+                            .map((p) => p.vendorName ?? '')
+                            .where((name) => name.isNotEmpty)
+                            .toSet()
+                            .toList(),
+                      ];
                       if (textEditingValue.text.isEmpty) {
                         return options;
                       }
@@ -885,6 +826,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                 controller: controller,
                                 focusNode: focusNode,
 
+                                onChanged: (value) {},
+
+                                onSubmitted: (value) {
+                                  _handleInvoiceSelected(value);
+                                },
+
                                 style: const TextStyle(fontSize: 14),
 
                                 decoration: InputDecoration(
@@ -1037,8 +984,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   Widget _buildDataRow(
     int index,
     Outgoing outgoing,
-    List<GRN> grnList,
-    List<ApInvoice> apInvoices,
+    Map<String, GRN> grnMap,
+    Map<String, ApInvoice> apMap,
     List<double> columnWidths,
   ) {
     if (index < 0) {
@@ -1047,6 +994,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
     final GlobalKey cellKey = GlobalKey();
     final dueDays = _calculateDueDays(outgoing);
+
+    final grn = grnMap[outgoing.grnId];
+    final ap = apMap[outgoing.invoiceId];
+
+    final grnDisplay = grn?.randomId ?? outgoing.grnId ?? 'N/A';
+    final apDisplay = ap?.randomId ?? outgoing.invoiceId ?? 'N/A';
 
     return Row(
       children: [
@@ -1084,11 +1037,13 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     final newSelectedIndices = Set<int>.from(
                       _selectedIndicesNotifier.value,
                     );
+
                     if (value == true) {
                       newSelectedIndices.add(index);
                     } else {
                       newSelectedIndices.remove(index);
                     }
+
                     _selectedIndicesNotifier.value = newSelectedIndices;
                   }
                 },
@@ -1140,35 +1095,29 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         _buildContentCell(
           '',
           columnWidths[4],
-          child: ValueListenableBuilder<Set<int>>(
-            valueListenable: _selectedIndicesNotifier,
-            builder: (context, selectedIndices, _) {
-              return IconButton(
-                icon: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Colors.blue,
-                  size: 18,
-                ),
-                onPressed: () async {
-                  try {
-                    final poService = OutgoingPdf();
-                    final pdfFile = await poService.generateOutgoingPdf(
-                      outgoing.outgoingId,
-                    );
-                    await Printing.layoutPdf(
-                      onLayout: (_) => pdfFile.readAsBytesSync(),
-                    );
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('PDF generated successfully')),
-                    );
-                  } catch (e) {
-                    print("Error during download or upload pdf: $e");
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to generate PDF: $e')),
-                    );
-                  }
-                },
-              );
+          child: IconButton(
+            icon: const Icon(
+              Icons.picture_as_pdf,
+              color: Colors.blue,
+              size: 18,
+            ),
+            onPressed: () async {
+              try {
+                final poService = OutgoingPdf();
+                final pdfFile = await poService.generateOutgoingPdf(
+                  outgoing.outgoingId,
+                );
+                await Printing.layoutPdf(
+                  onLayout: (_) => pdfFile.readAsBytesSync(),
+                );
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('PDF generated successfully')),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Failed to generate PDF: $e')),
+                );
+              }
             },
           ),
         ),
@@ -1188,6 +1137,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
         _buildContentCell(outgoing.vendorName ?? 'N/A', columnWidths[6]),
         _buildContentCell(outgoing.invoiceNo ?? 'N/A', columnWidths[7]),
+
         _buildContentCell(
           outgoing.invoiceDate != null
               ? DateFormat('dd-MM-yyyy').format(outgoing.invoiceDate!)
@@ -1199,8 +1149,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           '',
           columnWidths[9],
           child: GestureDetector(
-            onTap: () =>
-                _showGrnDetailsDialog(context, outgoing.grnId, grnList),
+            onTap: () => _showGrnDetailsDialog(
+              context,
+              outgoing.grnId,
+              grnMap.values.toList(), 
+            ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
@@ -1208,9 +1161,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                _getGrnRandomId(outgoing.grnId, grnList) ??
-                    outgoing.grnId ??
-                    'N/A',
+                grnDisplay,
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.blue,
@@ -1228,8 +1179,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           '',
           columnWidths[10],
           child: GestureDetector(
-            onTap: () =>
-                _showApDetailsDialog(context, outgoing.invoiceId, apInvoices),
+            onTap: () => _showApDetailsDialog(
+              context,
+              outgoing.invoiceId,
+              apMap.values.toList(),
+            ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               decoration: BoxDecoration(
@@ -1237,9 +1191,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                _getApRandomId(outgoing.invoiceId, apInvoices) ??
-                    outgoing.invoiceId ??
-                    'N/A',
+                apDisplay,
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.blue,
@@ -1254,9 +1206,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         ),
 
         _buildContentCell(
-          outgoing.totalPrice != null
-              ? outgoing.totalPrice!.toStringAsFixed(2)
-              : 'N/A',
+          outgoing.totalPrice?.toStringAsFixed(2) ?? 'N/A',
           columnWidths[11],
         ),
 
@@ -1265,8 +1215,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           columnWidths[12],
           child: GestureDetector(
             onTap: () => _showTaxTooltip(context, cellKey, outgoing, index),
-            onLongPress: () =>
-                _showTaxTooltip(context, cellKey, outgoing, index),
             child: Container(
               key: cellKey,
               decoration: BoxDecoration(
@@ -1280,11 +1228,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   fontSize: 12,
                   color: Colors.blue,
                   decoration: TextDecoration.underline,
-                  decorationColor: Colors.blue,
                 ),
                 textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
@@ -1344,9 +1289,39 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             builder: (context, refreshData, _) {
               return Consumer<OutgoingPaymentProvider>(
                 builder: (context, provider, child) {
-                  final List<Outgoing> filtered = List.from(provider.payments);
+                  final List<Outgoing> filtered = provider.allPayments.where((
+                    p,
+                  ) {
+                    final selectedVendor = _selectedVendorNotifier.value;
+                    final selectedInvoice = _selectedInvoiceNotifier.value;
+
+                    final apiVendor = (p.vendorName ?? '').trim().toLowerCase();
+                    final apiInvoice = (p.invoiceNo ?? '').trim().toLowerCase();
+
+                    final vendor = selectedVendor?.trim().toLowerCase();
+                    final invoice = selectedInvoice?.trim().toLowerCase();
+
+                    final vendorMatch = (vendor == null || vendor.isEmpty)
+                        ? true
+                        : apiVendor.contains(vendor);
+
+                    final invoiceMatch = (invoice == null || invoice.isEmpty)
+                        ? true
+                        : apiInvoice.contains(invoice);
+
+                    return vendorMatch && invoiceMatch;
+                  }).toList();
                   final List<GRN> grnList = provider.grnList;
                   final List<ApInvoice> apInvoices = provider.apInvoices;
+                  final Map<String, GRN> grnMap = {
+                    for (var g in grnList)
+                      if (g.grnId != null) g.grnId!: g,
+                  };
+
+                  final Map<String, ApInvoice> apMap = {
+                    for (var a in apInvoices)
+                      if (a.invoiceId != null) a.invoiceId!: a,
+                  };
 
                   if (provider.isLoadingOutgoings) {
                     return const Center(child: CircularProgressIndicator());
@@ -1701,55 +1676,64 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                       controller:
                                                           _verticalScrollController,
                                                       thumbVisibility: true,
-                                                      child: SingleChildScrollView(
-                                                        controller:
-                                                            _verticalScrollController,
-                                                        child: SizedBox(
-                                                          width: totalWidth,
-                                                          child: Column(
-                                                            children: [
-                                                              for (
-                                                                var index = 0;
-                                                                index <
-                                                                    filtered
-                                                                        .length;
-                                                                index++
-                                                              )
-                                                                ValueListenableBuilder<
-                                                                  List<bool>
-                                                                >(
-                                                                  valueListenable:
-                                                                      _selectedRowsNotifier,
-                                                                  builder:
-                                                                      (
-                                                                        context,
-                                                                        selectedRows,
-                                                                        _,
-                                                                      ) {
-                                                                        return Container(
-                                                                          height:
-                                                                              60.0,
-                                                                          color:
-                                                                              selectedRows.isNotEmpty &&
-                                                                                  index <
-                                                                                      selectedRows.length &&
-                                                                                  selectedRows[index]
-                                                                              ? Colors.blue.shade50
-                                                                              : (index.isEven
-                                                                                    ? Colors.white
-                                                                                    : Colors.grey.shade50),
-                                                                          child: _buildDataRow(
-                                                                            index,
-                                                                            filtered[index],
-                                                                            grnList,
-                                                                            apInvoices,
-                                                                            columnWidths,
-                                                                          ),
-                                                                        );
-                                                                      },
-                                                                ),
-                                                            ],
-                                                          ),
+                                                      child: SizedBox(
+                                                        width:
+                                                            totalWidth, 
+                                                        child: ListView.builder(
+                                                          controller:
+                                                              _verticalScrollController,
+                                                          itemCount:
+                                                              filtered.length,
+
+                                                          addRepaintBoundaries:
+                                                              true,
+                                                          addAutomaticKeepAlives:
+                                                              false,
+                                                          cacheExtent: 300,
+
+                                                          itemBuilder: (context, index) {
+                                                            return ValueListenableBuilder<
+                                                              List<bool>
+                                                            >(
+                                                              valueListenable:
+                                                                  _selectedRowsNotifier,
+                                                              builder:
+                                                                  (
+                                                                    context,
+                                                                    selectedRows,
+                                                                    _,
+                                                                  ) {
+                                                                    final bool
+                                                                    isSelected =
+                                                                        selectedRows
+                                                                            .isNotEmpty &&
+                                                                        index <
+                                                                            selectedRows.length &&
+                                                                        selectedRows[index];
+
+                                                                    return RepaintBoundary(
+                                                                      child: Container(
+                                                                        height:
+                                                                            60.0,
+                                                                        color:
+                                                                            isSelected
+                                                                            ? Colors.blue.shade50
+                                                                            : (index.isEven
+                                                                                  ? Colors.white
+                                                                                  : Colors.grey.shade50),
+
+                                                                        child: _buildDataRow(
+                                                                          index,
+                                                                          filtered[index],
+                                                                          grnMap,
+                                                                          apMap,
+                                                                          columnWidths,
+                                                                        ),
+                                                                      ),
+                                                                    );
+                                                                  },
+                                                            );
+                                                          },
                                                         ),
                                                       ),
                                                     ),

@@ -32,8 +32,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       ValueNotifier<List<String>>([]);
   final ValueNotifier<List<String>> _invoiceNumbersNotifier =
       ValueNotifier<List<String>>([]);
-  // List<String> _vendorNames = [];
-  // List<String> _invoiceNumbers = [];
   bool _isLoading = false;
   bool _isLoadingOutgoings = false;
   bool _isLoadingVendors = false;
@@ -143,7 +141,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           ..sort();
 
     _vendorNamesNotifier.value = vendors;
-    // notifyListeners();
   }
 
   Future<void> fetchInvoiceNumbers() async {
@@ -193,24 +190,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  // Future<void> removeOutgoingPayment(String outgoingId) async {
-  //   try {
-  //     _payments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
-  //     _allPayments.removeWhere((outgoing) => outgoing.outgoingId == outgoingId);
-
-  //     final response = await dio.delete(
-  //       '$_baseUrl/outgoingpayments/$outgoingId',
-  //     );
-
-  //     if (response.statusCode == 200) {
-  //       print('✅ Outgoing payment removed from backend');
-  //       notifyListeners();
-  //     }
-  //   } catch (e) {
-  //     print('⚠️ Error removing outgoing: $e');
-  //   }
-  // }
-
   Future<List<Outgoing>> fetchFilteredOutgoings({
     DateTime? fromDate,
     DateTime? toDate,
@@ -220,12 +199,15 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     bool filterByAmount = false,
     String sortOrder = 'ascending',
     int skip = 0,
-    int limit = 50,
+    int limit = 100, 
     String? invoiceNo,
   }) async {
     _isLoadingOutgoings = true;
     _error = '';
     notifyListeners();
+    if (skip == 0) {
+      _allPayments.clear();
+    }
 
     try {
       String? backendStatus;
@@ -258,7 +240,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         if (invoiceNo != null && invoiceNo.trim().isNotEmpty)
           'invoiceNo': invoiceNo.trim(),
       };
-
+      print("🔥 QUERY PARAMS: $queryParams");
       final response = await dio.get(
         '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: queryParams,
@@ -269,7 +251,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         final raw = response.data;
         final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
 
-        _payments = data.map((e) => Outgoing.fromJson(e)).where((outgoing) {
+        final fetched = data.map((e) => Outgoing.fromJson(e)).where((outgoing) {
           ApInvoice? ap;
           try {
             ap = _apInvoices.firstWhere(
@@ -286,8 +268,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
               outgoing.status?.toLowerCase() == 'partially paid';
         }).toList();
 
-        _allPayments = List.from(_payments);
+        _payments = fetched;
 
+        _allPayments = List.from(fetched);
         _error = '';
       } else {
         _payments = [];
@@ -332,49 +315,14 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
   }
 
-  // Future<void> testBackendResponse() async {
-  //   try {
-  //     if (kDebugMode) {
-  //       print('🧪 TESTING BACKEND RESPONSE DIRECTLY');
-  //     }
-
-  //     final response = await dio.get(
-  //       '$_baseUrl/outgoingpayments/?status=Pending&limit=2',
-  //     );
-
-  //     if (kDebugMode) {
-  //       print('🧪 Test Response status: ${response.statusCode}');
-  //       print('🧪 Test Response type: ${response.data.runtimeType}');
-
-  //       if (response.data is List) {
-  //         print('🧪 Response is List with ${response.data.length} items');
-  //         for (int i = 0; i < response.data.length; i++) {
-  //           print('🧪 Item $i: ${response.data[i]}');
-  //           if (response.data[i] is Map) {
-  //             print(
-  //               '🧪 Item $i keys: ${(response.data[i] as Map).keys.toList()}',
-  //             );
-  //           }
-  //         }
-  //       } else if (response.data is Map) {
-  //         print(
-  //           '🧪 Response is Map with keys: ${(response.data as Map).keys.toList()}',
-  //         );
-  //       }
-  //     }
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('🧪 Test failed: $e');
-  //     }
-  //   }
-  // }
-
   Future<String> saveOutgoingPayment(Outgoing outgoing) async {
     try {
+      final data = outgoing.toJson();
+      data['createdDate'] = ServerTimeService.now.toIso8601String();
+
       final response = await dio.post(
         '$_baseUrl/outgoingpayments/',
-        data: outgoing.toJson(),
-
+        data: data,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -467,6 +415,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         if (paymentType == 'advance') 'advanceAmount': amount,
         if (paymentType == 'full') 'fullPaymentAmount': amount,
       };
+
+      final currentDateTime = ServerTimeService.now.toIso8601String();
+      requestData['paymentDate'] = currentDateTime;
 
       if (paymentMode == 'Bank') {
         requestData.addAll({
@@ -605,8 +556,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         }
       }
 
+      final serverDate = ServerTimeService.now;
+
       final requestData = {
-        'paymentDate': DateTime.now().toIso8601String().split('T').first,
+        'paymentDate': serverDate.toIso8601String().split('T').first,
 
         'outgoingIds': bulkPayments.map((p) => p.outgoingId).toList(),
 

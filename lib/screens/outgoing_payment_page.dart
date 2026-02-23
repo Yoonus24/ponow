@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/outgoing payment/ledger.dart';
 import 'package:purchaseorders2/widgets/outgoing payment/payment_done.dart';
 import 'package:purchaseorders2/widgets/outgoing payment/pendingOutgoing.dart';
@@ -39,20 +40,10 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   late final ScrollController _horizontalScrollController;
   GRN? grn;
   ApInvoice? apInvoice;
-  DateTime? _serverNow;
-  late final Dio _dio;
 
   @override
   void initState() {
     super.initState();
-
-    _dio = Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-      ),
-    );
-
     _horizontalScrollController = ScrollController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -102,25 +93,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
     }
   }
 
-  Future<void> _fetchServerDateTime() async {
-    try {
-      final response = await _dio.get('https://yenerp.com/liveapi/datetime');
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        final dateStr = data['datetime'];
-
-        if (dateStr != null && dateStr is String) {
-          _serverNow = DateTime.parse(dateStr);
-        }
-      }
-    } on DioException catch (e) {
-      debugPrint('Server datetime fetch failed: ${e.type}');
-    } catch (e) {
-      debugPrint('Server datetime fetch failed: $e');
-    }
-  }
-
   Future<void> _fetchDataForStatus(String status) async {
     final provider = context.read<OutgoingPaymentProvider>();
 
@@ -150,9 +122,13 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   }
 
   Future<void> _selectDate(BuildContext context, bool isFromDate) async {
-    await _fetchServerDateTime();
+    DateTime serverDate;
 
-    final DateTime serverDate = _serverNow ?? DateTime.now();
+    try {
+      serverDate = ServerTimeService.now; 
+    } catch (_) {
+      serverDate = DateTime.now();
+    }
 
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -171,7 +147,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
         }
         return true;
       },
-
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -181,12 +156,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
               onSurface: Colors.black,
             ),
             dialogBackgroundColor: Colors.white,
-            dialogTheme: DialogThemeData(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 foregroundColor: const Color.fromARGB(255, 38, 89, 198),
@@ -210,6 +179,7 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
         );
         return;
       }
+
       if (!isFromDate &&
           currentFromDate != null &&
           picked.isBefore(currentFromDate)) {

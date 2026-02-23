@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/payment_dialogue.dart';
 import 'package:provider/provider.dart';
 
@@ -22,13 +25,18 @@ class _PreOutgoingState extends State<PreOutgoing> {
 
   final int _skip = 0;
   final int _limit = 50;
+  Timer? _debounce;
 
   void _onVendorSearchChanged(String value) {
-    context.read<POProvider>().fetchingVendors(
-      vendorName: value.trim(),
-      skip: 0,
-      limit: _limit,
-    );
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      context.read<POProvider>().fetchingVendors(
+        vendorName: value.trim(),
+        skip: 0,
+        limit: _limit,
+      );
+    });
   }
 
   @override
@@ -36,8 +44,10 @@ class _PreOutgoingState extends State<PreOutgoing> {
     super.initState();
 
     final poProvider = context.read<POProvider>();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+
       poProvider.fetchingVendors(vendorName: '', skip: _skip, limit: _limit);
     });
   }
@@ -124,13 +134,13 @@ class _PreOutgoingState extends State<PreOutgoing> {
                 final outgoing = Outgoing(
                   outgoingId: _generateOutgoingId(),
                   vendorName: vendorName,
-                  createdDate: DateTime.now(),
+                  createdDate: ServerTimeService.now,
                   status: status,
                   paymentType: paymentType,
                   totalPayableAmount: amount,
                   paymentMode: paymentMode,
                   paymentMethod: paymentMethod,
-                  paymentDate: DateTime.now(),
+                  paymentDate: ServerTimeService.now,
                   fullPaymentAmount: fullPaymentAmount,
                   partialAmount: partialAmount,
                   advanceAmount: advanceAmount,
@@ -156,7 +166,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
   }
 
   String _generateOutgoingId() {
-    return 'OUT-${DateTime.now().millisecondsSinceEpoch}';
+    return 'OUT-${ServerTimeService.now.millisecondsSinceEpoch}';
   }
 
   @override
@@ -186,26 +196,35 @@ class _PreOutgoingState extends State<PreOutgoing> {
                           optionsBuilder: (TextEditingValue textEditingValue) {
                             final input = textEditingValue.text.toLowerCase();
 
+                            final vendors = context
+                                .read<POProvider>()
+                                .filteredVendorNames;
+
+                            print("Vendors length: ${vendors.length}");
+
                             if (input.isEmpty) {
-                              return poProvider.filteredVendorNames;
+                              return vendors;
                             }
 
-                            return poProvider.filteredVendorNames.where(
+                            return vendors.where(
                               (v) => v.toLowerCase().contains(input),
                             );
                           },
                           onSelected: (selectedVendor) {
                             _selectedVendor = selectedVendor;
-                            _vendorSearchController.text = selectedVendor;
+
                             FocusScope.of(context).unfocus();
+
                             _showVendorDialog(selectedVendor);
                           },
                           fieldViewBuilder:
                               (context, controller, focusNode, _) {
                                 return TextFormField(
                                   controller: controller,
-                                  focusNode: _vendorFocusNode,
-                                  onChanged: _onVendorSearchChanged,
+                                  focusNode: focusNode, // ✅ முக்கியம்
+                                  onChanged: (value) {
+                                    _onVendorSearchChanged(value);
+                                  },
                                   decoration: const InputDecoration(
                                     labelText: 'Search Vendor',
                                     border: OutlineInputBorder(),
@@ -219,10 +238,10 @@ class _PreOutgoingState extends State<PreOutgoing> {
                               child: SizedBox(
                                 height: 300,
                                 child: ListView.builder(
-                                  controller: poProvider.vendorScrollController,
                                   itemCount: options.length,
                                   itemBuilder: (context, index) {
                                     final option = options.elementAt(index);
+
                                     return ListTile(
                                       title: Text(option),
                                       onTap: () => onSelected(option),

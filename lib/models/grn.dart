@@ -344,7 +344,7 @@ class DebitCreditNote {
       }).toList(),
       createdDate: grn.createdDate != null
           ? DateTime.parse(grn.createdDate!)
-          : DateTime.now(),
+          : ServerTimeService.now,
       createdBy: 'user123',
       lastUpdatedDate: null,
       roundOffAdjustment: grn.roundOffAdjustment,

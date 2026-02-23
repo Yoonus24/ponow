@@ -57,16 +57,11 @@ class _APInvoicePageState extends State<APInvoicePage> {
   }
 
   Future<DateTime> _getServerDate() async {
-    final provider = Provider.of<POProvider>(context, listen: false);
-
     try {
-      final s = ServerTimeService.now.toIso8601String();
-      if (s != null) {
-        final p = s.split('-');
-        return DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0]));
-      }
-    } catch (_) {}
-    return DateTime.now();
+      return ServerTimeService.now;
+    } catch (_) {
+      return DateTime.now(); 
+    }
   }
 
   bool isGoodsInvoice(ApInvoice inv) {

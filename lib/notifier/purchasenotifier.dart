@@ -972,7 +972,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: ServerTimeService.now,
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
@@ -987,7 +987,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: ServerTimeService.now,
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );

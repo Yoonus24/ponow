@@ -148,15 +148,11 @@ class Outgoing {
     this.paymentHistory,
     this.paidAmount,
     this.originalTotalPayableAmount,
-      this.totalFreightAmount,
-      this.totalFreightTaxAmount, 
+    this.totalFreightAmount,
+    this.totalFreightTaxAmount,
   });
 
   factory Outgoing.fromJson(Map<String, dynamic> json) {
-    if (kDebugMode) {
-      print('Parsing Outgoing from JSON. Keys: ${json.keys}');
-    }
-
     try {
       return Outgoing(
         outgoingId: _parseString(json['outgoingId'] ?? json['_id'])!,
@@ -221,6 +217,7 @@ class Outgoing {
         grnRandomId: _parseString(json['grnRandomId']),
         apRandomId: _parseString(json['apRandomId']),
         poRandomId: _parseString(json['poRandomId']),
+
         originalTotalPayableAmount: (json['originalTotalPayableAmount'] as num?)
             ?.toDouble(),
 
@@ -238,16 +235,17 @@ class Outgoing {
             ?.toDouble(),
 
         paymentHistory: _parsePaymentHistory(json['paymentHistory']),
-          grn: json['grn'] != null ? GRN.fromJson(json['grn']) : null,
-          ap: json['ap'] != null ? ApInvoice.fromJson(json['ap']) : null,
-          totalFreightAmount: _parseDouble(json['totalFreightAmount']),
-          totalFreightTaxAmount: _parseDouble(json['totalFreightTaxAmount']),
 
+        grn: json['grn'] != null ? GRN.fromJson(json['grn']) : null,
+        ap: json['ap'] != null ? ApInvoice.fromJson(json['ap']) : null,
+
+        totalFreightAmount: _parseDouble(json['totalFreightAmount']),
+        totalFreightTaxAmount: _parseDouble(json['totalFreightTaxAmount']),
       );
-    } catch (e, stackTrace) {
-      print('Error parsing Outgoing: $e');
-      print('Stack trace: $stackTrace');
-      print('JSON data: $json');
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error parsing Outgoing: $e');
+      }
       rethrow;
     }
   }
@@ -367,10 +365,10 @@ class Outgoing {
       'totalPaidAmount': totalPaidAmount,
       'remainingPayableAmount': remainingPayableAmount,
       'paymentHistory': paymentHistory?.map((e) => e.toJson()).toList(),
-        'grn': grn?.toJson(), 
-        'ap': ap?.toJson(),
-        'totalFreightAmount': totalFreightAmount,
-        'totalFreightTaxAmount': totalFreightTaxAmount,
+      'grn': grn?.toJson(),
+      'ap': ap?.toJson(),
+      'totalFreightAmount': totalFreightAmount,
+      'totalFreightTaxAmount': totalFreightTaxAmount,
     };
   }
 
@@ -453,8 +451,8 @@ class Outgoing {
           remainingPayableAmount ?? this.remainingPayableAmount,
       paymentHistory: paymentHistory ?? this.paymentHistory,
       totalFreightAmount: totalFreightAmount ?? this.totalFreightAmount,
-      totalFreightTaxAmount: totalFreightTaxAmount ?? this.totalFreightTaxAmount,
-      
+      totalFreightTaxAmount:
+          totalFreightTaxAmount ?? this.totalFreightTaxAmount,
     );
   }
 }

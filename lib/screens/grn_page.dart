@@ -465,15 +465,10 @@ class _GRNPageState extends State<GRNPage> {
   }
 
   Future<void> _selectDate() async {
-    final poProvider = Provider.of<POProvider>(context, listen: false);
-
     DateTime? serverNow;
 
     try {
-      final serverDateIso = ServerTimeService.now.toIso8601String();
-      if (serverDateIso.isNotEmpty) {
-        serverNow = DateTime.parse(serverDateIso);
-      }
+      serverNow = ServerTimeService.now;
     } catch (_) {}
 
     if (!mounted) return;
@@ -497,15 +492,13 @@ class _GRNPageState extends State<GRNPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.blueAccent, // selected date + header
-              onPrimary: Colors.white, // text on header
-              onSurface: Colors.black, // normal text
+              primary: Colors.blueAccent,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white, // full background
+            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent, // OK / CANCEL buttons
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
           ),
           child: child!,

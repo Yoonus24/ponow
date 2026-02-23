@@ -18,6 +18,7 @@ class APInvoiceProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   String _filterStatus = 'Pending';
+  bool _isFetching = false;
 
   List<ApInvoice> get apInvoices => _apInvoices;
   List<Outgoing> get outgoings => _outgoings;
@@ -64,7 +65,10 @@ class APInvoiceProvider extends ChangeNotifier {
   }
 
   Future<void> fetchAPInvoices({String? status}) async {
-    print("🚀 fetchAPInvoices CALLED");
+    if (_isFetching) return; // 🔥 STOP LOOP
+
+    _isFetching = true;
+
     _setLoading(true);
     _setError(null);
 
@@ -74,28 +78,24 @@ class APInvoiceProvider extends ChangeNotifier {
         queryParams['status'] = status;
       }
 
-      print("🌐 GET $baseUrl/apinvoices/getAll");
-
       final response = await _dio.get(
         '/apinvoices/getAll',
         queryParameters: queryParams,
       );
 
-      print("🌐 AP RAW RESPONSE: ${response.data}");
-
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
-        _apInvoices = data.map((json) => ApInvoice.fromJson(json)).toList();
-        print("✅ Fetched ${_apInvoices.length} AP invoices");
-      } else {
-        _setError('Failed to load invoices: ${response.statusMessage}');
+
+        _apInvoices = data
+            .take(100) // 🔥 LIMIT DATA (VERY IMPORTANT)
+            .map((json) => ApInvoice.fromJson(json))
+            .toList();
       }
-    } on DioException catch (e) {
-      _setError(_getReadableError(e));
     } catch (e) {
-      _setError("Something went wrong.");
+      _setError("Error");
     } finally {
       _setLoading(false);
+      _isFetching = false; // 🔥 release lock
     }
   }
 
@@ -110,7 +110,7 @@ class APInvoiceProvider extends ChangeNotifier {
     setError(null);
 
     try {
-      final currentDateTime = DateTime.now().toIso8601String();
+      final currentDateTime = ServerTimeService.now.toIso8601String();
       final requestBody = {
         'invoiceId': invoiceId,
         'apDiscountPrice': apDiscountPrice,
