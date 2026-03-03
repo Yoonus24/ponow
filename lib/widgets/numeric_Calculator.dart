@@ -43,7 +43,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      // ✅ Case 1: initialValue exists AND is not 0 → show formatted value
       if (widget.initialValue != null && widget.initialValue != 0) {
         String formattedValue = widget.initialValue!.toStringAsFixed(2);
 
@@ -56,7 +55,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
           offset: formattedValue.length,
         );
       }
-      // ✅ Case 2: controller has text → use it
       else if (widget.controller?.text.isNotEmpty == true &&
           widget.controller!.text != "0" &&
           widget.controller!.text != "0.00") {
@@ -71,7 +69,6 @@ class _NumericCalculatorState extends State<NumericCalculator> {
           offset: text.length,
         );
       }
-      // ✅ Case 3: empty → keep field empty
       else {
         _textController.clear();
         _isNegativeNotifier.value = false;
@@ -143,10 +140,8 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     String text = _textController.text;
 
     if (text.startsWith('-')) {
-      // ✅ Remove minus if already negative
       text = text.substring(1);
     } else {
-      // ✅ Add minus
       text = '-$text';
     }
 

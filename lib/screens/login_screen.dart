@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,29 +20,14 @@ class _LoginPageState extends State<LoginPage> {
     if (_formKey.currentState?.validate() ?? false) {
       final username = _usernameController.text;
       final password = _passwordController.text;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        'loginTime',
+        ServerTimeService.now.millisecondsSinceEpoch,
+      );
+      if (!mounted) return;
 
-      if (username.isEmpty && password.isEmpty) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Invalid username or password',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 

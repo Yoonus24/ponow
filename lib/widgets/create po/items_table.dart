@@ -38,12 +38,6 @@ class _ItemsTableState extends State<ItemsTable> {
 
   String _getBefTaxDiscountDisplay(Item item) {
     try {
-      // Debug print
-      print('🔍 BEF DISPLAY for ${item.itemName}:');
-      print('   Mode: ${widget.itemWiseDiscountMode}');
-      print('   befTaxDiscount: ${item.befTaxDiscount}');
-      print('   befTaxDiscountAmount: ${item.befTaxDiscountAmount}');
-
       if (widget.itemWiseDiscountMode == DiscountMode.percentage) {
         final value = item.befTaxDiscount ?? 0.0;
         return "${value.toStringAsFixed(2)}%";
@@ -52,19 +46,12 @@ class _ItemsTableState extends State<ItemsTable> {
         return "₹${amount.toStringAsFixed(2)}";
       }
     } catch (e) {
-      print('⚠️ Error in bef discount display: $e');
       return "0.00";
     }
   }
 
   String _getAfTaxDiscountDisplay(Item item) {
     try {
-      // Debug print
-      print('🔍 AF DISPLAY for ${item.itemName}:');
-      print('   Mode: ${widget.itemWiseDiscountMode}');
-      print('   afTaxDiscount: ${item.afTaxDiscount}');
-      print('   afTaxDiscountAmount: ${item.afTaxDiscountAmount}');
-
       if (widget.itemWiseDiscountMode == DiscountMode.percentage) {
         final value = item.afTaxDiscount ?? 0.0;
         return "${value.toStringAsFixed(2)}%";
@@ -73,7 +60,6 @@ class _ItemsTableState extends State<ItemsTable> {
         return "₹${amount.toStringAsFixed(2)}";
       }
     } catch (e) {
-      print('⚠️ Error in af discount display: $e');
       return "0.00";
     }
   }
@@ -107,27 +93,6 @@ class _ItemsTableState extends State<ItemsTable> {
   Widget build(BuildContext context) {
     final purchaseNotifier =
         widget.notifier ?? Provider.of<PurchaseOrderNotifier>(context);
-
-    print(
-      '📋 ItemsTable building with ${purchaseNotifier.poItems.length} items',
-    );
-    for (var i = 0; i < purchaseNotifier.poItems.length; i++) {
-      var item = purchaseNotifier.poItems[i];
-      print('   Item $i: ${item.itemName}');
-      print('     quantity: ${item.quantity}');
-      print('     count: ${item.count}');
-      print('     eachQuantity: ${item.eachQuantity}');
-      print('     existingPrice: ${item.existingPrice}');
-      print('     newPrice: ${item.newPrice}');
-      print('     uom: ${item.uom}');
-      print('     befTaxDiscount: ${item.befTaxDiscount}');
-      print('     befTaxDiscountAmount: ${item.befTaxDiscountAmount}');
-      print('     afTaxDiscount: ${item.afTaxDiscount}');
-      print('     afTaxDiscountAmount: ${item.afTaxDiscountAmount}');
-      print('     taxPercentage: ${item.taxPercentage}');
-      print('     finalPrice: ${item.finalPrice}');
-    }
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

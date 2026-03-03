@@ -1,3 +1,5 @@
+// ignore_for_file: unnecessary_null_comparison, unnecessary_non_null_assertion, dead_null_aware_expression, invalid_null_aware_operator, empty_catches
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -64,13 +66,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     _displayedItemsNotifier.value = _allItemNames;
   }
 
-  void _updateNotifierWithItemDetails(String itemName, PurchaseItem item) {
-    if (!widget.notifier.purchaseItems.contains(item)) {
-      widget.notifier.purchaseItems.add(item);
-    }
-
-    widget.notifier.setSelectedItem(itemName);
-  }
 
   void _cacheItems(List<PurchaseItem> items) {
     for (var item in items) {
@@ -157,33 +152,25 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
 
       _hasMore = newItems.length == _limit;
 
-      print("✅ Pagination loaded: ${newItems.length}");
     } catch (e) {
-      print("❌ Pagination error: $e");
     } finally {
       _isLoadingMoreNotifier.value = false;
     }
   }
 
   PurchaseItem? _findItemByName(String itemName) {
-    print('🔍 Looking for item: "$itemName"');
-    print('🔍 Cache has ${_itemCache.length} items');
-    print('🔍 All items count: ${_allPurchaseItems.length}');
+
 
     if (_itemCache.containsKey(itemName)) {
-      print('✅ Found in cache');
       return _itemCache[itemName];
     }
 
     for (var item in _allPurchaseItems) {
       if (item.itemName == itemName) {
-        print('✅ Found in loaded items');
         _itemCache[itemName] = item;
         return item;
       }
     }
-
-    print('⚠️ Item not found in cache or loaded items');
     return null;
   }
 
@@ -203,27 +190,13 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
         },
 
         onSelected: (selectedItemName) async {
-          print('🎯 Item selected: "$selectedItemName"');
-
           widget.controller.text = selectedItemName;
-
           final selectedItem = _findItemByName(selectedItemName);
-
           if (selectedItem != null) {
-            print('✅ Found item details:');
-            print('   UOM: ${selectedItem.uom}');
-            print('   Price: ${selectedItem.purchasePrice}');
-            print('   Tax: ${selectedItem.purchasetaxName}');
-
             widget.notifier.updateItemDetailsFromCache(selectedItem);
-
             _updateItemDetailsDirectly(selectedItem);
           } else {
-            print('⚠️ Item not found in cache or loaded items');
-
             try {
-              print('🔍 Searching specifically for: "$selectedItemName"');
-
               await widget.poProvider.searchPurchaseItems(
                 query: selectedItemName,
                 skip: 0,
@@ -236,7 +209,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                     item.itemName?.toLowerCase() ==
                     selectedItemName.toLowerCase(),
                 orElse: () {
-                  print('❌ Item not found in search results');
                   return PurchaseItem(
                     itemName: selectedItemName,
                     purchasePrice: 0,
@@ -255,14 +227,9 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                 _allPurchaseItems.add(foundItem);
 
                 widget.notifier.updateItemDetailsFromCache(foundItem);
-
-                print('✅ Successfully loaded item details from server');
               } else {
-                print('❌ Could not find item details');
               }
-            } catch (e) {
-              print('❌ Failed to load item details: $e');
-            }
+            } catch (e) {}
           }
 
           widget.onItemSelected(selectedItemName);
@@ -440,8 +407,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   void _updateItemDetailsDirectly(PurchaseItem item) {
-    print('🔄 Updating form fields for: ${item.itemName}');
-
     widget.notifier.safeControllerAction(() {
       widget.notifier.existingPriceController.text = item.purchasePrice
           .toStringAsFixed(2);
@@ -450,11 +415,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       widget.notifier.taxPercentageController.text = item.purchasetaxName
           .toStringAsFixed(2);
       widget.notifier.uomController.text = item.uom;
-
-      print('✅ Updated fields:');
-      print('   Price: ${item.purchasePrice}');
-      print('   Tax: ${item.purchasetaxName}');
-      print('   UOM: ${item.uom}');
 
       if (widget.notifier.befTaxDiscountController.text.isEmpty ||
           widget.notifier.befTaxDiscountController.text == '0') {

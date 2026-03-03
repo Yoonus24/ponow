@@ -22,7 +22,6 @@ class PurchaseOrderLogic {
   final GlobalKey<FormState> formKey;
   final bool Function() isDisposed;
   final ValueNotifier<bool> isSaving = ValueNotifier(false);
-
   final ValueNotifier<int> selectedTaxType = ValueNotifier(1);
   final ValueNotifier<bool> showValidationErrors = ValueNotifier(false);
   final ValueNotifier<String?> roundOffErrorNotifier = ValueNotifier<String?>(
@@ -31,7 +30,6 @@ class PurchaseOrderLogic {
 
   final TemplateProvider templateProvider;
   bool _addressAutoFilled = false;
-  // String? _serverDate;
 
   PurchaseOrderLogic({
     required this.context,
@@ -51,10 +49,6 @@ class PurchaseOrderLogic {
   void initializeData() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (isDisposed()) return;
-
-      // await poProvider.preloadVendors();
-      // await notifier.fetchAllVendors1();
-
       if (editingPO != null) {
         _initializeWithPOData(editingPO!);
         _fetchSupportingDataInBackground();
@@ -90,24 +84,16 @@ class PurchaseOrderLogic {
 
     _addressAutoFilled = true;
     triggerUIRefresh();
-
-    print('✅ Billing & Shipping auto-filled');
   }
 
   void cleanup() {
-    print('🧹 PurchaseOrderLogic.cleanup() called');
-
     vendorController.removeListener(_onVendorInputChanged);
     try {
       isSaving.dispose();
       selectedTaxType.dispose();
       showValidationErrors.dispose();
       roundOffErrorNotifier.dispose();
-    } catch (e) {
-      print('⚠️ Error disposing ValueNotifiers: $e');
-    }
-
-    print('✅ PurchaseOrderLogic cleanup complete');
+    } catch (e) {}
   }
 
   Future<void> _initializeForNewPO() async {
@@ -199,9 +185,7 @@ class PurchaseOrderLogic {
       notifier.clearSelectedVendor();
       vendorController.clear();
       triggerUIRefresh();
-    } catch (e) {
-      print('⚠️ Error in _clearVendorDetails: $e');
-    }
+    } catch (e) {}
   }
 
   void onVendorSelected(String selectedVendor) {
@@ -326,7 +310,6 @@ class PurchaseOrderLogic {
                 ),
               ),
             ),
-
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
@@ -347,23 +330,34 @@ class PurchaseOrderLogic {
 
     try {
       isSaving.value = true;
+
+      // ✅ ROUND OFF FIX START
+      final roundOff = double.tryParse(notifier.roundOffController.text) ?? 0.0;
+
+      notifier.roundOffAdjustment = roundOff;
+
+      debugPrint("🟢 ROUND OFF BEFORE SAVE: $roundOff");
+      debugPrint("🟢 TOTAL ORDER BEFORE SAVE: ${notifier.totalOrderAmount}");
+      // ✅ ROUND OFF FIX END
+
       if (notifier.isNotifierDisposed) {
-        print('⚠️ Notifier is disposed, cannot save');
         _stopSavingSpinner();
         return;
       }
+
       if (_isControllerDisposed(notifier.vendorContactController) ||
           _isControllerDisposed(notifier.paymentTermsController) ||
           _isControllerDisposed(notifier.billingController) ||
           _isControllerDisposed(notifier.shippingController) ||
           _isControllerDisposed(notifier.orderedDateController)) {
-        print('⚠️ One or more controllers are disposed, cannot save');
         _stopSavingSpinner();
         return;
       }
+
       _verifyItemDataBeforeSubmission();
 
       final bool success = await notifier.submitPurchaseOrder(context);
+
       if (isDisposed()) {
         _stopSavingSpinner();
         return;
@@ -391,9 +385,6 @@ class PurchaseOrderLogic {
         Navigator.of(context).pop(true);
       }
     } catch (e, stackTrace) {
-      print('❌ Save Purchase Order Error: $e');
-      print('Stack trace: $stackTrace');
-
       if (!isDisposed() && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -414,7 +405,6 @@ class PurchaseOrderLogic {
       final text = controller.text;
       return false;
     } catch (e) {
-      print('⚠️ Controller check error (likely disposed): $e');
       return true;
     }
   }
@@ -445,7 +435,6 @@ class PurchaseOrderLogic {
     if (isDisposed()) return;
 
     if (editingPO != null) {
-      print('⚠️ resetAllFields skipped (edit mode)');
       return;
     }
 
@@ -471,27 +460,6 @@ class PurchaseOrderLogic {
 
     updateTotalOrderAmount();
     triggerUIRefresh();
-  }
-
-  void _resetItemFields() {
-    notifier.itemController.clear();
-    notifier.uomController.clear();
-    notifier.eachQuantityController.clear();
-    notifier.quantityController.clear();
-    notifier.existingPriceController.clear();
-    notifier.newPriceController.clear();
-    notifier.varianceController.clear();
-    notifier.taxPercentageController.clear();
-    notifier.befTaxDiscountController.clear();
-    notifier.afTaxDiscountController.clear();
-
-    notifier.countController.text = '1';
-    notifier.clearSelectedItem();
-    triggerUIRefresh();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!isDisposed()) notifier.fetchItems('');
-    });
   }
 
   Future<void> applyDiscount() async {
@@ -675,7 +643,6 @@ class PurchaseOrderLogic {
     notifier.setEditingPO(po);
 
     VendorAll vendor;
-
     try {
       vendor = notifier.vendorAllList.firstWhere(
         (v) => v.vendorName == po.vendorName,
@@ -712,23 +679,39 @@ class PurchaseOrderLogic {
     }
 
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
-    notifier.expectedDeliveryDateController.text = formatDate(
-      po.expectedDeliveryDate ?? '',
-    );
+
+    debugPrint("EXPECTED DATE RAW: ${po.expectedDeliveryDate}");
+
+    final expectedDate = po.expectedDeliveryDate;
+
+    notifier.expectedDeliveryDateController.text =
+        (expectedDate != null && expectedDate.isNotEmpty)
+        ? formatDate(expectedDate)
+        : ""; // fallback empty
+
     notifier.billingController.text = po.billingAddress ?? '';
     notifier.shippingController.text = po.shippingAddress ?? '';
+
+    notifier.roundOffController.text = (po.roundOffAdjustment ?? 0.0)
+        .toStringAsFixed(2);
+
     notifier.poItems.clear();
 
     for (final item in po.items) {
-      final qty = item.quantity ?? 0.0;
-      final price = item.newPrice ?? item.existingPrice ?? 0.0;
-      final base = qty * price;
+      final qty = (item.quantity ?? 0.0).toDouble();
 
-      final befDisc = item.befTaxDiscountAmount ?? 0.0;
-      final afDisc = item.afTaxDiscountAmount ?? 0.0;
-      final tax = item.pendingTaxAmount ?? item.taxAmount ?? 0.0;
+      final existing = (item.existingPrice ?? item.newPrice ?? 0.0).toDouble();
+      final newP = (item.newPrice ?? existing).toDouble();
 
-      double finalPrice = item.finalPrice ?? 0.0;
+      final base = qty * newP;
+
+      final befDisc = (item.befTaxDiscountAmount ?? 0.0).toDouble();
+      final afDisc = (item.pendingDiscountAmount ?? 0.0).toDouble();
+
+      final tax = (item.pendingTaxAmount ?? item.taxAmount ?? 0.0).toDouble();
+
+      double finalPrice = (item.pendingFinalPrice ?? 0.0).toDouble();
+
       if (finalPrice == 0.0 && base > 0) {
         finalPrice = base + tax - befDisc - afDisc;
         if (finalPrice < 0) finalPrice = 0.0;
@@ -739,24 +722,38 @@ class PurchaseOrderLogic {
           itemId: item.itemId,
           itemName: item.itemName,
           uom: item.uom,
+
           quantity: qty,
-          count: item.count ?? 1.0,
-          eachQuantity: item.eachQuantity ?? qty,
-          existingPrice: item.existingPrice ?? price,
-          newPrice: price,
+
+          count: (item.count == null || item.count == 0) ? 1.0 : item.count,
+
+          eachQuantity: (item.eachQuantity == null || item.eachQuantity == 0)
+              ? qty
+              : item.eachQuantity,
+
+          existingPrice: existing,
+          newPrice: newP,
+
           taxPercentage: item.taxPercentage ?? 0.0,
           taxType: item.taxType ?? 'cgst_sgst',
+
           befTaxDiscount: item.befTaxDiscount ?? 0.0,
           afTaxDiscount: item.afTaxDiscount ?? 0.0,
+
           befTaxDiscountAmount: befDisc,
           afTaxDiscountAmount: afDisc,
+
           taxAmount: tax,
+
           totalPrice: base,
-          finalPrice: finalPrice,
           pendingTotalPrice: base,
+
+          finalPrice: finalPrice,
           pendingFinalPrice: finalPrice,
+
           pendingTaxAmount: tax,
           pendingDiscountAmount: befDisc + afDisc,
+
           pendingCgst:
               item.pendingCgst ?? (item.taxType == 'cgst_sgst' ? tax / 2 : 0.0),
 
@@ -776,6 +773,12 @@ class PurchaseOrderLogic {
       if (isDisposed()) return;
 
       notifier.recalculateFromLoadedPO(notify: true);
+
+      debugPrint("TOTAL ORDER AMOUNT: ${notifier.totalOrderAmount}");
+      debugPrint(
+        "EXPECTED DELIVERY DATE UI: ${notifier.expectedDeliveryDateController.text}",
+      );
+
       updateTotalOrderAmount();
       triggerUIRefresh();
     });
@@ -795,7 +798,7 @@ class PurchaseOrderLogic {
         po.items.every(
           (i) =>
               (i.befTaxDiscountAmount ?? 0.0) == 0.0 &&
-              (i.afTaxDiscountAmount ?? 0.0) > 0,
+              (i.afTaxDiscount ?? 0.0) > 0,
         );
 
     if (hasOverall) {
@@ -803,7 +806,7 @@ class PurchaseOrderLogic {
 
       notifier.isOverallDiscountActive = true;
 
-      notifier.discountMode.value = first.afTaxDiscountType == 'percentage'
+      notifier.discountMode.value = (first.afTaxDiscountType == 'percentage')
           ? DiscountMode.percentage
           : DiscountMode.fixedAmount;
 
@@ -814,7 +817,7 @@ class PurchaseOrderLogic {
 
       notifier.overallDiscountAmount = po.items.fold(
         0.0,
-        (s, i) => s + (i.afTaxDiscountAmount ?? 0.0),
+        (s, i) => s + (i.pendingDiscountAmount ?? 0.0),
       );
 
       notifier.itemWiseDiscount = 0.0;
@@ -826,7 +829,7 @@ class PurchaseOrderLogic {
         (s, i) =>
             s +
             (i.befTaxDiscountAmount ?? 0.0) +
-            (i.afTaxDiscountAmount ?? 0.0),
+            (i.pendingDiscountAmount ?? 0.0),
       );
 
       notifier.overallDiscountAmount = 0.0;
@@ -1022,19 +1025,13 @@ class PurchaseOrderLogic {
     if (s.isEmpty) return "";
 
     try {
-      final date = DateTime.tryParse(s);
-      if (date != null) {
-        return "${date.day.toString().padLeft(2, '0')}-"
-            "${date.month.toString().padLeft(2, '0')}-"
-            "${date.year}";
-      }
+      final date = DateTime.parse(s);
 
-      if (s.contains("-") && s.split("-").length == 3) {
-        return s;
-      }
-
-      return "";
-    } catch (_) {
+      return "${date.day.toString().padLeft(2, '0')}-"
+          "${date.month.toString().padLeft(2, '0')}-"
+          "${date.year}";
+    } catch (e) {
+      debugPrint("DATE PARSE ERROR: $e");
       return "";
     }
   }

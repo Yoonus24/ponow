@@ -568,14 +568,14 @@ class ApprovedPOTable extends StatelessWidget {
 
       case 'Total Price':
         return CustomTableCell(
-          text: item.totalPrice?.toStringAsFixed(2) ?? '0.00',
+          text: (item.pendingTotalPrice ?? 0.0).toStringAsFixed(2),
           width: logic.getColumnWidth(column),
           isEvenRow: isEvenRow,
         );
 
       case 'Final':
         return CustomTableCell(
-          text: item.finalPrice?.toStringAsFixed(2) ?? '0.00',
+          text: (item.pendingFinalPrice ?? 0.0).toStringAsFixed(2),
           width: logic.getColumnWidth(column),
           isEvenRow: isEvenRow,
         );

@@ -32,8 +32,7 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
           poProvider: widget.poProvider,
           onUpdated: () async {
             final provider = Provider.of<POProvider>(context, listen: false);
-            await provider.fetchPOs();
-            provider.notifyListeners();
+            await provider.fetchApprovedPOsOnly();
           },
         );
       },

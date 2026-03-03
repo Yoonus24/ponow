@@ -50,6 +50,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   bool get isLoadingInvoices => _isLoadingInvoices;
   String get error => _error;
   List<String> get validationWarnings => _validationWarnings;
+  Map<String, Outgoing> _paymentsMap = {};
 
   void clearError() {
     _error = '';
@@ -199,12 +200,13 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     bool filterByAmount = false,
     String sortOrder = 'ascending',
     int skip = 0,
-    int limit = 100, 
+    int limit = 100,
     String? invoiceNo,
   }) async {
     _isLoadingOutgoings = true;
     _error = '';
     notifyListeners();
+
     if (skip == 0) {
       _allPayments.clear();
     }
@@ -240,46 +242,40 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         if (invoiceNo != null && invoiceNo.trim().isNotEmpty)
           'invoiceNo': invoiceNo.trim(),
       };
-      print("🔥 QUERY PARAMS: $queryParams");
+
       final response = await dio.get(
         '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: queryParams,
         options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 404) {
         final raw = response.data;
-        final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
 
-        final fetched = data.map((e) => Outgoing.fromJson(e)).where((outgoing) {
-          ApInvoice? ap;
-          try {
-            ap = _apInvoices.firstWhere(
-              (a) => a.invoiceId == outgoing.invoiceId,
-            );
-          } catch (_) {
-            ap = null;
-          }
+        final List<dynamic> data = response.statusCode == 404
+            ? []
+            : (raw is List ? raw : (raw['outgoings'] ?? []));
 
-          if (ap == null) return false;
-          if (ap.apReturnedDate != null) return false;
-
-          return ap.status == 'Outgoing Posted' ||
-              outgoing.status?.toLowerCase() == 'partially paid';
-        }).toList();
+        final fetched = data.map((e) => Outgoing.fromJson(e)).toList();
 
         _payments = fetched;
-
         _allPayments = List.from(fetched);
+        _paymentsMap = {
+          for (var p in _payments)
+            if (p.outgoingId != null) p.outgoingId!: p,
+        };
+
         _error = '';
       } else {
         _payments = [];
         _allPayments = [];
-        _error = 'Unable to load outgoings. Please try again.';
+        _paymentsMap = {};
+        _error = 'Server error (${response.statusCode})';
       }
     } catch (e) {
       _payments = [];
       _allPayments = [];
+      _paymentsMap = {};
       _error = 'Network error. Please check your connection.';
     } finally {
       _isLoadingOutgoings = false;
@@ -297,14 +293,19 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       final response = await dio.get(
         '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: {
+          'status': 'Fully Paid',
           if (fromDate != null) 'fromDate': fromDate.toIso8601String(),
           if (toDate != null) 'toDate': toDate.toIso8601String(),
         },
+        options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 404) {
         final raw = response.data;
-        final List list = raw is List ? raw : raw['outgoings'] ?? [];
+
+        final List list = response.statusCode == 404
+            ? []
+            : (raw is List ? raw : raw['outgoings'] ?? []);
 
         _payments = list.map((e) => Outgoing.fromJson(e)).toList();
         _allPayments = List.from(_payments);
@@ -380,16 +381,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     required String paymentMethod,
     required Map<String, dynamic> transactionDetails,
   }) async {
-    if (kDebugMode) {
-      print('processPayment -> outgoingId=$outgoingId');
-      print(
-        'paymentType=$paymentType, amount=$amount, paymentMode=$paymentMode, '
-        'paymentMethod=$paymentMethod, tx=$transactionDetails',
-      );
-    }
-
     try {
       String backendPaymentMethod;
+
       if (paymentMode == 'Cash') {
         if (paymentMethod == 'petty_cash') {
           backendPaymentMethod = 'pettyCash';
@@ -402,22 +396,23 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         backendPaymentMethod = paymentMethod.toLowerCase();
       }
 
+      final payment = _paymentsMap[outgoingId];
+
+      if (payment == null) {
+        throw Exception('Payment not found');
+      }
+
       final Map<String, dynamic> requestData = {
         'paymentType': paymentType,
         'paymentMode': paymentMode,
         'paymentMethod': backendPaymentMethod,
-
-        'totalPayableAmount': _payments
-            .firstWhere((p) => p.outgoingId == outgoingId)
-            .totalPayableAmount,
-
+        'totalPayableAmount': payment.totalPayableAmount,
         if (paymentType == 'partial') 'partialAmount': amount,
         if (paymentType == 'advance') 'advanceAmount': amount,
         if (paymentType == 'full') 'fullPaymentAmount': amount,
       };
 
-      final currentDateTime = ServerTimeService.now.toIso8601String();
-      requestData['paymentDate'] = currentDateTime;
+      requestData['paymentDate'] = ServerTimeService.now.toIso8601String();
 
       if (paymentMode == 'Bank') {
         requestData.addAll({
@@ -441,21 +436,17 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         });
       }
 
-      if (kDebugMode) {
-        print('processPayment -> requestData=$requestData');
-      }
-
-      final response = await this.dio.patch(
+      final response = await dio.patch(
         '$_baseUrl/outgoingpayments/$outgoingId/payment',
         data: requestData,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Payment failed with status ${response.statusCode}');
+        throw Exception('Payment failed');
       }
 
-      final Map<String, dynamic> data = response.data;
+      final data = response.data;
 
       final double remaining =
           (data['remainingPayableAmount'] as num?)?.toDouble() ?? 0.0;
@@ -480,29 +471,23 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           remainingPayableAmount: remaining,
           totalPaidAmount: totalPaid,
           paymentHistory: history,
-          partialAmount: paymentType == 'partial' ? amount : old.partialAmount,
-          advanceAmount: paymentType == 'advance' ? amount : old.advanceAmount,
-          fullPaymentAmount: paymentType == 'full'
-              ? amount
-              : old.fullPaymentAmount,
         );
 
         _payments[index] = updatedOutgoing;
+        _paymentsMap[outgoingId] = updatedOutgoing;
       }
 
       notifyListeners();
-
-      if (kDebugMode) {
-        print('✅ Payment processed & UI updated instantly');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ processPayment error: $e');
-      }
       _error = e.toString();
       notifyListeners();
       rethrow;
     }
+  }
+
+  void removeOutgoingByInvoiceId(String invoiceId) {
+    payments.removeWhere((p) => p.invoiceId == invoiceId);
+    notifyListeners(); // 🔥 this updates your table instantly
   }
 
   Future<Map<String, dynamic>> processBulkPayments(
@@ -560,27 +545,21 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
       final requestData = {
         'paymentDate': serverDate.toIso8601String().split('T').first,
-
         'outgoingIds': bulkPayments.map((p) => p.outgoingId).toList(),
-
         'payments': bulkPayments.map((p) {
           final bool isCash = p.paymentMode == 'Cash';
           final match = outgoingMap[p.outgoingId]!;
-
           return {
             'outgoingId': p.outgoingId,
             'totalPayableAmount': match.totalPayableAmount,
-
             'paymentType': p.paymentType,
             'paymentMode': p.paymentMode,
             'paymentMethod': isCash ? 'cash' : p.paymentMethod,
-
             'cashAmount': isCash
                 ? (p.paymentType == 'full'
                       ? p.fullPaymentAmount
                       : perOutgoingPartialAmount)
                 : 0.0,
-
             'selectedDebitNotes': [],
             'selectedAdvancePayments': [],
 

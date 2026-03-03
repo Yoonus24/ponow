@@ -68,11 +68,6 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     _isLoading.value = false;
   }
 
-  void _cacheVendors(List<VendorAll> vendors) {
-    for (var v in vendors) {
-      _vendorCache[v.vendorName] = v;
-    }
-  }
 
   void _search(String query) {
     _debounceTimer?.cancel();

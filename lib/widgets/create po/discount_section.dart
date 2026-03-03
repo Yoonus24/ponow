@@ -97,12 +97,9 @@ class _DiscountSectionState extends State<DiscountSection> {
   }
 
   void _clearAllDiscounts() {
-    print('🎯 Clearing ALL discounts (overall + item-wise)');
-
     final notifier = widget.notifier;
     _lastAppliedDiscount = 0.0;
     _lastAppliedMode = DiscountMode.none;
-
     widget.overallDiscountController.text = '0';
     widget.discountMode.value = DiscountMode.none;
     notifier.isOverallDiscountActive = false;
@@ -153,21 +150,15 @@ class _DiscountSectionState extends State<DiscountSection> {
           item.pendingTotalPrice = baseAmount;
         }
       } catch (e) {
-        print('⚠️ Error clearing discount for item: $e');
       }
     }
-
     notifier.overallDiscountAmount = 0.0;
     notifier.overallDiscountValue = 0.0;
     notifier.itemWiseDiscount = 0.0;
     notifier.isOverallDiscountActive = false;
-
     _recalculateTotalsAfterDiscountClear();
-
     notifier.notifyListeners();
     widget.onCalculationsUpdate();
-
-    print('✅ All discounts cleared, prices reset to original');
   }
 
   void _openNumericKeyboard({
@@ -295,28 +286,6 @@ class _DiscountSectionState extends State<DiscountSection> {
     widget.notifier.pendingTaxAmount = totalTax;
     widget.notifier.pendingDiscountAmount =
         totalBefTaxDiscount + totalAfTaxDiscount;
-
-    print('📊 Recalculated after discount clear:');
-    print('   Subtotal: $totalSubTotal');
-    print('   Tax: $totalTax');
-    print('   Bef Tax Discount: $totalBefTaxDiscount');
-    print('   Af Tax Discount: $totalAfTaxDiscount');
-    print('   Final: $calculatedFinal');
-    print('   Round Off: $roundOff');
-  }
-
-  void _debugItemPrices() {
-    print('🔍 DEBUG - Item Prices after discount clear:');
-    for (var i = 0; i < widget.poItems.length; i++) {
-      var item = widget.poItems[i];
-      String name = _getItemProperty(item, 'itemName') ?? 'Item $i';
-      double price = _getItemProperty(item, 'newPrice') ?? 0.0;
-      double qty = _getItemProperty(item, 'quantity') ?? 0.0;
-      double base = price * qty;
-      double finalPrice = _getItemProperty(item, 'finalPrice') ?? 0.0;
-
-      print('   $name: Price=$price, Qty=$qty, Base=$base, Final=$finalPrice');
-    }
   }
 
   dynamic _getItemProperty(dynamic item, String propertyName) {
@@ -370,11 +339,9 @@ class _DiscountSectionState extends State<DiscountSection> {
         case 'pendingDiscountAmount':
           return object.pendingDiscountAmount;
         default:
-          print('! Unknown property in _getPropertyValue: $name');
           return null;
       }
     } catch (_) {
-      print('! Error getting property $name');
       return null;
     }
   }

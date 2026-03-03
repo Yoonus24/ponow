@@ -122,8 +122,17 @@ class _POWidgetState extends State<POWidget> {
           orElse: () => widget.po,
         );
 
-        final double cardTotal = updatedPO.finalAmount;
+        final double itemsTotal = updatedPO.items.fold(
+          0.0,
+          (sum, item) => sum + (item.pendingFinalPrice ?? 0),
+        );
 
+        final double freightAmount = updatedPO.totalFreightAmount ?? 0;
+        final double freightTax = updatedPO.totalFreightTaxAmount ?? 0;
+        final double roundOff = updatedPO.roundOffAdjustment ?? 0;
+
+        final double cardTotal =
+            itemsTotal + freightAmount + freightTax + roundOff;
         return Container(
           margin: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -472,36 +481,37 @@ class _POWidgetState extends State<POWidget> {
     );
   }
 
-  void _editPO(BuildContext context, PO po) {
+  void _editPO(BuildContext context, PO po) async {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+    final poProvider = Provider.of<POProvider>(context, listen: false);
 
-    notifier.setEditingPO(po);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final fullPO = await poProvider.fetchPOById(po.purchaseOrderId);
+
+    Navigator.of(context).pop(); 
+
+    if (fullPO == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to load PO details")),
+      );
+      return;
+    }
+
+    notifier.setEditingPO(fullPO);
 
     showDialog(
       barrierDismissible: false,
       context: context,
       builder: (_) => PurchaseOrderDialog(
         key: UniqueKey(),
-        editingPO: po,
+        editingPO: fullPO, // ✅ FIXED
         templateProvider: context.read<TemplateProvider>(),
       ),
-    ).then((result) async {
-      if (!mounted) return;
-
-      if (result == true) {
-        await context.read<POProvider>().fetchPOs();
-
-        if (!mounted) return;
-
-        widget.onStatusChanged?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Purchase Order updated successfully!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    });
+    );
   }
 }

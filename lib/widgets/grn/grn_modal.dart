@@ -9,7 +9,6 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_Calculator.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
-import '../../providers/po_provider.dart';
 
 class GRNModal extends StatefulWidget {
   final GRN grn;
@@ -34,8 +33,6 @@ class _GRNModalState extends State<GRNModal> {
   final TextEditingController commonDiscountController =
       TextEditingController();
   final ValueNotifier<bool> isConverting = ValueNotifier(false);
-
-  // Discount notifiers
   final Map<String, ValueNotifier<double>> befTaxDiscountNotifiers = {};
   final Map<String, ValueNotifier<double>> afTaxDiscountNotifiers = {};
   final ValueNotifier<double> commonDiscountNotifier = ValueNotifier(0.0);
@@ -43,8 +40,6 @@ class _GRNModalState extends State<GRNModal> {
   final TextEditingController roundOffController = TextEditingController();
   final ValueNotifier<double> roundOffNotifier = ValueNotifier(0.0);
   final ValueNotifier<String?> roundOffErrorNotifier = ValueNotifier(null);
-
-  // Column visibility
   final ValueNotifier<List<String>> visibleColumnsNotifier = ValueNotifier([
     'Item Name',
     'UOM',
@@ -115,20 +110,17 @@ class _GRNModalState extends State<GRNModal> {
 
     grn = widget.grn;
 
-    // ✅ Sync header scroll with body scroll
     _contentScrollController.addListener(() {
       if (_headerScrollController.hasClients) {
         _headerScrollController.jumpTo(_contentScrollController.offset);
       }
     });
 
-    // ✅ FIX: Do NOT load auto round into field
-    // Manual round only
-    grn.roundOffAdjustment = 0.0;
+    final double backendRound = grn.grnRoundOffAmount ?? 0.0;
 
-    roundOffController.text = '0.00';
-    roundOffNotifier.value = 0.0;
-
+    grn.roundOffAdjustment = backendRound;
+    roundOffController.text = backendRound.toStringAsFixed(2);
+    roundOffNotifier.value = backendRound;
     commonDiscountController.text = (grn.discountPrice ?? 0.0).toStringAsFixed(
       2,
     );
@@ -188,7 +180,7 @@ class _GRNModalState extends State<GRNModal> {
       final parsed = DateTime.parse(date);
       return DateFormat('dd-MM-yyyy').format(parsed);
     } catch (e) {
-      return date; // fallback
+      return date;
     }
   }
 
@@ -280,35 +272,36 @@ class _GRNModalState extends State<GRNModal> {
     double totalSGST = 0.0;
     double totalCGST = 0.0;
     double totalIGST = 0.0;
-
-    double totalDiscount = grn.totalDiscount?.toDouble() ?? 0.0;
+    double totalDiscount = 0.0;
 
     for (final item in grn.itemDetails ?? []) {
-      itemTotal += item.finalPrice ?? 0.0;
+      final double base = item.totalPrice ?? 0.0;
+      final double discount = item.discountAmount ?? 0.0;
+      final double tax = item.taxAmount ?? 0.0;
+
+      // ✅ CORRECT CALCULATION
+      final double finalItem = base - discount + tax;
+
+      itemTotal += finalItem;
+
+      totalDiscount += discount;
       totalSGST += item.sgst ?? 0.0;
       totalCGST += item.cgst ?? 0.0;
       totalIGST += item.igst ?? 0.0;
     }
 
-    final double freightAmount = grn.totalFreightAmount ?? 0.0;
-    final double freightTax = grn.totalFreightTaxAmount ?? 0.0;
-    final double freightTotal = freightAmount + freightTax;
+    final double freight =
+        (grn.totalFreightAmount ?? 0.0) + (grn.totalFreightTaxAmount ?? 0.0);
 
-    final double baseTotal =
-        grn.totalReceivedAmount?.toDouble() ?? (itemTotal + freightTotal);
-    // ❌ AUTO ROUND COMPLETELY REMOVED
-    double autoRound = 0.0;
+    final double roundOff = grn.roundOffAdjustment ?? 0.0;
 
-    // ✅ Manual only
-    final double manualRound = grn.roundOffAdjustment ?? 0.0;
-
-    final double finalTotal = baseTotal + manualRound;
+    final double finalTotal = itemTotal + freight + roundOff;
 
     return {
       'totalItemsAmount': itemTotal,
-      'freightAmount': freightTotal,
-      'roundOff': manualRound,
-      'autoRound': autoRound, // always 0
+      'freightAmount': freight,
+      'roundOff': roundOff,
+      'autoRound': 0.0,
       'totalReceivedAmount': finalTotal,
       'totalDiscount': totalDiscount,
       'totalSGST': totalSGST,
@@ -335,8 +328,6 @@ class _GRNModalState extends State<GRNModal> {
         grn.roundOffAdjustment = doubleVal;
         roundOffNotifier.value = doubleVal;
         totalsNotifier.value = _recalculateGRNTotal();
-
-        print('Manual Round Updated: $doubleVal');
       },
     );
   }
@@ -347,7 +338,6 @@ class _GRNModalState extends State<GRNModal> {
       final DateTime parsedDate = DateTime.parse(date);
       return DateFormat('dd MMM yyyy').format(parsedDate);
     } catch (e) {
-      print('Error formatting date: $e');
       return date;
     }
   }
@@ -358,11 +348,8 @@ class _GRNModalState extends State<GRNModal> {
     VoidCallback onConfirm,
   ) {
     final totals = _recalculateGRNTotal();
-
-    // ✅ combined round
     final double roundOff =
         (totals['roundOff'] ?? 0.0) + (totals['autoRound'] ?? 0.0);
-
     if (!_validateRoundOff(roundOff)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -503,7 +490,6 @@ class _GRNModalState extends State<GRNModal> {
 
       final double manualRound = totals['roundOff'] ?? 0.0;
 
-      // ✅ ONLY manual (backend supports only this)
       double finalRound = manualRound;
 
       finalRound = double.parse(finalRound.toStringAsFixed(2));
@@ -513,12 +499,6 @@ class _GRNModalState extends State<GRNModal> {
 
       final double uiFinal = totals['totalReceivedAmount'] ?? 0.0;
       final double backendBase = grn.grnAmount ?? 0.0;
-
-      print('➡️ FINAL FIX MODE');
-      print('➡️ Manual Round : $manualRound');
-      print('➡️ UI Final     : $uiFinal');
-      print('➡️ Backend Base : $backendBase');
-      print('➡️ Sent Round   : $finalRound');
 
       final result = await context
           .read<GRNProvider>()
@@ -690,8 +670,6 @@ class _GRNModalState extends State<GRNModal> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    print('In GRN PO Random ID: ${grn.poRandomID}');
-
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: EdgeInsets.zero,
@@ -1066,14 +1044,9 @@ class _GRNModalState extends State<GRNModal> {
                   final double totalItemsAmount =
                       totals['totalItemsAmount'] ?? 0.0;
                   final double discount = totals['totalDiscount'] ?? 0.0;
-
-                  // ✅ Split values
                   final double manualRound = totals['roundOff'] ?? 0.0;
                   final double autoRound = totals['autoRound'] ?? 0.0;
-
-                  // ❌ DO NOT show auto round in UI
                   final double roundOff = manualRound;
-
                   final double totalReceivedAmount =
                       totals['totalReceivedAmount'] ?? 0.0;
 
@@ -1117,7 +1090,6 @@ class _GRNModalState extends State<GRNModal> {
                         compact: true,
                       ),
 
-                      // ✅ ONLY manual round shown
                       if (manualRound != 0)
                         _buildSummaryRow(
                           "Round Off Adjustment",
@@ -1141,7 +1113,6 @@ class _GRNModalState extends State<GRNModal> {
                         compact: true,
                       ),
 
-                      // ✅ FIELD (manual only)
                       ValueListenableBuilder<String?>(
                         valueListenable: roundOffErrorNotifier,
                         builder: (context, error, _) {

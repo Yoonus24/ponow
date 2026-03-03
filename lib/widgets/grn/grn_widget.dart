@@ -430,33 +430,5 @@ class _GRNWidgetState extends State<GRNWidget> {
     }
   }
 
-  Widget _headerCell(String text, double width) {
-    return Container(
-      width: width,
-      height: 40,
-      alignment: Alignment.center,
-      color: Colors.grey[300],
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
 
-  Widget _dataCell(String text, double width, {bool right = false}) {
-    return Container(
-      width: width,
-      height: 40,
-      alignment: right ? Alignment.centerRight : Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        text,
-        textAlign: right ? TextAlign.right : TextAlign.center,
-        style: const TextStyle(fontSize: 12),
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }
 }

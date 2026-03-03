@@ -25,7 +25,6 @@ class _AppInitializerState extends State<AppInitializer> {
     );
 
     connectivityProvider.onReconnect = () async {
-      print("🌐 Back Online → Auto Refreshing");
 
       try {
         await Provider.of<POProvider>(
@@ -48,7 +47,7 @@ class _AppInitializerState extends State<AppInitializer> {
           listen: false,
         ).fetchPayments();
       } catch (e) {
-        print("❌ Refresh error: $e");
+        // Handle errors if needed
       }
     };
   }

@@ -253,7 +253,6 @@ class Item {
       poQuantitysgst: poQuantitysgst ?? this.poQuantitysgst,
       poQuantitycgst: poQuantitycgst ?? this.poQuantitycgst,
       poQuantityigst: poQuantityigst ?? this.poQuantityigst,
-
       uom: uom ?? this.uom,
       discount: discount ?? this.discount,
       purchasetaxName: purchasetaxName ?? this.purchasetaxName,

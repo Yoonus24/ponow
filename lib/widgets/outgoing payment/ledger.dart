@@ -262,10 +262,9 @@ class _LedgerState extends State<Ledger> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: SizedBox(
-                            width: 1100, // total table width
+                            width: 1100, 
                             child: Column(
                               children: [
-                                /// 🔵 HEADER (now scrolls with body)
                                 Container(
                                   color: Colors.blueAccent,
                                   height: 56,
@@ -296,7 +295,6 @@ class _LedgerState extends State<Ledger> {
                                   ),
                                 ),
 
-                                /// 🔵 BODY
                                 Expanded(
                                   child: ListView.builder(
                                     itemCount: filteredPayments.length,

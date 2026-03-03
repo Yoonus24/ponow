@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:purchaseorders2/AppInitializer.dart';
 import 'package:purchaseorders2/home_shell.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -20,16 +22,34 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = true;
   await ServerTimeService.initialize();
-  runApp(const MyApp());
+
+  final prefs = await SharedPreferences.getInstance();
+
+  await prefs.reload(); 
+
+  final loginTime = prefs.getInt('loginTime');
+
+  bool isAuthenticated = false;
+
+  if (loginTime != null) {
+    final diff = ServerTimeService.now.difference(
+      DateTime.fromMillisecondsSinceEpoch(loginTime),
+    );
+
+    if (diff.inMinutes < 5) {
+      isAuthenticated = true;
+    }
+  }
+  runApp(MyApp(isAuthenticated: isAuthenticated));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool isAuthenticated;
+
+  const MyApp({super.key, required this.isAuthenticated});
 
   @override
   Widget build(BuildContext context) {
-    final bool isAuthenticated = false;
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
@@ -126,7 +146,9 @@ class MyApp extends StatelessWidget {
             },
           ),
         ),
+
         initialRoute: isAuthenticated ? '/home' : '/login',
+
         routes: {
           '/login': (_) => const LoginPage(),
           '/home': (_) => const HomeShell(),

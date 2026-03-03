@@ -948,7 +948,6 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       notifier.notifyListeners();
     } catch (e) {
-      print('Error calculating PO totals from backend: $e');
     }
   }
 
@@ -1191,7 +1190,6 @@ class _AddItemDialogState extends State<AddItemDialog> {
         _clearItemDetails();
       }
     } catch (e) {
-      print('Error in _addOrUpdateItem: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,

@@ -26,7 +26,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   Timer? _debounceTimer;
   late final FocusNode _searchFocusNode;
 
-  // To prevent multiple simultaneous loads
   bool _isLoading = false;
 
   @override
@@ -61,7 +60,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   @override
   void didUpdateWidget(covariant PartialPaymentPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // FIXED: Use post frame callback to avoid calling during build
     if (oldWidget.status != widget.status) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -72,7 +70,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   }
 
   Future<void> _loadData() async {
-    // Prevent multiple simultaneous loads
     if (_isLoading) return;
     _isLoading = true;
 
@@ -155,7 +152,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   @override
   Widget build(BuildContext context) {
     final Color headerColor = Colors.blueAccent;
-    // FIXED: Make table horizontally scrollable to fix overflow
     final isSmallScreen = MediaQuery.of(context).size.width < 1000;
 
     return Scaffold(

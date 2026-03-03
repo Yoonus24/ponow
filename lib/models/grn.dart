@@ -306,18 +306,11 @@ class DebitCreditNote {
   }
 
   static DebitCreditNote fromGRN(GRN grn) {
-    print('🔍 Starting GRN conversion. GRN comments: "${grn.comments}"');
-
     return DebitCreditNote(
       noteId: null,
       grnId: grn.grnId ?? '',
       vendorName: grn.vendorName ?? 'Unknown',
       itemDetails: (grn.itemDetails ?? []).map((grnItem) {
-        print('🔄 Processing item: ${grnItem.itemName}');
-        print(
-          '   - Return history count: ${grnItem.returnHistory?.length ?? 0}',
-        );
-
         String reason =
             grn.comments?.trim() ??
             (grnItem.returnHistory?.isNotEmpty == true
@@ -325,8 +318,6 @@ class DebitCreditNote {
                 : '');
 
         reason = reason.isEmpty ? 'No reason provided' : reason;
-        print('   - Final reason: "$reason"');
-
         return ItemDetails(
           itemId: grnItem.itemId ?? '',
           itemName: grnItem.itemName ?? 'N/A',

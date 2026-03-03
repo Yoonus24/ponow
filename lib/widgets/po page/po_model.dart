@@ -40,6 +40,7 @@ class _POModalState extends State<POModal> {
   final ValueNotifier<bool> isSaving = ValueNotifier(false);
   final ValueNotifier<bool> isApproving = ValueNotifier(false);
   final ValueNotifier<bool> isRejecting = ValueNotifier(false);
+  bool _initialized = false;
 
   bool isTablet(BuildContext context) {
     final shortestSide = MediaQuery.of(context).size.shortestSide;
@@ -151,11 +152,7 @@ class _POModalState extends State<POModal> {
       }
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (int i = 0; i < widget.po.items.length; i++) {
-        updateCalculations(i, context);
-      }
-    });
+   
   }
 
   @override
@@ -214,8 +211,7 @@ class _POModalState extends State<POModal> {
 
     final priceAfterBefDiscount = totalPrice - befTaxDiscountAmount;
 
-    final taxAmount =
-        item.pendingTaxAmount ?? (priceAfterBefDiscount * taxPercentage) / 100;
+    final taxAmount = (priceAfterBefDiscount * taxPercentage) / 100;
 
     final afTaxDiscountAmount =
         (priceAfterBefDiscount + taxAmount) * (afTaxDiscountPercent / 100);
@@ -227,8 +223,12 @@ class _POModalState extends State<POModal> {
     double igst = 0.0;
 
     if (taxAmount > 0) {
-      cgst = taxAmount / 2;
-      sgst = taxAmount / 2;
+      if (item.taxType == "cgst_sgst") {
+        cgst = taxAmount / 2;
+        sgst = taxAmount / 2;
+      } else {
+        igst = taxAmount;
+      }
     }
 
     item.pendingCount = pendingCount;
@@ -236,13 +236,14 @@ class _POModalState extends State<POModal> {
     item.pendingTotalQuantity = totalQuantity;
 
     item.newPrice = unitPrice;
-
     item.pendingTotalPrice = totalPrice;
 
     item.pendingBefTaxDiscountAmount = befTaxDiscountAmount;
     item.pendingAfTaxDiscountAmount = afTaxDiscountAmount;
 
-    item.pendingDiscountAmount = befTaxDiscountAmount + afTaxDiscountAmount;
+    if (befTaxDiscountPercent > 0 || afTaxDiscountPercent > 0) {
+      item.pendingDiscountAmount = befTaxDiscountAmount + afTaxDiscountAmount;
+    }
 
     item.pendingTaxAmount = taxAmount;
     item.pendingFinalPrice = finalPrice;
@@ -260,9 +261,20 @@ class _POModalState extends State<POModal> {
 
     newPriceControllers[index].text = unitPrice.toStringAsFixed(2);
 
-    widget.po.pendingDiscountAmount = getTotalDiscountAmount();
-    widget.po.pendingTaxAmount = getTotalTaxAmount();
-    widget.po.pendingOrderAmount = getTotalOrderAmount();
+    widget.po.pendingDiscountAmount = widget.po.items.fold<double>(
+      0.0,
+      (sum, i) => sum + (i.pendingDiscountAmount ?? 0.0),
+    );
+
+    widget.po.pendingTaxAmount = widget.po.items.fold<double>(
+      0.0,
+      (sum, i) => sum + (i.pendingTaxAmount ?? 0.0),
+    );
+
+    widget.po.pendingOrderAmount = widget.po.items.fold<double>(
+      0.0,
+      (sum, i) => sum + (i.pendingFinalPrice ?? 0.0),
+    );
 
     poModalProvider.notifyListeners();
   }
@@ -286,7 +298,7 @@ class _POModalState extends State<POModal> {
   }
 
   double getTotalDiscountAmount() {
-    return widget.po.items.fold(
+    return widget.po.items.fold<double>(
       0.0,
       (sum, item) => sum + (item.pendingDiscountAmount ?? 0.0),
     );
@@ -307,29 +319,32 @@ class _POModalState extends State<POModal> {
   }
 
   double getFinalTotalWithRoundOff() {
-    final itemsTotal = widget.po.items.fold(
+    final itemsTotal = widget.po.items.fold<double>(
       0.0,
       (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
     );
 
     final freight = widget.po.totalFreightAmount ?? 0.0;
+
     final freightTax = widget.po.totalFreightTaxAmount ?? 0.0;
+
     final roundOff = widget.po.roundOffAdjustment ?? 0.0;
 
-    return itemsTotal + freight + freightTax + roundOff;
+    final total = itemsTotal + freight + freightTax + roundOff;
+
+    return total;
   }
 
   double getTotalOrderAmount() {
-    return widget.po.pendingOrderAmount ??
-        widget.po.items.fold(
-              0.0,
-              (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
-            ) +
-            (widget.po.roundOffAdjustment ?? 0.0);
+    return widget.po.items.fold<double>(
+          0.0,
+          (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
+        ) +
+        (widget.po.roundOffAdjustment ?? 0.0);
   }
 
   double getTotalTaxAmount() {
-    return widget.po.items.fold(
+    return widget.po.items.fold<double>(
       0.0,
       (sum, item) => sum + (item.pendingTaxAmount ?? 0.0),
     );
@@ -985,14 +1000,19 @@ class _POModalState extends State<POModal> {
                                             context,
                                           );
 
-                                          Provider.of<POProvider>(
-                                            context,
-                                            listen: false,
-                                          ).fetchPOs();
+                                          final poProvider = context
+                                              .read<POProvider>();
+
+                                          await poProvider
+                                              .fetchPendingPOsFromBackend(
+                                                clearExisting: true,
+                                              );
 
                                           if (context.mounted) {
                                             Navigator.of(context).pop();
                                           }
+                                        } catch (e) {
+                                          debugPrint("Save failed: $e");
                                         } finally {
                                           isSaving.value = false;
                                         }
@@ -1055,7 +1075,7 @@ class _POModalState extends State<POModal> {
                                               widget.po,
                                             );
 
-                                            poProvider.fetchPOs();
+                                            // poProvider.fetchPOs();
 
                                             if (context.mounted)
                                               Navigator.of(context).pop();
@@ -1122,7 +1142,7 @@ class _POModalState extends State<POModal> {
                                               widget.po,
                                             );
 
-                                            poProvider.fetchPOs();
+                                            // poProvider.fetchPOs();
 
                                             if (context.mounted)
                                               Navigator.of(context).pop();

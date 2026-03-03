@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
@@ -18,10 +20,8 @@ class GRNPage extends StatefulWidget {
 
 class _GRNPageState extends State<GRNPage> {
   final ValueNotifier<String> _selectedButton = ValueNotifier<String>('active');
-  final ValueNotifier<String> _selectedVendorNotifier = ValueNotifier('');
   final TextEditingController _vendorSearchController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
-  final ValueNotifier<int> _uiRefresh = ValueNotifier(0);
   TextEditingController? _autoController;
   final TextEditingController _vendorController = TextEditingController();
 
@@ -32,13 +32,9 @@ class _GRNPageState extends State<GRNPage> {
   DateTime? _selectedDate;
   bool _isInitialized = false;
 
+  Timer? _debounceTimer;
   final int _skip = 0;
   final int _limit = 50;
-
-  void _refresh() {
-    if (!mounted) return;
-    _uiRefresh.value++;
-  }
 
   @override
   void initState() {
@@ -47,50 +43,87 @@ class _GRNPageState extends State<GRNPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      final grnProvider = Provider.of<GRNProvider>(context, listen: false);
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-      grnProvider.setFilterStatus('active');
+      // ✅ trigger initial load through same flow
+      _selectedButton.value = 'active';
+      _applyFilters();
 
-      await grnProvider.fetchFilteredGRNs();
-      await poProvider.fetchingVendors(
-        vendorName: '',
-        skip: _skip,
-        limit: _limit,
-      );
+      if (poProvider.filteredVendorNames.isEmpty) {
+        await poProvider.fetchingVendors(
+          vendorName: '',
+          skip: _skip,
+          limit: _limit,
+        );
+      }
 
       if (!mounted) return;
-      _isInitialized = true;
-      _refresh();
+      _isInitialized = true; // no setState needed
     });
 
-    _vendorSearchController.addListener(() {
-      if (!mounted) return;
-      if (_vendorSearchController.text != _selectedVendorNotifier.value) {
-        _selectedVendorNotifier.value = _vendorSearchController.text;
+    _vendorNotifier.addListener(_onVendorFilterChanged);
+    _selectedDateNotifier.addListener(_onDateFilterChanged);
+    _selectedButton.addListener(_onStatusFilterChanged);
+  }
+
+  void _onVendorFilterChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _applyFilters();
       }
     });
+  }
 
-    _selectedVendorNotifier.addListener(_applyFilters);
+  void _onDateFilterChanged() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _applyFilters();
+      }
+    });
+  }
+
+  void _onStatusFilterChanged() {
+    if (mounted) {
+      _applyFilters();
+    }
   }
 
   @override
   void dispose() {
-    _uiRefresh.dispose();
+    _debounceTimer?.cancel();
     _selectedButton.dispose();
-    _selectedVendorNotifier.dispose();
     _vendorSearchController.dispose();
     _dateController.dispose();
     _vendorController.dispose();
     _vendorNotifier.dispose();
     _selectedDateNotifier.dispose();
-
     super.dispose();
   }
 
   void _applyFilters() {
     if (!mounted) return;
-    _refresh();
+
+    final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+
+    String? backendStatus;
+
+    if (_selectedButton.value == 'active') {
+      backendStatus = 'active';
+    } else if (_selectedButton.value == 'returned') {
+      backendStatus = 'returned'; // used only to switch API
+    }
+
+    grnProvider.fetchFilteredGRNs(
+      status: backendStatus,
+      vendorName: _vendorNotifier.value.isNotEmpty
+          ? _vendorNotifier.value
+          : null,
+      date: _selectedDate,
+      skip: 0,
+      limit: _limit,
+    );
   }
 
   Widget _buildVendorField() {
@@ -101,6 +134,8 @@ class _GRNPageState extends State<GRNPage> {
           child: Autocomplete<String>(
             key: _autocompleteKey,
             optionsBuilder: (value) async {
+              if (value.text.isEmpty) return const Iterable<String>.empty();
+
               await poProvider.fetchingVendors(
                 vendorName: value.text.trim(),
                 skip: _skip,
@@ -110,21 +145,12 @@ class _GRNPageState extends State<GRNPage> {
             },
             onSelected: (v) {
               _vendorController.text = v;
-
               _vendorNotifier.value = v;
-              _selectedVendorNotifier.value = v;
 
               FocusScope.of(context).unfocus();
-              _refresh();
             },
-
             fieldViewBuilder: (context, controller, focusNode, _) {
               _autoController = controller;
-
-              if (_vendorController.text != controller.text) {
-                _vendorController.text = controller.text;
-                _vendorController.selection = controller.selection;
-              }
 
               return TextField(
                 controller: controller,
@@ -166,8 +192,6 @@ class _GRNPageState extends State<GRNPage> {
                 ),
                 onChanged: (v) {
                   _vendorNotifier.value = v;
-                  _selectedVendorNotifier.value = v;
-                  _refresh();
                 },
               );
             },
@@ -282,11 +306,6 @@ class _GRNPageState extends State<GRNPage> {
                 selected: selected,
                 onTap: () {
                   _selectedButton.value = 'active';
-                  Provider.of<GRNProvider>(
-                    context,
-                    listen: false,
-                  ).setFilterStatus('active');
-                  _refresh();
                 },
               ),
               const SizedBox(width: 8),
@@ -296,11 +315,6 @@ class _GRNPageState extends State<GRNPage> {
                 selected: selected,
                 onTap: () {
                   _selectedButton.value = 'returned';
-                  Provider.of<GRNProvider>(
-                    context,
-                    listen: false,
-                  ).setFilterStatus('returned');
-                  _refresh();
                 },
               ),
             ],
@@ -352,7 +366,8 @@ class _GRNPageState extends State<GRNPage> {
   Widget _buildContent() {
     return Consumer<GRNProvider>(
       builder: (context, provider, _) {
-        if (!_isInitialized || provider.isLoading) {
+        // 🔥 SHOW LOADER WHEN FETCHING (FILTER / INITIAL / REFRESH)
+        if (provider.isLoading && provider.grns.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -362,23 +377,17 @@ class _GRNPageState extends State<GRNPage> {
             children: [
               const SizedBox(height: 200),
               Center(
-                child: Column(
-                  children: [
-                    Text(
-                      provider.error!,
-                      style: const TextStyle(color: Colors.grey, fontSize: 14),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                child: Text(
+                  provider.error!,
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
           );
         }
 
-        final list = _getFilteredGRNs(provider);
-
-        if (list.isEmpty) {
+        if (provider.grns.isEmpty) {
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             children: const [
@@ -393,17 +402,49 @@ class _GRNPageState extends State<GRNPage> {
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: GridViewWidget<GRN>(
-            items: list,
-            itemBuilder: (context, index) {
-              final grn = list[index];
-              return provider.filterStatus == 'returned'
-                  ? GRNReturnWidget(grn: grn)
-                  : GRNWidget(grn: grn);
-            },
-          ),
+        return Stack(
+          children: [
+            // 🔥 MAIN GRID
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: GridViewWidget<GRN>(
+                items: provider.grns,
+                hasMore: provider.hasMore,
+                isLoading: provider.isLoadMore,
+                onLoadMore: () async {
+                  if (!provider.isLoading &&
+                      !provider.isLoadMore &&
+                      provider.hasMore) {
+                    await provider.fetchFilteredGRNs(
+                      status: _selectedButton.value == 'active'
+                          ? 'active'
+                          : 'returned',
+                      vendorName: _vendorNotifier.value.isNotEmpty
+                          ? _vendorNotifier.value
+                          : null,
+                      date: _selectedDate,
+                      skip: provider.grns.length,
+                      limit: provider.limit,
+                      loadMore: true,
+                    );
+                  }
+                },
+                itemBuilder: (context, index) {
+                  final grn = provider.grns[index];
+                  return _selectedButton.value == 'returned'
+                      ? GRNReturnWidget(grn: grn)
+                      : GRNWidget(grn: grn);
+                },
+              ),
+            ),
+
+            // 🔥 OVERLAY LOADER (WHEN FILTERING)
+            if (provider.isLoading)
+              Container(
+                color: Colors.white.withOpacity(0.6),
+                child: const Center(child: CircularProgressIndicator()),
+              ),
+          ],
         );
       },
     );
@@ -411,57 +452,42 @@ class _GRNPageState extends State<GRNPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: _uiRefresh,
-      builder: (_, __, ___) {
-        return Scaffold(
-          appBar: const CommonAppBar(title: "Goods Receipt Notes"),
-          body: Column(
-            children: [
-              _buildFilterRow(),
-              _buildStatusButtons(),
-
-              Expanded(
-                child: RefreshIndicator(
-                  color: Colors.blueAccent,
-                  backgroundColor: Colors.white,
-                  displacement: 40,
-                  strokeWidth: 3,
-
-                  onRefresh: () async {
-                    final grnProvider = Provider.of<GRNProvider>(
-                      context,
-                      listen: false,
-                    );
-                    await grnProvider.fetchFilteredGRNs();
-                  },
-
-                  child: _buildContent(),
-                ),
-              ),
-            ],
+    return Scaffold(
+      appBar: const CommonAppBar(title: "Goods Receipt Notes"),
+      body: Column(
+        children: [
+          _buildFilterRow(),
+          _buildStatusButtons(),
+          Expanded(
+            child: RefreshIndicator(
+              color: Colors.blueAccent,
+              backgroundColor: Colors.white,
+              displacement: 40,
+              strokeWidth: 3,
+              onRefresh: () async {
+                await Future.sync(() => _applyFilters());
+              },
+              child: _buildContent(),
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   void _clearVendorFilter() {
-    if (!mounted) return;
+    _debounceTimer?.cancel();
     _autoController?.clear();
     _vendorController.clear();
     _vendorSearchController.clear();
     _vendorNotifier.value = '';
-    _selectedVendorNotifier.value = '';
-    _refresh();
   }
 
   void _clearDateFilter() {
-    if (!mounted) return;
+    _debounceTimer?.cancel();
     _selectedDate = null;
     _selectedDateNotifier.value = null;
     _dateController.clear();
-    _refresh();
   }
 
   Future<void> _selectDate() async {
@@ -512,7 +538,6 @@ class _GRNPageState extends State<GRNPage> {
       _selectedDate = picked;
       _selectedDateNotifier.value = picked;
       _dateController.text = _formatDate(picked);
-      _refresh();
     }
   }
 
@@ -520,45 +545,5 @@ class _GRNPageState extends State<GRNPage> {
     return '${date.day.toString().padLeft(2, '0')}-'
         '${date.month.toString().padLeft(2, '0')}-'
         '${date.year}';
-  }
-
-  List<GRN> _getFilteredGRNs(GRNProvider grnProvider) {
-    return grnProvider.grns.where((grn) {
-      final filter = grnProvider.filterStatus;
-
-      if (filter == 'active') {
-        final s = grn.status?.toLowerCase() ?? '';
-        if (!(s == 'active' || s.contains('partial'))) return false;
-      } else if (filter == 'returned') {
-        if (!(grn.status?.toLowerCase().contains('returned') ?? false)) {
-          return false;
-        }
-      }
-
-      if (_selectedVendorNotifier.value.isNotEmpty) {
-        final vendorMatch =
-            grn.vendorName?.toLowerCase().contains(
-              _selectedVendorNotifier.value.toLowerCase(),
-            ) ??
-            false;
-        if (!vendorMatch) return false;
-      }
-
-      if (_selectedDate != null) {
-        if (grn.grnDate == null || grn.grnDate!.isEmpty) return false;
-
-        final apiDate = DateTime.tryParse(grn.grnDate!);
-        if (apiDate == null) return false;
-
-        final selected = _selectedDate!;
-        if (apiDate.year != selected.year ||
-            apiDate.month != selected.month ||
-            apiDate.day != selected.day) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
   }
 }

@@ -91,7 +91,7 @@ class PO {
     required this.creditLimit,
     this.overallDiscount,
     this.roundOffAdjustment = 0.0,
-    this.isHoldOrder = false,
+    this.isHoldOrder,
     this.isTemplate = false,
     this.templateName,
     this.templateCreatedDate,

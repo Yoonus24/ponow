@@ -132,22 +132,27 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         return FreightDialog(
           editingFreight: existingFreight,
           onAdd: (freight) async {
-            _logic.po.freights = [freight];
-            _logic.po.totalFreightAmount = freight.amount;
-            _logic.po.totalFreightTaxAmount = freight.taxAmount;
+            try {
+              _logic.po.freights = [freight];
+              _logic.po.totalFreightAmount = freight.amount;
+              _logic.po.totalFreightTaxAmount = freight.taxAmount;
 
-            await _logic.poProvider.updatePO(
-              _logic.po.copyWith(
-                freights: [freight],
-                totalFreightAmount: freight.amount,
-                totalFreightTaxAmount: freight.taxAmount,
-              ),
-            );
+              await _logic.poProvider.updatePO(
+                _logic.po.copyWith(
+                  freights: [freight],
+                  totalFreightAmount: freight.amount,
+                  totalFreightTaxAmount: freight.taxAmount,
+                ),
+              );
 
-            _logic.recalculateFinalAmountAfterDiscount();
-            _logic.refreshUI();
+              _logic.recalculateFinalAmountAfterDiscount();
 
-            Navigator.of(dialogContext).pop();
+              _logic.refreshUI();
+
+              Navigator.of(dialogContext).pop();
+            } catch (e) {
+              debugPrint("Freight update error: $e");
+            }
           },
         );
       },

@@ -74,31 +74,38 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   static const Color borderColor = Color(0xFFE0E0E0);
 
   @override
+  @override
   void initState() {
     super.initState();
 
+    notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+
+    // ✅ FIX: clear immediately before UI builds
+    notifier.expectedDeliveryDateController.text = '';
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
+
       Provider.of<POProvider>(
         context,
         listen: false,
       ).fetchBranches(force: true);
-      if (widget.editingPO == null) {
-        print('🧹 Clearing old notifier data for NEW PO');
 
+      if (widget.editingPO == null) {
         notifier.poItems.clear();
         notifier.clearSelectedVendor();
         notifier.editingIndex = null;
-
         notifier.vendorContactController.clear();
         notifier.paymentTermsController.clear();
         notifier.creditLimitController.clear();
         notifier.billingController.clear();
         notifier.shippingController.clear();
         notifier.clearFreights();
-
         notifier.overallDiscountController.text = '0';
         notifier.roundOffController.text = '0';
+
+        // 🔥 ADD THIS ALSO (important)
+        notifier.expectedDeliveryDateController.text = '';
 
         notifier.subTotal = 0.0;
         notifier.itemWiseDiscount = 0.0;
@@ -108,25 +115,21 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         notifier.pendingOrderAmount = 0.0;
         notifier.pendingDiscountAmount = 0.0;
         notifier.pendingTaxAmount = 0.0;
-
         notifier.discountMode.value = DiscountMode.none;
         _overallDiscountMode.value = DiscountMode.none;
         _itemWiseDiscountMode.value = 'Percentage ( % )';
         notifier.isOverallDiscountActive = false;
         notifier.isOverallDisabledFromItem = false;
-
         _vendorAutocompleteController.clear();
-
         notifier.calculateTotals();
       }
+
       logic.initializeData();
     });
   }
 
   void _clearOnlyDataNotControllers() {
     try {
-      print('🧹 Clearing only data (not controllers)');
-
       final notifier = Provider.of<PurchaseOrderNotifier>(
         context,
         listen: false,
@@ -136,10 +139,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       notifier.poItems.clear();
       notifier.expectedDeliveryDateController.text = '';
       notifier.calculateTotals();
-      print('✅ Only data cleared (controllers untouched)');
-    } catch (e) {
-      print('⚠️ Error clearing data: $e');
-    }
+    } catch (e) {}
   }
 
   void _initializeLogic() {
@@ -382,8 +382,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   }
 
   void _safeClearAndClose() {
-    print('🔄 Safe clear and close');
-
     try {
       notifier.poItems.clear();
       notifier.selectedVendor = null;
@@ -391,14 +389,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       try {
         notifier.billingController.text = '';
         notifier.shippingController.text = '';
-      } catch (e) {
-        print('⚠️ Controllers already disposed, skipping clear');
-      }
+      } catch (e) {}
       notifier.calculateTotals();
-    } catch (e) {
-      print('⚠️ Error in safe clear: $e');
-    }
-
+    } catch (e) {}
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -408,16 +401,13 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     logic.resetAllFields();
     notifier.poItems.clear();
     notifier.clearSelectedVendor();
-
     notifier.billingController.clear();
     notifier.shippingController.clear();
     notifier.vendorContactController.clear();
     notifier.paymentTermsController.clear();
     notifier.creditLimitController.clear();
-
     notifier.overallDiscountController.text = '0';
     notifier.roundOffController.text = '0';
-
     notifier.calculateTotals();
 
     final result = await Navigator.of(context).push(
@@ -451,7 +441,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       creditLimit: 0,
       orderDate: ServerTimeService.now.toIso8601String(),
       createdDate: ServerTimeService.now.toIso8601String(),
-
       randomId: '',
     );
   }
@@ -537,11 +526,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _editPO(BuildContext context, PO po) {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
     notifier.setEditingPO(po);
-    print('🔄 Opening edit dialog for PO: ${po.purchaseOrderId}');
-    print('   Vendor: ${po.vendorName}');
-    print('   Items count: ${po.items.length}');
-    print('   Total amount: ${po.totalOrderAmount}');
-
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -551,8 +535,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         templateProvider: context.read<TemplateProvider>(),
       ),
     ).then((result) async {
-      print('📝 Edit dialog closed with result: $result');
-
       if (!mounted) return;
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -562,12 +544,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       });
 
       if (result == true) {
-        print('✅ PO edit was successful');
         final poProvider = Provider.of<POProvider>(context, listen: false);
         await poProvider.fetchPOs();
-
         if (!mounted) return;
-
         if (widget.onStatusChanged != null) {
           widget.onStatusChanged!();
         }
@@ -578,15 +557,12 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
             backgroundColor: Colors.green,
           ),
         );
-      } else {
-        print('❌ PO edit was cancelled or failed');
-      }
+      } else {}
     });
   }
 
   void _showEditItemDialog(BuildContext context, int index) async {
     if (index < 0 || index >= notifier.poItems.length) return;
-
     final itemToEdit = notifier.poItems[index];
     await showDialog(
       context: context,
@@ -646,7 +622,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       creditLimit: notifier.selectedVendorDetails?.creditLimit ?? 0,
       orderDate: ServerTimeService.now.toIso8601String(),
       createdDate: ServerTimeService.now.toIso8601String(),
-
       randomId: '',
     );
   }
@@ -654,22 +629,18 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   @override
   void dispose() {
     _isDisposed = true;
-
     notifier.removeListener(_updateTotalOrderAmount);
-
     _vendorAutocompleteController.dispose();
     _scrollController.dispose();
     _totalOrderAmount.dispose();
     _itemWiseDiscountMode.dispose();
     _overallDiscountMode.dispose();
     _refreshUI.dispose();
-
     super.dispose();
   }
 
   void _safeClearController(TextEditingController controller) {
     if (!mounted || _isDisposed) return;
-
     try {
       controller.value = TextEditingValue.empty;
     } catch (e) {

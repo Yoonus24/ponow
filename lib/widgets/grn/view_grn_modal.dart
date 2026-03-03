@@ -334,7 +334,7 @@ class _GRNViewModalState extends State<GRNViewModal> {
       // case 'No':
       //   return 40;
       case 'Item Name':
-        return 90;
+        return 110;
       case 'Vendor':
         return 160;
       case 'Reason':
@@ -343,7 +343,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
         return 110;
     }
   }
-
 
   Widget _buildTabletTable(List<Map<String, dynamic>> rows) {
     return ValueListenableBuilder(
@@ -461,7 +460,7 @@ class _GRNViewModalState extends State<GRNViewModal> {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
                   _getCellValue(c, r),
-                  maxLines: c == 'Vendor' ? 2 : 1,
+                  maxLines: c == 'Item Name' ? 2 : (c == 'Vendor' ? 2 : 1),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -481,12 +480,11 @@ class _GRNViewModalState extends State<GRNViewModal> {
       case 'Reason':
         return 280;
       case 'Item Name':
-        return 110;
+        return 150;
       default:
         return 120;
     }
   }
-
 
   Widget _buildSummarySection(bool isMobile) {
     return Padding(
@@ -529,7 +527,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
     );
   }
 
-
   List<Map<String, dynamic>> _collectReturnEntries() {
     final list = <Map<String, dynamic>>[];
     // int index = 0;
@@ -555,7 +552,6 @@ class _GRNViewModalState extends State<GRNViewModal> {
 
   String _getCellValue(String col, Map<String, dynamic> r) {
     switch (col) {
-     
       case 'Item Name':
         return r["itemName"];
       case 'Vendor':

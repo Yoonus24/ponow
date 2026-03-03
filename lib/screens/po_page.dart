@@ -17,11 +17,9 @@ class _POPageState extends State<POPage> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<POProvider>().refreshPOList();
-        // context.read<PurchaseOrderNotifier>().fetchAllVendors1();
-      }
+      context.read<POProvider>().refreshPOList();
     });
   }
 
@@ -38,30 +36,14 @@ class _POPageState extends State<POPage> {
         onRefresh: _refreshPOs,
         child: Consumer<POProvider>(
           builder: (context, poProvider, _) {
-            if (poProvider.isLoading) {
+            // ✅ FIX 1: use pendingPOs instead of pos
+            if (poProvider.isLoading && poProvider.pendingPOs.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            if (poProvider.error != null) {
-              return ListView(
-                children: [
-                  const SizedBox(height: 200),
-                  Center(
-                    child: Text(
-                      '${poProvider.error}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 16),
-                    ),
-                  ),
-                ],
-              );
-            }
+            final pendingOrders = poProvider.pendingPOs;
 
-            final pendingOrders = poProvider.pos.where((po) {
-              return po.poStatus == 'Pending' ||
-                  po.poStatus == 'Pending for Approve' ||
-                  po.poStatus == 'CreditLimit for Approve';
-            }).toList();
-
+            // ✅ FIX 2: show empty FIRST (important)
             if (pendingOrders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -77,10 +59,32 @@ class _POPageState extends State<POPage> {
               );
             }
 
+            // ✅ FIX 3: error should not override empty state
+            if (poProvider.error != null) {
+              return Center(
+                child: Text(
+                  poProvider.error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              );
+            }
+
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
               children: [
+                if (poProvider.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(
+                      child: SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  ),
+
                 POListView(
                   purchaseOrders: pendingOrders,
                   scrollController: _scrollController,

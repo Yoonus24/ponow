@@ -207,7 +207,6 @@ class TemplateProvider extends ChangeNotifier {
       pendingTotalQuantity: original.pendingTotalQuantity,
       pendingTaxAmount: original.pendingTaxAmount,
       pendingDiscountAmount: original.pendingDiscountAmount,
-
       pendingSgst: original.pendingSgst,
       pendingCgst: original.pendingCgst,
       pendingIgst: original.pendingIgst,

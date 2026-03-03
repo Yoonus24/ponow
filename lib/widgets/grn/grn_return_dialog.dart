@@ -36,8 +36,6 @@ class _GRNModalState extends State<GRNReturn> {
   late ValueNotifier<Map<int, String?>> quantityErrorsNotifier;
   late ValueNotifier<Map<int, String?>> reasonErrorsNotifier;
   final ValueNotifier<bool> _isSubmitting = ValueNotifier(false);
-
-  // Scroll controllers for synchronized scrolling
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _fixedColumnScrollController = ScrollController();
   final ScrollController _rightHeaderHorizontal = ScrollController();
@@ -47,6 +45,11 @@ class _GRNModalState extends State<GRNReturn> {
   void initState() {
     super.initState();
     grn = widget.grn;
+
+    Future.microtask(() {
+      Provider.of<GRNProvider>(context, listen: false).fetchReturnReasons();
+    });
+
     _syncHorizontalScroll();
 
     selectedRowsNotifier = ValueNotifier<List<bool>>(
@@ -71,7 +74,6 @@ class _GRNModalState extends State<GRNReturn> {
     quantityErrorsNotifier = ValueNotifier<Map<int, String?>>({});
     reasonErrorsNotifier = ValueNotifier<Map<int, String?>>({});
 
-    // Setup vertical scroll synchronization
     _verticalScrollController.addListener(_syncVerticalScroll);
     _fixedColumnScrollController.addListener(_syncVerticalScroll);
   }
@@ -86,7 +88,6 @@ class _GRNModalState extends State<GRNReturn> {
   }
 
   void _syncHorizontalScroll() {
-    // Sync right header with right body
     _rightHeaderHorizontal.addListener(() {
       if (_rightBodyHorizontal.hasClients &&
           _rightBodyHorizontal.offset != _rightHeaderHorizontal.offset) {
@@ -136,9 +137,7 @@ class _GRNModalState extends State<GRNReturn> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.only(
-                left: 16.0,
-              ), // adjust 12–24 if needed
+              padding: const EdgeInsets.only(left: 16.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -211,17 +210,19 @@ class _GRNModalState extends State<GRNReturn> {
                                     return Autocomplete<String>(
                                       optionsBuilder:
                                           (TextEditingValue textEditingValue) {
-                                            return reasons
-                                                .where(
-                                                  (reason) => reason
-                                                      .toLowerCase()
-                                                      .contains(
-                                                        textEditingValue.text
-                                                            .toLowerCase(),
-                                                      ),
-                                                )
-                                                .toList();
+                                            if (textEditingValue.text.isEmpty) {
+                                              return reasons; 
+                                            }
+
+                                            return reasons.where(
+                                              (reason) =>
+                                                  reason.toLowerCase().contains(
+                                                    textEditingValue.text
+                                                        .toLowerCase(),
+                                                  ),
+                                            );
                                           },
+
                                       onSelected: (String selection) {
                                         if (isReturnAllEnabled) {
                                           final updatedReasons =
@@ -237,7 +238,10 @@ class _GRNModalState extends State<GRNReturn> {
                                               updatedReasons;
                                           _updateItems();
                                         }
+
+                                        FocusScope.of(context).unfocus();
                                       },
+
                                       fieldViewBuilder:
                                           (
                                             BuildContext context,
@@ -246,36 +250,167 @@ class _GRNModalState extends State<GRNReturn> {
                                             FocusNode focusNode,
                                             VoidCallback onFieldSubmitted,
                                           ) {
-                                            return TextField(
-                                              controller: textEditingController,
-                                              focusNode: focusNode,
-                                              onChanged: (value) {
-                                                if (isReturnAllEnabled) {
-                                                  final updatedReasons =
-                                                      <int, String>{};
-                                                  for (
-                                                    int i = 0;
-                                                    i <
-                                                        (grn
-                                                                .itemDetails
-                                                                ?.length ??
-                                                            0);
-                                                    i++
-                                                  ) {
-                                                    updatedReasons[i] = value;
-                                                  }
-                                                  itemReasonsNotifier.value =
-                                                      updatedReasons;
-                                                  _updateItems();
-                                                }
+                                            return ValueListenableBuilder<
+                                              TextEditingValue
+                                            >(
+                                              valueListenable:
+                                                  textEditingController,
+                                              builder: (context, value, _) {
+                                                return TextField(
+                                                  controller:
+                                                      textEditingController,
+                                                  focusNode: focusNode,
+
+                                                  onTap: () {
+                                                    focusNode.requestFocus();
+                                                  },
+
+                                                  onChanged: (value) {
+                                                    if (isReturnAllEnabled) {
+                                                      final updatedReasons =
+                                                          <int, String>{};
+                                                      for (
+                                                        int i = 0;
+                                                        i <
+                                                            (grn
+                                                                    .itemDetails
+                                                                    ?.length ??
+                                                                0);
+                                                        i++
+                                                      ) {
+                                                        updatedReasons[i] =
+                                                            value;
+                                                      }
+                                                      itemReasonsNotifier
+                                                              .value =
+                                                          updatedReasons;
+                                                      _updateItems();
+                                                    }
+                                                  },
+
+                                                  decoration: InputDecoration(
+                                                    labelText:
+                                                        'Return all Reason',
+
+                                                    labelStyle: const TextStyle(
+                                                      fontSize: 11,
+                                                    ),
+                                                    floatingLabelStyle:
+                                                        const TextStyle(
+                                                          fontSize: 11,
+                                                          color: Colors.black,
+                                                        ),
+
+                                                    hintText: 'Reason',
+                                                    hintStyle: TextStyle(
+                                                      fontSize: 11,
+                                                      color:
+                                                          Colors.grey.shade400,
+                                                    ),
+
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide: BorderSide(
+                                                        color: Colors
+                                                            .grey
+                                                            .shade300,
+                                                      ),
+                                                    ),
+
+                                                    enabledBorder:
+                                                        OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                8,
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide(
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade300,
+                                                              ),
+                                                        ),
+
+                                                    focusedBorder:
+                                                        const OutlineInputBorder(
+                                                          borderRadius:
+                                                              BorderRadius.all(
+                                                                Radius.circular(
+                                                                  8,
+                                                                ),
+                                                              ),
+                                                          borderSide:
+                                                              BorderSide(
+                                                                color: Colors
+                                                                    .blueAccent,
+                                                                width: 1.5,
+                                                              ),
+                                                        ),
+
+                                                    isDense: true,
+                                                  ),
+
+                                                  enabled: isReturnAllEnabled,
+                                                );
                                               },
-                                              decoration: const InputDecoration(
-                                                labelText: 'Return all Reason',
-                                                hintText: 'Reason',
-                                                border: OutlineInputBorder(),
-                                                isDense: true,
+                                            );
+                                          },
+
+                                      optionsViewBuilder:
+                                          (
+                                            BuildContext context,
+                                            AutocompleteOnSelected<String>
+                                            onSelected,
+                                            Iterable<String> options,
+                                          ) {
+                                            return Align(
+                                              alignment: Alignment.topLeft,
+                                              child: Material(
+                                                color: Colors.white,
+                                                elevation: 4.0,
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                child: ConstrainedBox(
+                                                  constraints:
+                                                      const BoxConstraints(
+                                                        maxHeight: 200,
+                                                      ),
+                                                  child: ListView.builder(
+                                                    padding: EdgeInsets.zero,
+                                                    shrinkWrap: true,
+                                                    itemCount: options.length,
+                                                    itemBuilder:
+                                                        (
+                                                          BuildContext context,
+                                                          int index,
+                                                        ) {
+                                                          final String option =
+                                                              options.elementAt(
+                                                                index,
+                                                              );
+                                                          return ListTile(
+                                                            title: Text(
+                                                              option,
+                                                              style:
+                                                                  const TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                  ),
+                                                            ),
+                                                            dense: true,
+                                                            onTap: () {
+                                                              onSelected(
+                                                                option,
+                                                              );
+                                                            },
+                                                          );
+                                                        },
+                                                  ),
+                                                ),
                                               ),
-                                              enabled: isReturnAllEnabled,
                                             );
                                           },
                                     );
@@ -294,7 +429,6 @@ class _GRNModalState extends State<GRNReturn> {
                                 return Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    /// RETURN ALL BUTTON
                                     ElevatedButton(
                                       onPressed: isSpecificQuantityReturn
                                           ? null
@@ -304,9 +438,25 @@ class _GRNModalState extends State<GRNReturn> {
                                                         .value =
                                                     false;
                                                 scenarioNotifier.value = null;
+
                                                 itemReasonsNotifier.value = {};
                                                 itemsNotifier.value = null;
+
+                                                selectedRowsNotifier
+                                                    .value = List<bool>.filled(
+                                                  grn.itemDetails?.length ?? 0,
+                                                  false,
+                                                );
                                               } else {
+                                                itemReasonsNotifier.value = {};
+                                                itemsNotifier.value = null;
+
+                                                selectedRowsNotifier
+                                                    .value = List<bool>.filled(
+                                                  grn.itemDetails?.length ?? 0,
+                                                  false,
+                                                );
+
                                                 isReturnAllEnabledNotifier
                                                         .value =
                                                     true;
@@ -314,7 +464,6 @@ class _GRNModalState extends State<GRNReturn> {
                                                         .value =
                                                     false;
                                                 scenarioNotifier.value = 'full';
-                                                itemsNotifier.value = null;
                                               }
                                             },
                                       style: ElevatedButton.styleFrom(
@@ -330,7 +479,6 @@ class _GRNModalState extends State<GRNReturn> {
 
                                     const SizedBox(height: 8),
 
-                                    /// RETURN SPECIFIC BUTTON
                                     ElevatedButton(
                                       onPressed: isReturnAllEnabled
                                           ? null
@@ -340,13 +488,25 @@ class _GRNModalState extends State<GRNReturn> {
                                                         .value =
                                                     false;
                                                 scenarioNotifier.value = null;
+
                                                 selectedRowsNotifier
                                                     .value = List<bool>.filled(
                                                   grn.itemDetails?.length ?? 0,
                                                   false,
                                                 );
+
+                                                itemReasonsNotifier.value = {};
                                                 itemsNotifier.value = null;
                                               } else {
+                                                itemReasonsNotifier.value = {};
+                                                itemsNotifier.value = null;
+
+                                                selectedRowsNotifier
+                                                    .value = List<bool>.filled(
+                                                  grn.itemDetails?.length ?? 0,
+                                                  false,
+                                                );
+
                                                 isSpecificQuantityReturnNotifier
                                                         .value =
                                                     true;
@@ -355,6 +515,7 @@ class _GRNModalState extends State<GRNReturn> {
                                                     false;
                                                 scenarioNotifier.value =
                                                     'quantity_wise';
+
                                                 _updateItems();
                                               }
                                             },
@@ -387,14 +548,13 @@ class _GRNModalState extends State<GRNReturn> {
 
             Expanded(
               child: Container(
-                width: double.infinity, // Full width use pannu
+                width: double.infinity,
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
                   children: [
-                    // Fixed Header Row
                     Container(
                       height: 60,
                       decoration: BoxDecoration(
@@ -409,7 +569,6 @@ class _GRNModalState extends State<GRNReturn> {
                       ),
                       child: Row(
                         children: [
-                          // Fixed Item Column Header
                           Container(
                             width: 130,
                             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -421,14 +580,12 @@ class _GRNModalState extends State<GRNReturn> {
                               ),
                             ),
                           ),
-                          // Scrollable Headers - Remaining space full ah use pannu
                           Expanded(
                             child: SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
                               controller: _rightHeaderHorizontal,
                               physics: const ClampingScrollPhysics(),
                               child: Container(
-                                // Fixed width remove panni, content width automatic ah varum
                                 padding: const EdgeInsets.only(
                                   left: 20,
                                   right: 20,
@@ -544,12 +701,10 @@ class _GRNModalState extends State<GRNReturn> {
                       ),
                     ),
 
-                    // Scrollable Body
                     Expanded(
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Fixed Item Column
                           SizedBox(
                             width: 130,
                             child: ValueListenableBuilder<List<bool>>(
@@ -591,14 +746,12 @@ class _GRNModalState extends State<GRNReturn> {
                             ),
                           ),
 
-                          // Scrollable Content - Full remaining width use pannu
                           Expanded(
                             child: SingleChildScrollView(
                               controller: _rightBodyHorizontal,
                               scrollDirection: Axis.horizontal,
                               physics: const ClampingScrollPhysics(),
                               child: SizedBox(
-                                // Fixed width remove panni, width auto ah content based ah varum
                                 child: SingleChildScrollView(
                                   controller: _verticalScrollController,
                                   physics: const ClampingScrollPhysics(),
@@ -938,6 +1091,10 @@ class _GRNModalState extends State<GRNReturn> {
 
           return Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) {
+                return returnReasons; 
+              }
+
               return returnReasons
                   .where(
                     (reason) => reason.toLowerCase().contains(
@@ -951,6 +1108,7 @@ class _GRNModalState extends State<GRNReturn> {
               updatedReasons[index] = selection;
               itemReasonsNotifier.value = updatedReasons;
               _updateItems();
+              FocusScope.of(context).unfocus();
             },
             fieldViewBuilder:
                 (
@@ -1118,6 +1276,55 @@ class _GRNModalState extends State<GRNReturn> {
       return;
     }
 
+    if (scenarioNotifier.value == 'full') {
+      final reason = itemReasonsNotifier.value.isNotEmpty
+          ? itemReasonsNotifier.value.values.first
+          : '';
+
+      if (reason.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter return reason'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+
+    if (scenarioNotifier.value == 'quantity_wise') {
+      final selectedIndexes = selectedRowsNotifier.value
+          .asMap()
+          .entries
+          .where((e) => e.value)
+          .map((e) => e.key)
+          .toList();
+
+      if (selectedIndexes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select at least one item to return'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      for (final index in selectedIndexes) {
+        final reason = itemReasonsNotifier.value[index] ?? '';
+
+        if (reason.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter return reason for selected items'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     bool isValid = true;
     String? errorMessage;
 
@@ -1132,6 +1339,7 @@ class _GRNModalState extends State<GRNReturn> {
     } else {
       for (int i = 0; i < grn.itemDetails!.length; i++) {
         if (!selectedRowsNotifier.value[i]) continue;
+
         final item = grn.itemDetails![i];
         final reason = itemReasonsNotifier.value[i] ?? '';
         final returnQty = item.returnedQuantity ?? 0;
@@ -1143,6 +1351,7 @@ class _GRNModalState extends State<GRNReturn> {
           errorMessage = 'Please enter a reason for selected items.';
           break;
         }
+
         if (returnQty > originalQty) {
           isValid = false;
           errorMessage = 'Returned quantity cannot exceed received quantity.';
@@ -1175,395 +1384,57 @@ class _GRNModalState extends State<GRNReturn> {
             padding: const EdgeInsets.all(20),
             child: Builder(
               builder: (innerContext) {
-                // Calculate selected items
-                final selectedItems =
-                    grn.itemDetails != null && grn.itemDetails!.isNotEmpty
-                    ? grn.itemDetails!
-                          .asMap()
-                          .entries
-                          .where((e) => selectedRowsNotifier.value[e.key])
-                          .toList()
-                    : <MapEntry<int, ItemDetail>>[];
-
-                final tableHeight = selectedItems.isNotEmpty
-                    ? (selectedItems.length * 60.0) + 40.0
-                    : 0.0;
+                final String message = scenarioNotifier.value == 'full'
+                    ? 'Do you want to return all items?'
+                    : 'Do you want to return selected items?';
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Title
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        'Confirm GRN Return',
-                        style: Theme.of(innerContext).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                    const Text(
+                      'Confirm GRN Return',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
                     ),
 
-                    // GRN Details
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'GRN No:',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            grn.randomId ?? 'N/A',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Return Date:',
-                            style: TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            returnDateNotifier.value != null
-                                ? DateFormat(
-                                    'dd MMM yyyy',
-                                  ).format(returnDateNotifier.value!)
-                                : 'Not set',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                    const SizedBox(height: 12),
+
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
                       ),
                     ),
 
-                    // Return Details
-                    if (scenarioNotifier.value == 'full') ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Returning ALL Items',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Reason:',
-                                  style: TextStyle(fontWeight: FontWeight.w500),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    itemReasonsNotifier.value.isNotEmpty
-                                        ? itemReasonsNotifier.value.values.first
-                                        : 'Not specified',
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: const Text(
-                          'Returning Selected Items',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                    const SizedBox(height: 20),
 
-                      if (selectedItems.isNotEmpty) ...[
-                        Container(
-                          constraints: BoxConstraints(
-                            maxHeight: tableHeight.clamp(100.0, 400.0),
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: 400,
-                              child: Table(
-                                columnWidths: const {
-                                  0: FlexColumnWidth(2.0),
-                                  1: FixedColumnWidth(70),
-                                  2: FixedColumnWidth(90),
-                                  3: FlexColumnWidth(2.5),
-                                },
-                                defaultVerticalAlignment:
-                                    TableCellVerticalAlignment.middle,
-                                border: TableBorder.all(
-                                  color: Colors.grey[300]!,
-                                  width: 1,
-                                ),
-                                children: [
-                                  // Header
-                                  TableRow(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[100],
-                                    ),
-                                    children: const [
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 8,
-                                        ),
-                                        child: Text(
-                                          'Item',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 4,
-                                        ),
-                                        child: Text(
-                                          'Qty',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 4,
-                                        ),
-                                        child: Text(
-                                          'Unit',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 8,
-                                          horizontal: 8,
-                                        ),
-                                        child: Text(
-                                          'Reason',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-
-                                  // Data Rows Only
-                                  ...selectedItems.map((entry) {
-                                    final index = entry.key;
-                                    final item = entry.value;
-                                    return TableRow(
-                                      decoration: BoxDecoration(
-                                        color: index.isEven
-                                            ? Colors.white
-                                            : Colors.grey[50],
-                                      ),
-                                      children: [
-                                        // Item Name
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 8,
-                                          ),
-                                          child: Text(
-                                            item.itemName ?? 'No Name',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-
-                                        // Quantity
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 4,
-                                          ),
-                                          child: Text(
-                                            item.returnedQuantity
-                                                    ?.toStringAsFixed(2) ??
-                                                '0.00',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-
-                                        // Unit Price
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 4,
-                                          ),
-                                          child: Text(
-                                            item.unitPrice?.toStringAsFixed(
-                                                  2,
-                                                ) ??
-                                                '0.00',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                            ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        ),
-
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                            horizontal: 8,
-                                          ),
-                                          child: SizedBox(
-                                            width: 180,
-                                            child: Text(
-                                              itemReasonsNotifier
-                                                      .value[index] ??
-                                                  'Not specified',
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: Colors.grey,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
-                                ],
-                              ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(innerContext, false),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.blueAccent,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
-                      ] else ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: Center(
-                            child: Text(
-                              'No items selected',
-                              style: TextStyle(color: Colors.grey),
-                            ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(innerContext, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
                           ),
+                          child: const Text('Confirm'),
                         ),
                       ],
-                    ],
-
-                    if (scenarioNotifier.value != 'full') ...[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 16, bottom: 20),
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              'Total Items: ${itemsNotifier.value?.length ?? 0}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(innerContext, false),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          ElevatedButton(
-                            onPressed: () => Navigator.pop(innerContext, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blueAccent,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 15,
-                                vertical: 10,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              elevation: 2,
-                            ),
-                            child: const Text(
-                              'Confirm Return',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 );
@@ -1590,10 +1461,6 @@ class _GRNModalState extends State<GRNReturn> {
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
 
     try {
-      print(
-        'Submitting GRN return: scenario=${scenarioNotifier.value}, items=$convertedItems',
-      );
-
       await grnProvider.returnGrn(
         grnId,
         ReturnGRNRequest(
@@ -1609,30 +1476,22 @@ class _GRNModalState extends State<GRNReturn> {
         ),
       );
 
-      print('GRN return processed successfully');
-
       if (!mounted) return;
 
-      // ✅ Close only this screen
       Navigator.of(context).pop(true);
 
-      // ✅ Show success message safely
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Return processed successfully'),
-          duration: Duration(seconds: 2),
           backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
-      print('Error processing GRN return: $e');
-
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to process return: $e'),
-          duration: const Duration(seconds: 3),
           backgroundColor: Colors.red,
         ),
       );
@@ -1662,16 +1521,10 @@ class _GRNModalState extends State<GRNReturn> {
         );
 
         items.add(returnItem);
-      } else {
-        print(
-          'Skipping item without valid ObjectId: ${item.itemName} (ID: ${item.itemId})',
-        );
-      }
+      } else {}
     }
 
-    if (items.isEmpty) {
-      print('WARNING: No items with valid ObjectIds found for full return');
-    }
+    if (items.isEmpty) {}
 
     return items;
   }
@@ -1689,19 +1542,18 @@ class _GRNModalState extends State<GRNReturn> {
           ?.asMap()
           .entries
           .where((entry) => selectedRowsNotifier.value[entry.key])
+          .where(
+            (entry) =>
+                entry.value.itemId != null &&
+                entry.value.itemId!.isNotEmpty &&
+                _isValidObjectId(entry.value.itemId!),
+          ) 
           .map((entry) {
             final index = entry.key;
             final item = entry.value;
 
-            String itemId;
-            if (item.itemId != null && item.itemId!.isNotEmpty) {
-              itemId = item.itemId!;
-            } else {
-              itemId = 'temp_${item.itemName?.hashCode ?? index}';
-            }
-
             return {
-              'itemId': itemId,
+              'itemId': item.itemId, 
               'nos': item.nos,
               'eachQuantity': item.eachQuantity,
               'returnReason': itemReasonsNotifier.value[index] ?? '',
@@ -1710,8 +1562,8 @@ class _GRNModalState extends State<GRNReturn> {
             };
           })
           .toList();
+
       itemsNotifier.value = updatedItems;
-      print('Updated items: $updatedItems');
     }
   }
 
@@ -1735,9 +1587,6 @@ class _GRNModalState extends State<GRNReturn> {
       item.nos = 0;
       item.eachQuantity = 0;
     }
-    print(
-      'Updated quantities for item ${item.itemName}: nos=${item.nos}, eachQuantity=${item.eachQuantity}',
-    );
   }
 
   void _recalculateItemTotals(ItemDetail item) {
@@ -1749,9 +1598,6 @@ class _GRNModalState extends State<GRNReturn> {
         ((item.receivedQuantity ?? 0) * (item.unitPrice ?? 0)) -
         (item.discountAmount ?? 0);
     item.taxAmount = discountedPrice * (item.purchasetaxName ?? 0) / 100;
-    print(
-      'Recalculated totals for item ${item.itemName}: discount=${item.discountAmount}, tax=${item.taxAmount}',
-    );
   }
 
   void _recalculateGRNTotal() {
@@ -1761,7 +1607,6 @@ class _GRNModalState extends State<GRNReturn> {
           (total, item) => total! + (item.finalPrice ?? 0),
         ) ??
         0.0;
-    print('Recalculated GRN total: ${grn.totalReceivedAmount}');
   }
 
   String formatDate(String? date) {
@@ -1770,7 +1615,6 @@ class _GRNModalState extends State<GRNReturn> {
       final DateTime parsedDate = DateTime.parse(date).toUtc().toLocal();
       return DateFormat('dd MMM yyyy').format(parsedDate);
     } catch (e) {
-      print('Error formatting date $date: $e');
       return date ?? 'No Date';
     }
   }

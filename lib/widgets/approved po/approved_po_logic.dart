@@ -224,32 +224,57 @@ class ApprovedPOLogic {
       return;
     }
 
-    _approvedExtraDiscount += entered;
+    try {
+      _approvedExtraDiscount += entered;
 
-    final double totalDiscount = _poBaseDiscount + _approvedExtraDiscount;
+      final double totalDiscount = _poBaseDiscount + _approvedExtraDiscount;
 
-    po.pendingDiscountAmount = totalDiscount;
+      final response = await poProvider.calculateGrnOverallDiscount(
+        items: po.items.map((item) {
+          return {
+            "itemId": item.itemId,
+            "receivedQuantity": item.receivedQuantity ?? item.quantity,
+            "grnPrice": item.newPrice,
+            "befTaxDiscount": 0.0,
+            "afTaxDiscount": 0.0,
+            "taxPercentage": item.taxPercentage ?? 0.0,
+            "taxType": item.taxType ?? "cgst_sgst",
+          };
+        }).toList(),
+        discountAmount: totalDiscount, // ✅ IMPORTANT
+        discountType: isBefTaxDiscount.value ? "before" : "after",
+      );
 
-    final double subTotal = po.items.fold(
-      0.0,
-      (sum, i) => sum + (i.pendingTotalPrice ?? i.totalPrice ?? 0.0),
-    );
+      if (response["success"] != true) {
+        showTopError("Discount API failed");
+        return;
+      }
 
-    final double tax = po.pendingTaxAmount ?? 0.0;
-    final double roundOff = roundOffAmount.value;
+      // ✅ APPLY RESPONSE
+      _applyDiscountResponseToItems(response);
 
-    po.totalOrderAmount = subTotal - totalDiscount + tax + roundOff;
-    po.pendingOrderAmount = po.totalOrderAmount;
+      // ✅ Update PO summary
+      po.pendingDiscountAmount =
+          (response["summary"]["totalDiscountAmount"] as num?)?.toDouble() ??
+          0.0;
 
-    discountInputController.clear();
+      po.pendingTaxAmount =
+          (response["summary"]["totalTaxAmount"] as num?)?.toDouble() ?? 0.0;
 
-    onUpdated();
-    refreshUI();
+      po.totalOrderAmount =
+          (response["summary"]["totalFinalAmount"] as num?)?.toDouble() ?? 0.0;
 
-    showTopMessage(
-      "Approved Discount Applied: ₹${_approvedExtraDiscount.toStringAsFixed(2)}",
-      color: Colors.green,
-    );
+      discountInputController.clear();
+
+      refreshUI();
+
+      showTopMessage(
+        "Total Discount: ₹${po.pendingDiscountAmount!.toStringAsFixed(2)}",
+        color: Colors.green,
+      );
+    } catch (e) {
+      showTopError("Discount error: $e");
+    }
   }
 
   double get orderedSubTotal {
@@ -493,19 +518,22 @@ class ApprovedPOLogic {
     expiryDateErrors.clear();
 
     for (var item in po.items) {
-      item.pendingTotalQuantity =
-          (item.pendingCount ?? item.count ?? 0) *
-          (item.pendingQuantity ?? item.eachQuantity ?? 0);
+      // ✅ FIX: Ensure count is never 0
+      final count = item.pendingCount ?? item.count ?? 1;
+
+      // ✅ FIX: Ensure quantity fallback
+      final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
+
+      // ✅ FIX: Always calculate properly
+      item.pendingCount = count;
+      item.pendingQuantity = qty;
+      item.pendingTotalQuantity = count * qty;
 
       String formattedExpiry = '';
 
       if ((item.receivedQuantity ?? 0) == 0) {
         formattedExpiry = '';
       }
-
-      expiryDateControllers[item] = TextEditingController(
-        text: formattedExpiry,
-      );
 
       expiryDateControllers[item] = TextEditingController(
         text: formattedExpiry,
@@ -528,13 +556,11 @@ class ApprovedPOLogic {
       );
 
       pendingCountController[item] = TextEditingController(
-        text: (item.pendingCount ?? item.count ?? 0).toStringAsFixed(2),
+        text: count.toStringAsFixed(2),
       );
 
       eachQtyControllers[item] = TextEditingController(
-        text: (item.pendingQuantity ?? item.eachQuantity ?? 0).toStringAsFixed(
-          2,
-        ),
+        text: qty.toStringAsFixed(2),
       );
 
       befTaxControllers[item] = TextEditingController(
@@ -545,6 +571,17 @@ class ApprovedPOLogic {
         text: (item.pendingAfTaxDiscountAmount ?? item.afTaxDiscountAmount ?? 0)
             .toStringAsFixed(2),
       );
+    }
+  }
+
+  void normalizeBeforeApi() {
+    for (var item in po.items) {
+      final count = item.pendingCount ?? item.count ?? 1;
+      final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
+
+      item.pendingCount = count;
+      item.pendingQuantity = qty;
+      item.pendingTotalQuantity = count * qty;
     }
   }
 
@@ -571,7 +608,7 @@ class ApprovedPOLogic {
     required String varianceName,
     double? initialValue,
     required VoidCallback onValueSelected,
-    bool isItemField = true, // ⭐ NEW
+    bool isItemField = true,
   }) {
     suppressReceivedListener = true;
 
@@ -587,7 +624,6 @@ class ApprovedPOLogic {
 
           final formatted = value.toStringAsFixed(2);
 
-          // ⭐ If NOT item field → only update text
           if (!isItemField) {
             controller.text = formatted;
 
@@ -596,8 +632,6 @@ class ApprovedPOLogic {
             suppressReceivedListener = false;
             return;
           }
-
-          // ⭐ Item calculator logic only below
           final item = po.items.firstWhere(
             (i) => receivedQtyController[i] == controller,
           );
@@ -830,6 +864,7 @@ class ApprovedPOLogic {
               ),
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
+
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -839,15 +874,33 @@ class ApprovedPOLogic {
 
                 try {
                   await poProvider.changePoStatusToPending(po.purchaseOrderId);
+
                   if (context.mounted) {
                     Navigator.of(context).pop();
-                    showTopError('PO reverted to Pending successfully');
+
                     Navigator.of(context).pop();
+
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      onUpdated();
+                    });
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('PO reverted to Pending successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    Navigator.of(context).pop();
-                    showTopError('Failed to revert PO: $e');
+                    Navigator.of(context).pop(); 
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to revert PO: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 }
               },
@@ -881,6 +934,7 @@ class ApprovedPOLogic {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
+      normalizeBeforeApi();
       await poProvider.updatePO(
         po.copyWith(
           items: po.items.map((item) {
@@ -929,6 +983,7 @@ class ApprovedPOLogic {
           afTaxDiscount: calculatedItem?["afTaxDiscount"] ?? 0.0,
           befTaxDiscountType: "percentage",
           afTaxDiscountType: "percentage",
+          expiryDate: item.expiryDate,
         );
       }).toList();
 
@@ -1094,23 +1149,44 @@ class ApprovedPOLogic {
   String getOrderedItemValue(Item item, String column) {
     switch (column) {
       case 'Count':
-        return item.pendingCount?.toStringAsFixed(2) ?? '0.00';
+        final count = (item.poQuantity ?? 0) / (item.eachQuantity ?? 1);
+        return count.toStringAsFixed(2);
+
       case 'Qty':
-        return item.pendingQuantity?.toStringAsFixed(2) ?? '0.00';
+        return (item.eachQuantity ?? 0).toStringAsFixed(2);
+
       case 'Total':
-        return item.pendingTotalQuantity?.toStringAsFixed(2) ?? '0.00';
+        return (item.poQuantity ?? 0).toStringAsFixed(2);
+
       case 'Price':
-        return item.newPrice?.toStringAsFixed(2) ?? '0.00';
+        return (item.newPrice ?? 0).toStringAsFixed(2);
+
       case 'BefTax':
-        return item.befTaxDiscount?.toStringAsFixed(2) ?? '0.00';
+        return (item.befTaxDiscount ?? 0).toStringAsFixed(2);
+
       case 'AfTax':
-        return item.afTaxDiscount?.toStringAsFixed(2) ?? '0.00';
+        return (item.afTaxDiscount ?? 0).toStringAsFixed(2);
+
       case 'Tax%':
-        return item.taxPercentage?.toStringAsFixed(2) ?? '0.00';
+        return (item.taxPercentage ?? 0).toStringAsFixed(2);
+
       case 'Total Price':
-        return item.pendingTotalPrice?.toStringAsFixed(2) ?? '0.00';
+        final total =
+            item.poQuantitypendingTotalPrice ??
+            (item.poQuantity ?? 0) * (item.newPrice ?? 0);
+        return total.toStringAsFixed(2);
+
       case 'Final':
-        return item.pendingFinalPrice?.toStringAsFixed(2) ?? '0.00';
+        final subtotal = (item.poQuantity ?? 0) * (item.newPrice ?? 0);
+
+        final tax =
+            item.poQuantityTaxAmount ??
+            (subtotal * (item.taxPercentage ?? 0) / 100);
+
+        final finalVal = item.poQuantitypendingFinalPrice ?? (subtotal + tax);
+
+        return finalVal.toStringAsFixed(2);
+
       default:
         return '';
     }

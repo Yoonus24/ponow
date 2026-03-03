@@ -95,6 +95,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
         return PaymentDialog(
           totalPayableAmount: 0.0,
           isBulkPayment: false,
+          lockFullPayment: false,
           onPaymentConfirmed:
               (
                 String paymentType,
@@ -137,7 +138,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
                   createdDate: ServerTimeService.now,
                   status: status,
                   paymentType: paymentType,
-                  totalPayableAmount: amount,
+                  totalPayableAmount: amount, 
                   paymentMode: paymentMode,
                   paymentMethod: paymentMethod,
                   paymentDate: ServerTimeService.now,
@@ -150,13 +151,20 @@ class _PreOutgoingState extends State<PreOutgoing> {
                   outgoing,
                 );
 
-                await outgoingProvider.processOutgoingPayment(outgoingId);
+                await outgoingProvider.processPayment(
+                  outgoingId: outgoingId,
+                  paymentType: paymentType,
+                  amount: amount,
+                  paymentMode: paymentMode,
+                  paymentMethod: paymentMethod,
+                  transactionDetails: transactionDetails,
+                );
 
                 if (!mounted) return;
 
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Payment done')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Payment done successfully')),
+                );
 
                 Navigator.pop(context);
               },
@@ -180,7 +188,6 @@ class _PreOutgoingState extends State<PreOutgoing> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  /// 🔹 TITLE + SEARCH
                   Row(
                     children: [
                       Text(
@@ -199,9 +206,6 @@ class _PreOutgoingState extends State<PreOutgoing> {
                             final vendors = context
                                 .read<POProvider>()
                                 .filteredVendorNames;
-
-                            print("Vendors length: ${vendors.length}");
-
                             if (input.isEmpty) {
                               return vendors;
                             }
@@ -221,7 +225,7 @@ class _PreOutgoingState extends State<PreOutgoing> {
                               (context, controller, focusNode, _) {
                                 return TextFormField(
                                   controller: controller,
-                                  focusNode: focusNode, // ✅ முக்கியம்
+                                  focusNode: focusNode, 
                                   onChanged: (value) {
                                     _onVendorSearchChanged(value);
                                   },
@@ -264,7 +268,11 @@ class _PreOutgoingState extends State<PreOutgoing> {
                         _selectedVendor != null
                             ? 'Selected Vendor: $_selectedVendor'
                             : 'Please select a vendor',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),

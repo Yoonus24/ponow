@@ -75,7 +75,6 @@ class _FreightTableState extends State<FreightTable> {
 
           child: Row(
             children: [
-              // ✅ FIXED NAME COLUMN
               Column(
                 children: [
                   Container(
@@ -106,7 +105,6 @@ class _FreightTableState extends State<FreightTable> {
                 ],
               ),
 
-              // ✅ SCROLLABLE PART
               Expanded(
                 child: SingleChildScrollView(
                   controller: horizontal,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
@@ -32,14 +33,15 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
   final int _skip = 0;
   final int _limit = 50;
+  bool isInitialLoad = true;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
 
     Future.microtask(() async {
-      Provider.of<APInvoiceProvider>(context, listen: false).fetchAPInvoices();
-
+      _applyFilters();
       await Provider.of<POProvider>(
         context,
         listen: false,
@@ -60,7 +62,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
     try {
       return ServerTimeService.now;
     } catch (_) {
-      return DateTime.now(); 
+      return DateTime.now();
     }
   }
 
@@ -90,6 +92,19 @@ class _APInvoicePageState extends State<APInvoicePage> {
     }
 
     _statusFilters.value = set;
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    _debounce?.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      Provider.of<APInvoiceProvider>(context, listen: false).fetchAPInvoices(
+        status: _statusFilters.value.first,
+        vendorName: _vendorNotifier.value,
+        date: _selectedDateNotifier.value,
+      );
+    });
   }
 
   PopupMenuItem<String> _statusMenuItem({
@@ -160,21 +175,26 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
 
     if (picked != null) {
-      _selectedDateNotifier.value = picked;
+      _selectedDateNotifier.value = picked; 
+
       _dateController.text =
           "${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}";
+
+      _applyFilters(); 
     }
   }
 
   void _clearDate() {
     _selectedDateNotifier.value = null;
     _dateController.clear();
+    _applyFilters();
   }
 
   void _clearVendor() {
     _autoController?.clear();
     _vendorController.clear();
     _vendorNotifier.value = '';
+    _applyFilters();
   }
 
   Widget _buildVendorField() {
@@ -195,7 +215,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
             onSelected: (v) {
               _vendorController.text = v;
               _vendorNotifier.value = v;
-              FocusScope.of(context).unfocus();
+              _applyFilters();
             },
             fieldViewBuilder: (context, controller, focusNode, _) {
               _autoController = controller;
@@ -243,7 +263,10 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         )
                       : Icon(Icons.search, color: Colors.grey[600], size: 22),
                 ),
-                onChanged: (v) => _vendorNotifier.value = v,
+                onChanged: (v) {
+                  _vendorNotifier.value = v;
+                  _applyFilters();
+                },
               );
             },
             optionsViewBuilder: (context, onSelected, options) {
@@ -367,12 +390,10 @@ class _APInvoicePageState extends State<APInvoicePage> {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  /// ✅ LEFT SIDE (takes available space)
                   Expanded(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        /// Text (full visible)
                         Text(
                           "Invoice Type",
                           style: TextStyle(
@@ -384,7 +405,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                         const SizedBox(width: 8),
 
-                        /// Compact buttons (no flex stretch)
                         _typeButtonCompact("Goods", selected),
                         const SizedBox(width: 6),
                         _typeButtonCompact("Service", selected),
@@ -392,7 +412,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                     ),
                   ),
 
-                  /// ✅ RIGHT SIDE ICON (fixed)
                   Container(
                     decoration: BoxDecoration(
                       color: hasCustomFilter ? Colors.grey.shade200 : null,
@@ -475,38 +494,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
   }
 
-  List<ApInvoice> _filterInvoices(List<ApInvoice> list) {
-    return list.where((inv) {
-      if (_vendorNotifier.value.isNotEmpty) {
-        if ((inv.vendorName ?? "").toLowerCase() !=
-            _vendorNotifier.value.toLowerCase()) {
-          return false;
-        }
-      }
-
-      final selectedDate = _selectedDateNotifier.value;
-      if (selectedDate != null) {
-        if (inv.invoiceDate == null) return false;
-
-        try {
-          final apiDate = DateTime.parse(inv.invoiceDate!);
-          if (DateTime(apiDate.year, apiDate.month, apiDate.day) !=
-              DateTime(
-                selectedDate.year,
-                selectedDate.month,
-                selectedDate.day,
-              )) {
-            return false;
-          }
-        } catch (_) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -522,10 +509,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
               displacement: 40,
               strokeWidth: 3,
               onRefresh: () async {
-                await Provider.of<APInvoiceProvider>(
-                  context,
-                  listen: false,
-                ).fetchAPInvoices();
+                _applyFilters();
               },
               child: ValueListenableBuilder(
                 valueListenable: _vendorNotifier,
@@ -541,7 +525,8 @@ class _APInvoicePageState extends State<APInvoicePage> {
                             builder: (_, __, ___) {
                               return Consumer<APInvoiceProvider>(
                                 builder: (context, provider, _) {
-                                  if (provider.loading) {
+                                  if (provider.loading &&
+                                      provider.isInitialLoad) {
                                     return const Center(
                                       child: CircularProgressIndicator(
                                         color: Colors.blueAccent,
@@ -574,42 +559,22 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                   }
 
                                   var list = provider.apInvoices;
-
-                                  list = list.where((inv) {
-                                    if (_invoiceType.value == "Goods") {
-                                      return isGoodsInvoice(inv);
-                                    } else {
-                                      return !isGoodsInvoice(inv);
-                                    }
-                                  }).toList();
-
-                                  if (_statusFilters.value.isEmpty) {
-                                    list = list
-                                        .where(
-                                          (inv) =>
-                                              inv.status == "Outgoing Posted",
-                                        )
-                                        .toList();
-                                  } else {
-                                    list = list
-                                        .where(
-                                          (inv) => _statusFilters.value
-                                              .contains(inv.status),
-                                        )
-                                        .toList();
-                                  }
-
-                                  list = _filterInvoices(list);
-
                                   if (list.isEmpty) {
-                                    return const Center(
-                                      child: Text(
-                                        "No invoices found",
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey,
+                                    return ListView(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(), 
+                                      children: const [
+                                        SizedBox(height: 200),
+                                        Center(
+                                          child: Text(
+                                            "No invoices found",
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     );
                                   }
 

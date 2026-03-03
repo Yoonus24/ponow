@@ -283,7 +283,6 @@ class Outgoing {
     try {
       return value.map((e) => ItemDetail.fromJson(e)).toList();
     } catch (e) {
-      print('Error parsing item details: $e');
       return null;
     }
   }
@@ -293,7 +292,6 @@ class Outgoing {
     try {
       return value.map((e) => PaymentHistory.fromJson(e)).toList();
     } catch (e) {
-      print('Error parsing paymentHistory: $e');
       return null;
     }
   }

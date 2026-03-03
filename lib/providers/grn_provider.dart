@@ -1,7 +1,4 @@
-// ignore_for_file: avoid_print, curly_braces_in_flow_control_structures
-
 import 'dart:async';
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -15,9 +12,11 @@ class GRNProvider with ChangeNotifier {
   List<DebitCreditNote> _debitCreditNotes = [];
 
   bool _isLoading = false;
+  bool _isLoadMore = false;
   String? _error;
 
-  String _filterStatus = "";
+  String _filterStatus = "active";
+  bool _hasMore = true;
 
   int _skip = 0;
   int _limit = 50;
@@ -26,23 +25,25 @@ class GRNProvider with ChangeNotifier {
   static const String _grnBase = '$_baseApi/grns';
   static const String _grnListEndpoint = '$_grnBase/';
 
-  static const String _returnReasonsEndpoint =
-      '$_grnBase/getgrn/return-reasons';
+  // static const String _returnReasonsEndpoint =
+  //     '$_grnBase/getgrn/return-reasons';
 
   List<GRN> get grns => _grns;
   bool get isLoading => _isLoading;
+  bool get isLoadMore => _isLoadMore;
   String? get error => _error;
   String get filterStatus => _filterStatus;
   List<String> get returnReasons => _returnReasons;
   List<DebitCreditNote> get debitCreditNotes => _debitCreditNotes;
   int get skip => _skip;
   int get limit => _limit;
+  bool get hasMore => _hasMore;
 
   final Dio _dio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 30), // GET default
+      connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
-      sendTimeout: const Duration(seconds: 15), // POST/PATCH
+      sendTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
     ),
   );
@@ -68,85 +69,70 @@ class GRNProvider with ChangeNotifier {
 
   void setFilterStatus(String status) {
     _filterStatus = status;
-    _skip = 0; // ✅ reset pagination
-
-    print('🔎 Filter Status (raw): $_filterStatus');
-
-    if (status == 'returned') {
-      fetchReturnedGRNs();
-    } else {
-      fetchFilteredGRNs(status: normalizeStatus(status));
-    }
+    _skip = 0;
+    _hasMore = true;
   }
 
   String normalizeStatus(String raw) {
     raw = raw.toLowerCase();
-
     if (raw == "active") return "Active";
-
     if (raw == "returned") return "FullyReturned";
     if (raw.contains("partial")) return "PartiallyReturned";
-
     if (raw.contains("full")) return "FullyReturned";
-
     if (raw.contains("ap")) return "APInvoiceConverted";
-
     return raw;
   }
 
-  Future<String> addReturnReason(String reason) async {
-    print('[API] addReturnReason: $reason');
-    setLoading(true);
-    try {
-      final response = await _dio.post(
-        _returnReasonsEndpoint.replaceFirst(
-          '/getgrn/return-reasons',
-          '/return-reasons',
-        ),
-        data: {'reason': reason},
-        options: Options(headers: {'Content-Type': 'application/json'}),
-      );
+  // Future<String> addReturnReason(String reason) async {
+  //   setLoading(true);
+  //   try {
+  //     final response = await _dio.post(
+  //       _returnReasonsEndpoint.replaceFirst(
+  //         '/getgrn/return-reasons',
+  //         '/return-reasons',
+  //       ),
+  //       data: {'reason': reason},
+  //       options: Options(headers: {'Content-Type': 'application/json'}),
+  //     );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchReturnReasons();
-        return response.data['message'] ?? 'Reason added successfully';
-      } else {
-        throw Exception('Failed to add reason: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('[API] addReturnReason error: $e');
-      rethrow;
-    } finally {
-      setLoading(false);
-    }
-  }
+  //     if (response.statusCode == 200 || response.statusCode == 201) {
+  //       await fetchReturnReasons();
+  //       return response.data['message'] ?? 'Reason added successfully';
+  //     } else {
+  //       throw Exception('Failed to add reason: ${response.statusCode}');
+  //     }
+  //   } catch (e) {
+  //     rethrow;
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }
 
   Future<void> fetchReturnReasons() async {
-    print('[API] fetchReturnReasons');
-    setLoading(true);
+    _isLoading = true;
     _error = null;
+    notifyListeners();
+
     try {
       final response = await _dio.get(
-        _returnReasonsEndpoint,
+        'https://yenerp.com/purchaseapi/grns/getgrn/return-reasons',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
+
         _returnReasons = data
             .map<String>((e) => e['reason'].toString())
             .toList();
-        print('[API] fetched return reasons: $_returnReasons');
       } else {
         _returnReasons = [];
         _error = 'Failed to fetch return reasons: ${response.statusCode}';
-        print('❌ fetchReturnReasons status: ${response.statusCode}');
       }
     } catch (e) {
       _error = 'Error fetching return reasons: $e';
-      print('❌ fetchReturnReasons exception: $e');
     } finally {
-      setLoading(false);
+      _isLoading = false;
       notifyListeners();
     }
   }
@@ -155,59 +141,63 @@ class GRNProvider with ChangeNotifier {
     String? status,
     String? vendorName,
     DateTime? date,
-    int? skip,
-    int? limit,
+    int skip = 0,
+    int limit = 50,
+    bool loadMore = false,
   }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      if (status != null && status.toLowerCase() == "returned") {
-        print("🔄 Fetching BOTH partial & full returned GRNs");
-        await fetchFilteredGRNs(status: "PartiallyReturned");
-        List<GRN> partials = List.from(_grns);
-        await fetchFilteredGRNs(status: "FullyReturned");
-        List<GRN> fulls = List.from(_grns);
-        _grns = [...partials, ...fulls];
+      if (!loadMore) {
+        _isLoading = true;
+        _error = null;
+        _grns = [];
         notifyListeners();
-        return;
+      } else {
+        _isLoadMore = true;
+        notifyListeners();
       }
-      final effectiveSkip = skip ?? _skip;
-      final effectiveLimit = limit ?? _limit;
+
+      String endpoint = _grnListEndpoint;
+
+      // 🔥 SWITCH API
+      if (status?.toLowerCase() == "returned") {
+        endpoint = '$_grnBase/returnprocess/Grnwise';
+      }
+
       final queryParams = {
-        "skip": "$effectiveSkip",
-        "limit": "$effectiveLimit",
+        "skip": skip,
+        "limit": limit,
+        if (status != null && status != "returned")
+          "status": status == "active" ? null : status,
+        if (vendorName != null && vendorName.isNotEmpty)
+          "vendorName": vendorName,
+        if (date != null) "fromDate": date.toIso8601String(),
+        if (date != null) "toDate": date.toIso8601String(),
       };
 
-      if (status != null && status.isNotEmpty) queryParams["status"] = status;
+      final response = await _dio.get(endpoint, queryParameters: queryParams);
 
-      if (vendorName != null && vendorName.trim().isNotEmpty)
-        queryParams["vendorName"] = vendorName.trim();
+      final List<dynamic> data = response.data;
 
-      if (date != null)
-        queryParams["date"] = DateFormat("yyyy-MM-dd").format(date);
+      List<GRN> newGrns = data.map((e) => GRN.fromJson(e)).toList();
 
-      final response = await _dio.get(
-        _grnListEndpoint,
-        queryParameters: queryParams,
-      );
-
-      print("🌐 GET ${response.realUri}");
-
-      if (response.statusCode == 200) {
-        _grns = (response.data as List).map((e) => GRN.fromJson(e)).toList();
-      } else {
-        _grns = [];
+      if (status == "active") {
+        newGrns = newGrns.where((g) {
+          final s = (g.status ?? "").toLowerCase().replaceAll(" ", "");
+          return s != "fullyreturned";
+        }).toList();
       }
+      if (loadMore) {
+        _grns.addAll(newGrns);
+      } else {
+        _grns = newGrns;
+      }
+
+      _hasMore = newGrns.length == limit;
     } catch (e) {
-      if (e is DioException) {
-        _error = _getReadableError(e);
-      } else {
-        _error = "Something went wrong.";
-      }
+      _error = "Failed to fetch GRNs";
     } finally {
       _isLoading = false;
+      _isLoadMore = false;
       notifyListeners();
     }
   }
@@ -243,32 +233,7 @@ class GRNProvider with ChangeNotifier {
     }
   }
 
-  // Future<List<GRN>> _fetchByStatus(String status) async {
-  //   try {
-  //     final response = await _dio.get(
-  //       _grnListEndpoint,
-  //       queryParameters: {
-  //         "skip": "$_skip",
-  //         "limit": "$_limit",
-  //         "status": status,
-  //       },
-  //     );
-
-  //     print("🌐 RAW FETCH ${response.realUri}");
-
-  //     if (response.statusCode == 200) {
-  //       final List data = response.data;
-  //       return data.map((e) => GRN.fromJson(e)).toList();
-  //     }
-
-  //     return [];
-  //   } catch (e) {
-  //     return [];
-  //   }
-  // }
-
   Future<bool> updateGRN(GRN grn, String newStatus) async {
-    print('--- updateGRN called for ${grn.grnId} ---');
     setLoading(true);
     setError(null);
 
@@ -285,9 +250,6 @@ class GRNProvider with ChangeNotifier {
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print('PATCH status: ${response.statusCode}');
-      print('PATCH body: ${response.data}');
-
       if (response.statusCode == 200) {
         final updatedGrn = GRN.fromJson(response.data);
         final index = _grns.indexWhere((item) => item.grnId == grn.grnId);
@@ -303,7 +265,6 @@ class GRNProvider with ChangeNotifier {
       }
     } catch (error) {
       setError(error.toString());
-      print('❌ updateGRN exception: $error');
       return false;
     } finally {
       setLoading(false);
@@ -316,7 +277,6 @@ class GRNProvider with ChangeNotifier {
     required double roundOffAdjustment,
     required List<ItemDetail> itemUpdates,
   }) async {
-    print('--- convertGrnToApAndOutgoing called for $grnId ---');
     setLoading(true);
     setError(null);
 
@@ -344,11 +304,6 @@ class GRNProvider with ChangeNotifier {
 
       final double grnAmount = grn.grnAmount ?? 0.0;
       final double finalApRoundOff = roundOffAdjustment;
-
-      print('🧮 ROUND OFF FLOW');
-      print('GRN Amount        : $grnAmount');
-      print('Manual Round Off  : $finalApRoundOff');
-      print('➡️ Expected AP (UI): ${grnAmount + finalApRoundOff}');
       final response = await _dio.patch(
         '$_grnBase/convert-to-ap/ap-to-outgoing/$grnId',
         queryParameters: {'apRoundOff': finalApRoundOff.toStringAsFixed(2)},
@@ -356,10 +311,8 @@ class GRNProvider with ChangeNotifier {
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print('🚀 CONVERT URL: ${response.realUri}');
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchFilteredGRNs();
+        await fetchFilteredGRNs(status: _filterStatus, skip: 0, limit: _limit);
         return {'success': true};
       } else {
         throw Exception(response.data);
@@ -381,94 +334,11 @@ class GRNProvider with ChangeNotifier {
       }
       return null;
     } catch (e) {
-      print('❌ Error fetching PO details: $e');
       return null;
     }
   }
 
-  // Future<Map<String, dynamic>> convertFromApprovedPOToGRN({
-  //   required String poId,
-  //   required String invoiceNo,
-  //   required DateTime invoiceDate,
-  //   required List<Map<String, dynamic>> items,
-  //   required double discount,
-  //   required double roundOffAdjustment,
-  //   required List freights,
-  //   required double totalFreightAmount,
-  //   required double totalFreightTaxAmount,
-  // }) async {
-  //   print('=== Starting convertFromApprovedPOToGRN ===');
-  //   print('PO ID: $poId');
-  //   print('Invoice No: $invoiceNo');
-
-  //   setLoading(true);
-  //   setError(null);
-
-  //   try {
-  //     final double itemFinalTotal = items.fold<double>(
-  //       0.0,
-  //       (sum, item) => sum + ((item['finalPrice'] ?? 0.0) as num).toDouble(),
-  //     );
-
-  //     final double roundedTotal = itemFinalTotal.roundToDouble();
-  //     final double calculatedRoundOff = double.parse(
-  //       (roundedTotal - itemFinalTotal).toStringAsFixed(2),
-  //     );
-
-  //     print('🧮 Item Total       : $itemFinalTotal');
-  //     print('🧮 Rounded Total    : $roundedTotal');
-  //     print('🧮 Round-Off Stored : $calculatedRoundOff');
-
-  //     final Map<String, dynamic> requestBody = {
-  //       'poId': poId,
-  //       'invoiceNo': invoiceNo,
-  //       'invoiceDate': DateFormat('yyyy-MM-dd').format(invoiceDate),
-  //       'discountPrice': discount,
-  //       'roundOffAdjustment': calculatedRoundOff,
-  //       'freights': freights,
-  //       'totalFreightAmount': totalFreightAmount,
-  //       'totalFreightTaxAmount': totalFreightTaxAmount,
-  //       'items': items,
-  //     };
-
-  //     print('📤 Request Body: ${jsonEncode(requestBody)}');
-
-  //     final response = await _dio.post(
-  //       '$_grnBase/convert-to-ap',
-  //       data: jsonEncode(requestBody),
-  //       options: Options(headers: {'Content-Type': 'application/json'}),
-  //     );
-
-  //     print('📥 Response Status: ${response.statusCode}');
-  //     print('📥 Response Body: ${response.data}');
-
-  //     if (response.statusCode == 200 || response.statusCode == 201) {
-  //       final responseData = response.data;
-
-  //       await fetchFilteredGRNs();
-
-  //       return {
-  //         'success': true,
-  //         'grnId': responseData['grnId'],
-  //         'message': 'GRN created successfully',
-  //         'roundOffAdjustment': calculatedRoundOff,
-  //       };
-  //     } else {
-  //       return {
-  //         'success': false,
-  //         'error': 'Server error: ${response.statusCode} - ${response.data}',
-  //       };
-  //     }
-  //   } catch (e) {
-  //     print('❌ Error in convertFromApprovedPOToGRN: $e');
-  //     return {'success': false, 'error': e.toString()};
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }
-
   Future<List<GRN>> fetchGrnsWithItemStatus(String status) async {
-    print('Starting fetchGrnsWithItemStatus for status: $status');
     setLoading(true);
     setError(null);
 
@@ -487,8 +357,6 @@ class GRNProvider with ChangeNotifier {
         );
       }
     } catch (error) {
-      setError('Failed to fetch GRNs with status: $error');
-      print('❌ fetchGrnsWithItemStatus exception: $error');
       return [];
     } finally {
       setLoading(false);
@@ -496,7 +364,6 @@ class GRNProvider with ChangeNotifier {
   }
 
   Future<List<String>> fetchRandomNumbers() async {
-    print('Starting fetchRandomNumbers...');
     setLoading(true);
     setError(null);
 
@@ -513,7 +380,6 @@ class GRNProvider with ChangeNotifier {
       }
     } catch (error) {
       setError('Failed to fetch random numbers: $error');
-      print('❌ fetchRandomNumbers exception: $error');
       return [];
     } finally {
       setLoading(false);
@@ -523,8 +389,9 @@ class GRNProvider with ChangeNotifier {
   Future<dynamic> returnGrn(String grnId, ReturnGRNRequest data) async {
     try {
       if (grnId.isEmpty) throw Exception('GRN ID cannot be empty');
-      if (data.returnedBy.isEmpty)
+      if (data.returnedBy.isEmpty) {
         throw Exception('Returned by field cannot be empty');
+      }
 
       final requestBody = {
         "scenario": data.scenario?.toLowerCase() ?? "",
@@ -533,7 +400,13 @@ class GRNProvider with ChangeNotifier {
         "returnedBy": data.returnedBy,
         "comments": data.comments ?? "",
         "items": data.items
-            ?.map(
+            ?.where(
+              (i) =>
+                  i.itemId != null &&
+                  i.itemId!.isNotEmpty &&
+                  i.itemId!.length == 24,
+            )
+            .map(
               (i) => {
                 "itemId": i.itemId,
                 "nos": i.nos ?? 1.0,
@@ -545,7 +418,8 @@ class GRNProvider with ChangeNotifier {
             .toList(),
       };
 
-      print('📤 returnGrn request: ${jsonEncode(requestBody)}');
+      // 🔍 DEBUG (optional but useful)
+      print("RETURN PAYLOAD: $requestBody");
 
       final response = await _dio.patch(
         '$_grnBase/$grnId/return',
@@ -553,18 +427,15 @@ class GRNProvider with ChangeNotifier {
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print('📥 returnGrn response: ${response.statusCode} - ${response.data}');
-
       if (response.statusCode == 200) {
         final res = response.data;
-        await fetchFilteredGRNs();
+        await fetchFilteredGRNs(status: _filterStatus, skip: 0, limit: _limit);
         notifyListeners();
         return res;
       } else {
         throw Exception('Failed: ${response.statusCode} -> ${response.data}');
       }
     } catch (e) {
-      print('❌ returnGrn exception: $e');
       throw Exception('Failed to process GRN return: $e');
     }
   }
@@ -578,8 +449,6 @@ class GRNProvider with ChangeNotifier {
         '$_baseApi/grns/returnprocess/Grnwise',
         queryParameters: {'skip': skip, 'limit': limit},
       );
-
-      print('🌐 GET RETURNED GRNS ${response.realUri}');
 
       if (response.statusCode == 200) {
         _grns = (response.data as List).map((e) => GRN.fromJson(e)).toList();
@@ -625,7 +494,6 @@ class GRNProvider with ChangeNotifier {
       }
     } catch (e) {
       _error = 'Error fetching debit/credit notes: $e';
-      print('❌ fetchDebitCreditNotesByGrnId exception: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

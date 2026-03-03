@@ -10,16 +10,17 @@ dependencies:
   flutter:
     sdk: flutter
   dropdown_button2: ^2.3.9
-  cupertino_icons: ^1.0.8
+  # cupertino_icons: ^1.0.8
   intl: ^0.20.2
   provider: ^6.1.5
   pdf: ^3.11.3
   printing: ^5.14.2
-  path_provider: ^2.1.5
+  # path_provider: ^2.1.5
   dio: ^5.8.0+1
-  permission_handler: ^12.0.1
+  # permission_handler: ^12.0.1
   google_fonts: ^6.2.1
   connectivity_plus: ^6.0.3
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

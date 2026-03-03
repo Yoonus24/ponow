@@ -1,3 +1,5 @@
+//---------------dialog for inside outgoing for showing invoice details ------------------
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
@@ -73,7 +75,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
     }
 
     final totalDiscount = (apinvoice.discountDetails ?? 0.0);
-    // .roundToDouble();
+    final double roundOff = apinvoice.roundOffAdjustment ?? 0.0;
 
     return Dialog(
       insetPadding: EdgeInsets.zero,
@@ -99,7 +101,6 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
 
               const SizedBox(height: 12),
 
-              // ✅ ORIGINAL SUMMARY RESTORED
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: _buildSummary(
@@ -108,12 +109,12 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                   totalDiscount: totalDiscount,
                   totalSgst: totalSgst,
                   totalCgst: totalCgst,
+                  roundOff: roundOff, 
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // ✅ ORIGINAL CLOSE BUTTON RESTORED
               Center(
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
@@ -194,7 +195,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: i.isEven ? Colors.white : Colors.grey.shade100,
+                        color: Colors.white,
                         border: Border(
                           bottom: BorderSide(color: Colors.grey.shade300),
                         ),
@@ -253,9 +254,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                         return Container(
                           height: h,
                           decoration: BoxDecoration(
-                            color: i.isEven
-                                ? Colors.white
-                                : Colors.grey.shade50,
+                            color: Colors.white,
                             border: Border(
                               bottom: BorderSide(color: Colors.grey.shade300),
                             ),
@@ -292,13 +291,14 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
     );
   }
 
-  // ================= SUMMARY (ORIGINAL) =================
+  // ================= UPDATED SUMMARY WITH ROUND OFF =================
   Widget _buildSummary({
     required double totalAmount,
     required double totalTax,
     required double totalDiscount,
     required double totalSgst,
     required double totalCgst,
+    required double roundOff,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -308,6 +308,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
         _sum("Tax:", _formatCurrency(totalTax)),
         _sum("SGST:", _formatCurrency(totalSgst)),
         _sum("CGST:", _formatCurrency(totalCgst)),
+        if (roundOff != 0) _sum("Round Off:", _formatCurrency(roundOff)),
         const Divider(),
         _sum(
           "Amount:",
@@ -335,7 +336,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 80,
+            width: 80, 
             child: Text(
               value,
               textAlign: TextAlign.right,

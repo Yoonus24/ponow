@@ -8,6 +8,7 @@ import '../../utils/calculator_utils.dart';
 class PaymentDialog extends StatelessWidget {
   final double totalPayableAmount;
   final bool isBulkPayment;
+  final bool lockFullPayment;
   final Function(
     String paymentType,
     double amount,
@@ -22,6 +23,7 @@ class PaymentDialog extends StatelessWidget {
     required this.totalPayableAmount,
     required this.onPaymentConfirmed,
     this.isBulkPayment = false,
+    this.lockFullPayment = false,
   });
 
   @override
@@ -120,12 +122,10 @@ class PaymentDialog extends StatelessWidget {
       ],
       onChanged: (value) {
         provider.setPaymentType(value!);
-        print('Selected Payment Type: $value');
         if (value == 'full') {
           provider.amountController.text = totalPayableAmount.toStringAsFixed(
             2,
           );
-          print('Set amount to full: ${provider.amountController.text}');
         }
       },
       validator: (value) =>
@@ -137,8 +137,8 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
     BuildContext context,
   ) {
-    final bool isFullPayment = provider.selectedPaymentType == 'full';
-
+    final bool isFullPayment =
+        provider.selectedPaymentType == 'full' && lockFullPayment;
     return GestureDetector(
       onTap: isFullPayment
           ? null
@@ -245,7 +245,6 @@ class PaymentDialog extends StatelessWidget {
       ],
       onChanged: (value) {
         provider.setPaymentMode(value!);
-        print('Selected Payment Mode: $value');
       },
       validator: (value) =>
           value == null ? 'Please select a payment mode' : null,
@@ -278,7 +277,6 @@ class PaymentDialog extends StatelessWidget {
       ],
       onChanged: (value) {
         provider.setCashType(value!);
-        print('Selected Cash Type: $value');
       },
       validator: (value) => value == null ? 'Please select a cash type' : null,
     );
@@ -496,7 +494,6 @@ class PaymentDialog extends StatelessWidget {
       onPressed: () {
         provider.resetFields();
         Navigator.of(context).pop();
-        print('Payment dialog cancelled');
       },
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: Colors.blue),
@@ -506,7 +503,6 @@ class PaymentDialog extends StatelessWidget {
       child: const Text('Cancel'),
     );
   }
-
 
   Widget _buildConfirmButton(
     BuildContext context,
@@ -562,7 +558,7 @@ class PaymentDialog extends StatelessWidget {
                               onPressed: () => Navigator.of(context).pop(true),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blueAccent,
-                                foregroundColor: Colors.white, 
+                                foregroundColor: Colors.white,
                               ),
                               child: const Text('Confirm'),
                             ),
@@ -628,7 +624,7 @@ class PaymentDialog extends StatelessWidget {
           foregroundColor: Colors.white,
           elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(25), 
+            borderRadius: BorderRadius.circular(25),
           ),
         ),
         child: provider.isSubmitting
@@ -644,7 +640,7 @@ class PaymentDialog extends StatelessWidget {
                 child: Text(
                   isBulkPayment ? 'Confirm Bulk Payment' : 'Confirm Payment',
                   textAlign: TextAlign.center,
-                  softWrap: true, 
+                  softWrap: true,
                   maxLines: 2,
                   overflow: TextOverflow.visible,
                   style: const TextStyle(

@@ -11,7 +11,6 @@ import 'package:purchaseorders2/widgets/outgoing payment/partial_payment.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common_app_bar.dart';
 import '../providers/outgoing_payment_provider.dart';
-import 'package:dio/dio.dart';
 
 class OutgoingPaymentPage extends StatefulWidget {
   const OutgoingPaymentPage({super.key});

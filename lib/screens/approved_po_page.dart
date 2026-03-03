@@ -19,7 +19,6 @@ class ApprovedPOPage extends StatefulWidget {
 class _ApprovedPOPageState extends State<ApprovedPOPage> {
   final TextEditingController vendorCtrl = TextEditingController();
   final TextEditingController dateCtrl = TextEditingController();
-
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
   final ValueNotifier<DateTime?> selectedDate = ValueNotifier(null);
   final ValueNotifier<String> vendorName = ValueNotifier("");
@@ -87,9 +86,9 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     DateTime initialDate;
 
     try {
-      initialDate = ServerTimeService.now; 
+      initialDate = ServerTimeService.now;
     } catch (_) {
-      initialDate = DateTime.now(); 
+      initialDate = DateTime.now();
     }
 
     final picked = await showDatePicker(
@@ -159,11 +158,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
               height: 52,
               child: Autocomplete<String>(
                 optionsBuilder: (TextEditingValue text) {
-                  provider.fetchingVendors(
-                    vendorName: text.text.trim(),
-                    skip: skip,
-                    limit: limit,
-                  );
                   return provider.filteredVendorNames;
                 },
 
@@ -389,7 +383,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                         return Consumer<POProvider>(
                           builder: (_, provider, __) {
-                            if (provider.isLoading) {
+                            if (provider.isLoading && provider.pos.isEmpty) {
                               return const Padding(
                                 padding: EdgeInsets.only(top: 120),
                                 child: Center(

@@ -141,8 +141,6 @@ class POTemplate {
       'isTemplate': true,
       'createdDate': createdDate.toIso8601String(),
       'randomId': randomId,
-
-      /// NEW FIELD
       'isActive': isActive,
       'location': location,
       'locationName': locationName,

@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_print, unnecessary_getters_setters
+// ignore_for_file: empty_catches, avoid_print, unnecessary_getters_setters
 
 import 'dart:async';
 
@@ -41,7 +41,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   double get overallDiscountValue => _overallDiscountValue;
   set overallDiscountValue(double rawValue) {
     if (_disposed) {
-      print('⚠️ overallDiscountValue: Notifier is disposed, skipping');
       return;
     }
 
@@ -179,8 +178,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     if (_disposed) return;
 
     _editingPO = po;
-
-    // 🔥 Reset guard for new edit session
     _isEditTotalsInitialized = false;
 
     if (po != null) {
@@ -193,40 +190,60 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       roundOffAdjustment = po.roundOffAdjustment ?? 0.0;
       roundOffController.text = roundOffAdjustment.toStringAsFixed(2);
 
-      // ✅ Initialize totals ONCE
+      // ✅ FIX: RECONSTRUCT OVERALL DISCOUNT FROM ITEMS
+      double totalDiscount = 0.0;
+      double totalBefore = 0.0;
+
+      for (final item in po.items) {
+        final double base = item.pendingTotalPrice ?? item.totalPrice ?? 0.0;
+
+        final double finalPrice =
+            item.pendingFinalPrice ?? item.finalPrice ?? 0.0;
+
+        totalBefore += base;
+        totalDiscount += (base - finalPrice);
+      }
+
+      if (totalDiscount > 0) {
+        isOverallDiscountActive = true;
+
+        _overallDiscountValue = totalDiscount;
+
+        discountMode.value = DiscountMode.fixedAmount;
+
+        overallDiscountController.text = _overallDiscountValue.toStringAsFixed(
+          2,
+        );
+      } else {
+        isOverallDiscountActive = false;
+        _overallDiscountValue = 0.0;
+        overallDiscountController.text = '0';
+        discountMode.value = DiscountMode.none;
+      }
+
       _initializeEditTotalsOnce(notify: notify);
     }
   }
 
   void _initializeEditTotalsOnce({required bool notify}) {
     if (_isEditTotalsInitialized) {
-      print("⛔ Skipping duplicate edit recalculation");
       return;
     }
-
-    print("✅ Initializing edit totals ONCE");
-
     recalculateFromLoadedPO(notify: notify);
-
     _isEditTotalsInitialized = true;
   }
 
   Future<void> updateFreightAt(int index, FreightData freight) async {
     if (index < 0 || index >= freights.length) return;
-
     final newList = List<FreightData>.from(freights);
     newList[index] = freight;
-
     freights = newList;
-
     await recalculateTotalsFromBackend();
   }
 
   void removeFreightAt(int index) {
     if (index < 0 || index >= freights.length) return;
-
     freights.removeAt(index);
-
     recalculateTotalsFromBackend();
     notifyListeners();
   }
@@ -250,15 +267,12 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void safeControllerAction(void Function() action) {
     if (_disposed) {
-      print('⚠️ Notifier disposed, skipping controller action');
       return;
     }
 
     try {
       action();
-    } catch (e) {
-      print('⚠️ Error in controller action: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> addFreight(FreightData freight) async {
@@ -275,20 +289,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     subTotal = result["subTotal"];
     totalFreightAmount = result["totalFreightAmount"];
     totalFreightTaxAmount = result["totalFreightTaxAmount"];
-
     final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
-
     _calculatedFinalAmount = result["finalAmount"] + roundOff;
-
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
-
     notifyListeners();
   }
 
   void updateVariance() {
     if (_disposed) return;
-
     double existingPrice = double.tryParse(existingPriceController.text) ?? 0;
     double newPrice = double.tryParse(newPriceController.text) ?? 0;
     double variance = newPrice - existingPrice;
@@ -302,7 +311,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       selectedVendorDetails = null;
       selectedLocation = null;
       selectedLocationName = null;
-
       vendorContactController.value = TextEditingValue.empty;
       paymentTermsController.value = TextEditingValue.empty;
       creditLimitController.value = TextEditingValue.empty;
@@ -312,7 +320,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       countryController.value = TextEditingValue.empty;
       postalCodeController.value = TextEditingValue.empty;
       gstNumberController.value = TextEditingValue.empty;
-
       safeNotify();
     });
   }
@@ -322,18 +329,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     DiscountMode mode,
   ) async {
     if (_disposed) return;
-
     isOverallDiscountActive = true;
     discountMode.value = mode;
     _overallDiscountValue = discountValue;
     overallDiscountController.text = discountValue.toStringAsFixed(2);
-
     await recalculateTotalsFromBackend();
   }
 
   void setLocation({required String location, String? locationName}) {
     if (_disposed) return;
-
     selectedLocation = location;
     selectedLocationName = locationName;
     safeNotify();
@@ -341,7 +345,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void clearLocation() {
     if (_disposed) return;
-
     selectedLocation = null;
     selectedLocationName = null;
     safeNotify();
@@ -349,7 +352,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void clearAllItems() {
     if (_disposed) return;
-
     poItems.clear();
     totalOrderAmount = 0.0;
     safeNotify();
@@ -357,7 +359,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void setSelectedVendors(String? vendorName) {
     if (_disposed) return;
-
     selectedVendor = vendorName;
     if (vendorName != null) {
       selectedVendorDetails = vendorAllList.firstWhere(
@@ -402,7 +403,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   @override
   void dispose() {
-    print('🛑 PurchaseOrderNotifier.dispose() called');
     _disposed = true;
     _itemSearchTimer?.cancel();
 
@@ -442,57 +442,42 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     for (final c in controllers) {
       try {
         c.dispose();
-      } catch (e) {
-        print('⚠️ Controller already disposed or error: $e');
-      }
+      } catch (e) {}
     }
 
     try {
       discountMode.dispose();
-    } catch (e) {
-      print('⚠️ Error disposing discountMode: $e');
-    }
-
+    } catch (e) {}
     super.dispose();
-    print('✅ PurchaseOrderNotifier.dispose() complete');
   }
 
   String _getControllerTextSafely(TextEditingController controller) {
     try {
       return controller.text;
     } catch (e) {
-      print('⚠️ Controller disposed, returning empty string');
       return '';
     }
   }
 
   Future<void> fetchVendors1() async {
     if (_vendorsLoaded) return;
-
     await poProvider.fetchingVendors();
     vendors = poProvider.vendors;
-
     _vendorsLoaded = true;
     safeNotify();
   }
 
   Future<void> fetchAllVendors1() async {
     if (_vendorsLoading) return;
-
     _vendorsLoading = true;
-
     await poProvider.fetchingAllVendors();
-
     vendorAllList = poProvider.vendorAllList;
-
     _vendorsLoading = false;
-
     safeNotify();
   }
 
   Future<void> fetchItems(String query) async {
     if (_disposed) return;
-
     try {
       await poProvider.searchPurchaseItems(query: query);
       purchaseItems = poProvider.purchaseItems;
@@ -504,9 +489,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           .toList();
 
       safeNotify();
-    } catch (e) {
-      print('❌ Error fetching items: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> preloadItems({bool forceRefresh = false}) async {
@@ -523,21 +506,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           .toList();
 
       safeNotify();
-    } catch (e) {
-      print('❌ Error preloading items: $e');
-    }
+    } catch (e) {}
   }
 
   Future<void> fetchBranches1() async {
     if (_disposed) return;
-
     await poProvider.fetchBranches();
     safeNotify();
   }
 
   Future<void> fetchShippingAddress1() async {
     if (_disposed) return;
-
     await poProvider.fetchShippingaddress();
     shippingAddress = poProvider.shippingAddress;
     safeNotify();
@@ -545,7 +524,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   Future<void> fetchBillingAddress1() async {
     if (_disposed) return;
-
     await poProvider.fetchBillingAddress();
     billingAddress = poProvider.billingAddress;
     safeNotify();
@@ -553,21 +531,18 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void selectEditItem(Item item) {
     if (_disposed) return;
-
     _editItem = item;
     safeNotify();
   }
 
   void clearEditItem() {
     if (_disposed) return;
-
     _editItem = null;
     safeNotify();
   }
 
   void setEditItem(Item item) {
     if (_disposed) return;
-
     _editItem = item;
     safeNotify();
   }
@@ -580,7 +555,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void updateAfTaxForAllItems(double discountValue, DiscountMode mode) {
     if (_disposed) return;
-
     for (var item in poItems) {
       item.afTaxDiscount = discountValue;
 
@@ -588,63 +562,40 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           ? "percentage"
           : "amount";
     }
-
     _safeCalculateTotals();
   }
 
-  void recalculateFromLoadedPO({required bool notify}) {
-    if (_disposed) return;
-
-    print('🔁 Recalculating totals from loaded PO (EDIT MODE)');
-
-    double subTotal = 0.0;
+  void recalculateFromLoadedPO({bool notify = false}) {
+    double subtotal = 0.0;
     double totalTax = 0.0;
-    double totalFinal = 0.0;
+    double totalDiscount = 0.0;
+    double finalTotal = 0.0;
 
-    double totalBefTaxDiscount = 0.0;
-    double totalAfTaxDiscount = 0.0;
+    for (var item in poItems) {
+      final base = item.pendingTotalPrice ?? 0.0;
+      final finalPrice = item.pendingFinalPrice ?? 0.0;
+      final tax = item.pendingTaxAmount ?? 0.0;
+      final discount = item.pendingDiscountAmount ?? 0.0;
 
-    for (final item in poItems) {
-      subTotal += item.totalPrice ?? 0.0;
-      final double tax = item.pendingTaxAmount ?? item.taxAmount ?? 0.0;
-      item.pendingTaxAmount = tax;
-      if (item.taxType == 'igst') {
-        item.pendingIgst = tax;
-        item.pendingCgst = 0.0;
-        item.pendingSgst = 0.0;
-      } else {
-        item.pendingCgst = tax / 2;
-        item.pendingSgst = tax / 2;
-        item.pendingIgst = 0.0;
-      }
+      subtotal += base;
       totalTax += tax;
-      totalFinal += item.pendingFinalPrice ?? item.finalPrice ?? 0.0;
-      totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
-      totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
+      totalDiscount += discount;
+      finalTotal += finalPrice;
     }
 
-    if (isOverallDiscountActive) {
-      _itemWiseDiscount = totalBefTaxDiscount;
-      _overallDiscountAmount = totalAfTaxDiscount;
-    } else {
-      _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
-      _overallDiscountAmount = 0.0;
-    }
+    final roundOff = double.tryParse(roundOffController.text) ?? 0.0;
 
-    _subTotal = subTotal;
+    finalTotal =
+        finalTotal + totalFreightAmount + totalFreightTaxAmount + roundOff;
+
+    subTotal = subtotal;
     pendingTaxAmount = totalTax;
+    pendingDiscountAmount = totalDiscount;
 
-    final double roundOff = double.tryParse(roundOffController.text) ?? 0.0;
-
-    _calculatedFinalAmount =
-        totalFinal + totalFreightAmount + totalFreightTaxAmount + roundOff;
-
-    totalOrderAmount = _calculatedFinalAmount;
-    pendingOrderAmount = _calculatedFinalAmount;
-
-    pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
-
-    if (notify) safeNotify();
+    calculatedFinalAmount = finalTotal;
+    totalOrderAmount = finalTotal;
+    pendingOrderAmount = finalTotal;
+    if (notify) notifyListeners();
   }
 
   void clearSelectedItem() {
@@ -671,7 +622,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       totalFreightAmount = 0;
       totalFreightTaxAmount = 0;
     }
-
     calculateTotals();
   }
 
@@ -731,7 +681,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void setSelectedVendor(String? vendorName) {
     if (_disposed) {
-      print('⚠️ setSelectedVendor: Notifier is disposed, skipping');
       return;
     }
 
@@ -813,8 +762,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void calculateTotals({bool fromEditLoad = false}) {
     if (_editingPO != null && !_isEditTotalsInitialized) {
-      print("⛔ calculateTotals blocked during edit init");
-      return;
+      recalculateFromLoadedPO(notify: false);
     }
 
     if (_disposed) {
@@ -856,19 +804,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
-
-    print('EDIT SAFE TOTALS');
-    print('Subtotal: $_subTotal');
-    print('Item Discount: $_itemWiseDiscount');
-    print('Overall Discount: $_overallDiscountAmount');
-    print('Final: $totalOrderAmount');
-
     safeNotify();
   }
 
   void resetControllers() {
-    print('[🔄 Reset Controllers]');
-
     final controllers = [
       vendorContactController,
       paymentTermsController,
@@ -961,7 +900,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     taxPercentageController.value = TextEditingValue.empty;
     befTaxDiscountController.value = TextEditingValue.empty;
     afTaxDiscountController.value = TextEditingValue.empty;
-
     countController.value = TextEditingValue(text: '1');
 
     safeNotify();
@@ -999,7 +937,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   Future<bool> submitPurchaseOrder(BuildContext context) async {
     if (_disposed) {
-      print('⚠️ submitPurchaseOrder called after dispose');
       return false;
     }
 
@@ -1056,11 +993,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
       final formattedOrderDate = formatDate(snapshot["orderedDate"]);
       final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
-
       final List<Item> finalItems = poItems.map((e) => e.copyWith()).toList();
-
       double roundOffValue = double.tryParse(snapshot["roundOff"] ?? '') ?? 0.0;
-
       final bool hasOverallDiscount = discountMode.value != DiscountMode.none;
       final double overallDiscountValue = hasOverallDiscount
           ? double.tryParse(snapshot["overallDiscount"] ?? '') ?? 0.0
@@ -1072,23 +1006,19 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           vendorContact: snapshot["vendorContact"],
           orderedDate: formattedOrderDate,
           expectedDeliveryDate: formattedExpectedDate,
-
           location: selectedLocation,
           locationName: selectedLocationName,
           freights: freights,
           totalFreightAmount: totalFreightAmount,
           totalFreightTaxAmount: totalFreightTaxAmount,
-
           items: finalItems,
           totalOrderAmount: calculatedFinalAmount,
           pendingOrderAmount: calculatedFinalAmount,
           pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
           pendingTaxAmount: pendingTaxAmount,
-
           paymentTerms: snapshot["paymentTerms"],
           billingAddress: snapshot["billing"],
           shippingAddress: snapshot["shipping"],
-
           contactpersonEmail: vendorDetails.contactpersonEmail,
           address: vendorDetails.address,
           country: vendorDetails.country,
@@ -1097,7 +1027,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           postalCode: vendorDetails.postalCode,
           gstNumber: vendorDetails.gstNumber,
           creditLimit: vendorDetails.creditLimit,
-
           roundOffAdjustment: roundOffValue,
           overallDiscount: hasOverallDiscount
               ? PurchaseOrderDiscount(
@@ -1105,34 +1034,29 @@ class PurchaseOrderNotifier extends ChangeNotifier {
                   mode: discountMode.value,
                 )
               : null,
-
-          poStatus: editingPO!.poStatus,
+          poStatus: calculatedFinalAmount > vendorDetails.creditLimit
+              ? 'CreditLimit for Approve'
+              : 'Pending',
         );
 
         await poProvider.updatePO(updatedPO);
-        print('✅ PO updated successfully');
         return true;
       }
 
       final newPO = PO(
         purchaseOrderId: '',
-        randomId: '',
         vendorName: selectedVendor ?? '',
-
         location: selectedLocation,
         locationName: selectedLocationName,
-
         vendorContact: snapshot["vendorContact"],
         items: finalItems,
         totalOrderAmount: calculatedFinalAmount,
         pendingOrderAmount: calculatedFinalAmount,
         pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
         pendingTaxAmount: pendingTaxAmount,
-
         paymentTerms: snapshot["paymentTerms"] ?? '',
         billingAddress: snapshot["billing"] ?? '',
         shippingAddress: snapshot["shipping"] ?? '',
-
         contactpersonEmail: vendorDetails.contactpersonEmail,
         address: vendorDetails.address,
         country: vendorDetails.country,
@@ -1141,13 +1065,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         postalCode: vendorDetails.postalCode,
         gstNumber: vendorDetails.gstNumber,
         creditLimit: vendorDetails.creditLimit,
-
         orderDate: formattedOrderDate,
         expectedDeliveryDate: formattedExpectedDate,
         roundOffAdjustment: roundOffValue,
         freights: freights,
         totalFreightAmount: totalFreightAmount,
         totalFreightTaxAmount: totalFreightTaxAmount,
+
+        // ✅ ADD THIS LINE
+        isHoldOrder: calculatedFinalAmount > vendorDetails.creditLimit,
 
         overallDiscount: hasOverallDiscount
             ? PurchaseOrderDiscount(
@@ -1158,16 +1084,12 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
         poStatus: calculatedFinalAmount > vendorDetails.creditLimit
             ? 'CreditLimit for Approve'
-            : 'Pending',
+            : 'Pending for Approve',
       );
 
       await poProvider.postPO(newPO, vendorDetails);
-      print('✅ New PO created successfully');
       return true;
     } catch (e, stackTrace) {
-      print('❌ submitPurchaseOrder error: $e');
-      print(stackTrace);
-
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1179,11 +1101,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       return false;
     }
   }
-
-  // void calculateItemTotals() {
-  //   if (_disposed) return;
-  //   safeNotify();
-  // }
 
   Future<void> applyOverallDiscount(POProvider poProvider) async {}
 }

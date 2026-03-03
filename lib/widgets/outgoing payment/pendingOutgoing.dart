@@ -48,6 +48,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final ValueNotifier<bool> _refreshDataNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<int> _filteredCountNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<bool> _isInitialized = ValueNotifier(false);
 
   bool _initialLoading = true;
 
@@ -84,6 +85,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     _sortAscendingNotifier.dispose();
     _refreshDataNotifier.dispose();
     _filteredCountNotifier.dispose();
+    _isInitialized.dispose();
     super.dispose();
   }
 
@@ -135,6 +137,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         );
       }
     }
+
+    _isInitialized.value = true;
   }
 
   Future<void> _loadData() async {
@@ -157,19 +161,16 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           ? null
           : _selectedInvoiceNotifier.value!.trim();
 
-      debugPrint("🔥 CALLING API WITH:");
-      debugPrint("vendor: $vendorNameForApi");
-      debugPrint("invoice: $invoiceNoForApi");
+      // 🔥 ADD THIS LINE (IMPORTANT)
+      await provider.fetchApInvoices();
 
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
         filterBy: 'invoiceDate',
         limit: 100,
         vendorName: vendorNameForApi,
-        invoiceNo: invoiceNoForApi, 
+        invoiceNo: invoiceNoForApi,
       );
-
-      debugPrint("✅ AFTER API: ${provider.payments.length}");
 
       _refreshDataNotifier.value = !_refreshDataNotifier.value;
     } catch (e) {
@@ -387,6 +388,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         return PaymentDialog(
           totalPayableAmount: totalPayableAmount,
           isBulkPayment: isBulkPayment,
+          lockFullPayment: true,
           onPaymentConfirmed:
               (
                 paymentType,
@@ -425,26 +427,20 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         paymentType: paymentType,
                         paymentMode: paymentMode,
                         paymentMethod: paymentMethod,
-
                         partialAmount: paymentType == 'partial' ? amount : null,
-
                         fullPaymentAmount: paymentType == 'full'
                             ? payment.totalPayableAmount
                             : null,
-
                         bankName: paymentMode == 'Bank'
                             ? transactionDetails['bankName']
                             : null,
-
                         transactionReference: transactionReference,
                         cashVoucherNo: null,
-
                         pettyCashAmount:
                             paymentMode == 'Cash' &&
                                 paymentMethod == 'petty_cash'
                             ? amount
                             : null,
-
                         hoCash:
                             paymentMode == 'Cash' && paymentMethod == 'ho_cash'
                             ? amount
@@ -494,22 +490,20 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       _selectedIndicesNotifier.value = {};
                     }
 
+                    provider.payments.removeWhere((p) {
+                      final isSelected = selectedPayments.any(
+                        (sp) => sp.outgoingId == p.outgoingId,
+                      );
+
+                      return isSelected &&
+                          (p.status ?? '').toLowerCase() == 'fully paid';
+                    });
+
+                    _refreshDataNotifier.value = !_refreshDataNotifier.value;
+
                     _scaffoldMessengerKey.currentState?.showSnackBar(
                       const SnackBar(content: Text('Payment Confirmed')),
                     );
-                    final provider = Provider.of<OutgoingPaymentProvider>(
-                      context,
-                      listen: false,
-                    );
-
-                    await provider.fetchApInvoices();
-                    await provider.fetchFilteredOutgoings(
-                      status: 'Pending',
-                      filterBy: 'invoiceDate',
-                      limit: 100,
-                    );
-
-                    _refreshDataNotifier.value = !_refreshDataNotifier.value;
                   }
                 } catch (e) {
                   if (context.mounted) {
@@ -593,8 +587,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
       );
     }
   }
-
-
 
   void _handleVendorSelected(String? value) {
     _selectedVendorNotifier.value = (value == null || value == 'All Vendors')
@@ -1152,7 +1144,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             onTap: () => _showGrnDetailsDialog(
               context,
               outgoing.grnId,
-              grnMap.values.toList(), 
+              grnMap.values.toList(),
             ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -1285,474 +1277,480 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         key: _scaffoldMessengerKey,
         child: Scaffold(
           body: ValueListenableBuilder<bool>(
-            valueListenable: _refreshDataNotifier,
-            builder: (context, refreshData, _) {
-              return Consumer<OutgoingPaymentProvider>(
-                builder: (context, provider, child) {
-                  final List<Outgoing> filtered = provider.allPayments.where((
-                    p,
-                  ) {
-                    final selectedVendor = _selectedVendorNotifier.value;
-                    final selectedInvoice = _selectedInvoiceNotifier.value;
+            valueListenable: _isInitialized,
+            builder: (_, ready, __) {
+              if (!ready) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-                    final apiVendor = (p.vendorName ?? '').trim().toLowerCase();
-                    final apiInvoice = (p.invoiceNo ?? '').trim().toLowerCase();
+              return ValueListenableBuilder<bool>(
+                valueListenable: _refreshDataNotifier,
+                builder: (context, refreshData, _) {
+                  return Consumer<OutgoingPaymentProvider>(
+                    builder: (context, provider, child) {
+                      final List<Outgoing> filtered = List.from(
+                        provider.payments,
+                      );
+                      final List<GRN> grnList = provider.grnList;
+                      final List<ApInvoice> apInvoices = provider.apInvoices;
+                      final Map<String, GRN> grnMap = {
+                        for (var g in grnList)
+                          if (g.grnId != null) g.grnId!: g,
+                      };
 
-                    final vendor = selectedVendor?.trim().toLowerCase();
-                    final invoice = selectedInvoice?.trim().toLowerCase();
+                      final Map<String, ApInvoice> apMap = {
+                        for (var a in apInvoices)
+                          if (a.invoiceId != null) a.invoiceId!: a,
+                      };
 
-                    final vendorMatch = (vendor == null || vendor.isEmpty)
-                        ? true
-                        : apiVendor.contains(vendor);
+                      if (provider.isLoadingOutgoings &&
+                          provider.payments.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
 
-                    final invoiceMatch = (invoice == null || invoice.isEmpty)
-                        ? true
-                        : apiInvoice.contains(invoice);
-
-                    return vendorMatch && invoiceMatch;
-                  }).toList();
-                  final List<GRN> grnList = provider.grnList;
-                  final List<ApInvoice> apInvoices = provider.apInvoices;
-                  final Map<String, GRN> grnMap = {
-                    for (var g in grnList)
-                      if (g.grnId != null) g.grnId!: g,
-                  };
-
-                  final Map<String, ApInvoice> apMap = {
-                    for (var a in apInvoices)
-                      if (a.invoiceId != null) a.invoiceId!: a,
-                  };
-
-                  if (provider.isLoadingOutgoings) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (!provider.isLoadingOutgoings && filtered.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No pending outgoing',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    );
-                  }
-
-                  // ================= SORT LOGIC =================
-                  final String sortColumn = _sortColumnNotifier.value;
-                  final bool ascending = _sortAscendingNotifier.value;
-
-                  filtered.sort((a, b) {
-                    int result = 0;
-
-                    switch (sortColumn) {
-                      case 'dueDays':
-                        result = (a.intimationDays ?? 0).compareTo(
-                          b.intimationDays ?? 0,
+                      if (!provider.isLoadingOutgoings && filtered.isEmpty) {
+                        return const Center(
+                          child: Text(
+                            'No pending outgoing payments found.',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         );
-                        break;
+                      }
 
-                      case 'paymentTerms':
-                        result = (a.paymentTerms ?? '').compareTo(
-                          b.paymentTerms ?? '',
-                        );
-                        break;
+                      // ================= SORT LOGIC =================
+                      final String sortColumn = _sortColumnNotifier.value;
+                      final bool ascending = _sortAscendingNotifier.value;
 
-                      case 'invoiceDate':
-                        result = (a.invoiceDate ?? DateTime(1970)).compareTo(
-                          b.invoiceDate ?? DateTime(1970),
-                        );
-                        break;
+                      filtered.sort((a, b) {
+                        int result = 0;
 
-                      default:
-                        result = 0;
-                    }
+                        switch (sortColumn) {
+                          case 'dueDays':
+                            result = (a.intimationDays ?? 0).compareTo(
+                              b.intimationDays ?? 0,
+                            );
+                            break;
 
-                    return ascending ? result : -result;
-                  });
+                          case 'paymentTerms':
+                            result = (a.paymentTerms ?? '').compareTo(
+                              b.paymentTerms ?? '',
+                            );
+                            break;
 
-                  debugPrint(
-                    '🏗️ Building UI with ${filtered.length} filtered payments',
-                  );
+                          case 'invoiceDate':
+                            result = (a.invoiceDate ?? DateTime(1970))
+                                .compareTo(b.invoiceDate ?? DateTime(1970));
+                            break;
 
-                  const columnWidths = <double>[
-                    45,
-                    50,
-                    45,
-                    50,
-                    50,
-                    150,
-                    150,
-                    85,
-                    95,
-                    85,
-                    85,
-                    95,
-                    85,
-                    85,
-                    85,
-                    95,
-                    85,
-                    150,
-                  ];
-                  final totalWidth = columnWidths.reduce((a, b) => a + b);
+                          default:
+                            result = 0;
+                        }
 
-                  return RefreshIndicator(
-                    onRefresh: _onRefresh,
-                    displacement: 60,
-                    color: Colors.blueAccent,
-                    child: Scrollbar(
-                      controller: _mainScrollController,
-                      thumbVisibility: true,
-                      child: SingleChildScrollView(
-                        controller: _mainScrollController,
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        scrollDirection: Axis.vertical,
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'PENDING OUTGOING',
-                                    style: TextStyle(
-                                      fontSize: 25,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
+                        return ascending ? result : -result;
+                      });
+
+                      debugPrint(
+                        '🏗️ Building UI with ${filtered.length} filtered payments',
+                      );
+
+                      const columnWidths = <double>[
+                        45,
+                        50,
+                        45,
+                        50,
+                        50,
+                        150,
+                        150,
+                        85,
+                        95,
+                        85,
+                        85,
+                        95,
+                        85,
+                        85,
+                        85,
+                        95,
+                        85,
+                        150,
+                      ];
+                      final totalWidth = columnWidths.reduce((a, b) => a + b);
+
+                      return RefreshIndicator(
+                        onRefresh: _onRefresh,
+                        displacement: 60,
+                        color: Colors.blueAccent,
+                        child: Scrollbar(
+                          controller: _mainScrollController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _mainScrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            scrollDirection: Axis.vertical,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: Colors.red,
-                                          ),
+                                      const Text(
+                                        'PENDING OUTGOING',
+                                        style: TextStyle(
+                                          fontSize: 25,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black,
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-
-                                  LayoutBuilder(
-                                    builder: (context, constraints) {
-                                      if (constraints.maxWidth > 600) {
-                                        return Row(
-                                          children: [
-                                            _buildVendorFilterField(provider),
-                                            const SizedBox(width: 8),
-                                            _buildInvoiceSearchField(provider),
-                                            const SizedBox(width: 8),
-                                            _buildMultiplePaymentButton(
-                                              filtered,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: ValueListenableBuilder<Set<int>>(
-                                                valueListenable:
-                                                    _selectedIndicesNotifier,
-                                                builder: (context, selectedIndices, _) {
-                                                  if (selectedIndices.length >
-                                                      1) {
-                                                    final amount =
-                                                        selectedIndices.fold(
-                                                          0.0,
-                                                          (sum, index) =>
-                                                              sum +
-                                                              (filtered[index]
-                                                                      .totalPayableAmount ??
-                                                                  0.0),
-                                                        );
-                                                    return Text(
-                                                      'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        color: Colors.black,
-                                                      ),
-                                                    );
-                                                  }
-                                                  return const SizedBox();
-                                                },
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      }
-                                      return Column(
+                                      const SizedBox(height: 8),
+                                      Row(
                                         children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: _buildVendorFilterField(
-                                                  provider,
-                                                ),
+                                          Expanded(
+                                            child: Text(
+                                              'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.red,
                                               ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: _buildInvoiceSearchField(
-                                                  provider,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              _buildMultiplePaymentButton(
-                                                filtered,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: ValueListenableBuilder<Set<int>>(
-                                                  valueListenable:
-                                                      _selectedIndicesNotifier,
-                                                  builder: (context, selectedIndices, _) {
-                                                    if (selectedIndices.length >
-                                                        1) {
-                                                      final amount =
-                                                          selectedIndices.fold(
-                                                            0.0,
-                                                            (sum, index) =>
-                                                                sum +
-                                                                (filtered[index]
-                                                                        .totalPayableAmount ??
-                                                                    0.0),
-                                                          );
-                                                      return Text(
-                                                        'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                        style: const TextStyle(
-                                                          fontSize: 16,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          color: Colors.black,
-                                                        ),
-                                                      );
-                                                    }
-                                                    return const SizedBox();
-                                                  },
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
                                         ],
-                                      );
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            ValueListenableBuilder<String?>(
-                              valueListenable: _selectedVendorNotifier,
-                              builder: (context, selectedVendor, _) {
-                                return ValueListenableBuilder<String?>(
-                                  valueListenable: _selectedInvoiceNotifier,
-                                  builder: (context, selectedInvoice, _) {
-                                    return Container(
-                                      margin: const EdgeInsets.symmetric(
-                                        horizontal: 8,
                                       ),
-                                      child: Column(
-                                        children: [
-                                          Scrollbar(
-                                            controller:
-                                                _horizontalScrollController,
-                                            thumbVisibility: true,
-                                            child: SingleChildScrollView(
-                                              controller:
-                                                  _horizontalScrollController,
-                                              scrollDirection: Axis.horizontal,
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Container(
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          color:
-                                                              Colors.blueAccent,
-                                                        ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          vertical: 16,
-                                                        ),
-                                                    child: SizedBox(
-                                                      width: totalWidth,
-                                                      child: Row(
-                                                        children: [
-                                                          _buildHeaderCell(
-                                                            'No',
-                                                            columnWidths[0],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Select',
-                                                            columnWidths[1],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'View',
-                                                            columnWidths[2],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Action',
-                                                            columnWidths[3],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Pdf',
-                                                            columnWidths[4],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Due Days',
-                                                            columnWidths[5],
-                                                            sortColumn:
-                                                                'dueDays',
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Vendor Name',
-                                                            columnWidths[6],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Invoice No',
-                                                            columnWidths[7],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Invoice Date',
-                                                            columnWidths[8],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'GRN No',
-                                                            columnWidths[9],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'AP No',
-                                                            columnWidths[10],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Total Amount',
-                                                            columnWidths[11],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Tax',
-                                                            columnWidths[12],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Discount',
-                                                            columnWidths[13],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Total',
-                                                            columnWidths[14],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Paid Amount',
-                                                            columnWidths[15],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Remaining',
-                                                            columnWidths[16],
-                                                          ),
-                                                          _buildHeaderCell(
-                                                            'Payment Terms',
-                                                            columnWidths[17],
-                                                            sortColumn:
-                                                                'paymentTerms',
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  SizedBox(
-                                                    height: 360,
-                                                    child: Scrollbar(
-                                                      controller:
-                                                          _verticalScrollController,
-                                                      thumbVisibility: true,
-                                                      child: SizedBox(
-                                                        width:
-                                                            totalWidth, 
-                                                        child: ListView.builder(
-                                                          controller:
-                                                              _verticalScrollController,
-                                                          itemCount:
-                                                              filtered.length,
+                                      const SizedBox(height: 8),
 
-                                                          addRepaintBoundaries:
-                                                              true,
-                                                          addAutomaticKeepAlives:
-                                                              false,
-                                                          cacheExtent: 300,
-
-                                                          itemBuilder: (context, index) {
-                                                            return ValueListenableBuilder<
-                                                              List<bool>
-                                                            >(
-                                                              valueListenable:
-                                                                  _selectedRowsNotifier,
-                                                              builder:
-                                                                  (
-                                                                    context,
-                                                                    selectedRows,
-                                                                    _,
-                                                                  ) {
-                                                                    final bool
-                                                                    isSelected =
-                                                                        selectedRows
-                                                                            .isNotEmpty &&
-                                                                        index <
-                                                                            selectedRows.length &&
-                                                                        selectedRows[index];
-
-                                                                    return RepaintBoundary(
-                                                                      child: Container(
-                                                                        height:
-                                                                            60.0,
-                                                                        color:
-                                                                            isSelected
-                                                                            ? Colors.blue.shade50
-                                                                            : (index.isEven
-                                                                                  ? Colors.white
-                                                                                  : Colors.grey.shade50),
-
-                                                                        child: _buildDataRow(
-                                                                          index,
-                                                                          filtered[index],
-                                                                          grnMap,
-                                                                          apMap,
-                                                                          columnWidths,
-                                                                        ),
-                                                                      ),
-                                                                    );
-                                                                  },
+                                      LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          if (constraints.maxWidth > 600) {
+                                            return Row(
+                                              children: [
+                                                _buildVendorFilterField(
+                                                  provider,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildInvoiceSearchField(
+                                                  provider,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                _buildMultiplePaymentButton(
+                                                  filtered,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: ValueListenableBuilder<Set<int>>(
+                                                    valueListenable:
+                                                        _selectedIndicesNotifier,
+                                                    builder: (context, selectedIndices, _) {
+                                                      if (selectedIndices
+                                                              .length >
+                                                          1) {
+                                                        final amount =
+                                                            selectedIndices.fold(
+                                                              0.0,
+                                                              (sum, index) =>
+                                                                  sum +
+                                                                  (filtered[index]
+                                                                          .totalPayableAmount ??
+                                                                      0.0),
                                                             );
-                                                          },
+                                                        return Text(
+                                                          'Selected Amount: ${amount.toStringAsFixed(2)}',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                                color: Colors
+                                                                    .black,
+                                                              ),
+                                                        );
+                                                      }
+                                                      return const SizedBox();
+                                                    },
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          }
+                                          return Column(
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child:
+                                                        _buildVendorFilterField(
+                                                          provider,
                                                         ),
-                                                      ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child:
+                                                        _buildInvoiceSearchField(
+                                                          provider,
+                                                        ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 8),
+                                              Row(
+                                                children: [
+                                                  _buildMultiplePaymentButton(
+                                                    filtered,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: ValueListenableBuilder<Set<int>>(
+                                                      valueListenable:
+                                                          _selectedIndicesNotifier,
+                                                      builder: (context, selectedIndices, _) {
+                                                        if (selectedIndices
+                                                                .length >
+                                                            1) {
+                                                          final amount =
+                                                              selectedIndices.fold(
+                                                                0.0,
+                                                                (sum, index) =>
+                                                                    sum +
+                                                                    (filtered[index]
+                                                                            .totalPayableAmount ??
+                                                                        0.0),
+                                                              );
+                                                          return Text(
+                                                            'Selected Amount: ${amount.toStringAsFixed(2)}',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 16,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w700,
+                                                                  color: Colors
+                                                                      .black,
+                                                                ),
+                                                          );
+                                                        }
+                                                        return const SizedBox();
+                                                      },
                                                     ),
                                                   ),
                                                 ],
                                               ),
-                                            ),
-                                          ),
-                                        ],
+                                            ],
+                                          );
+                                        },
                                       ),
+                                    ],
+                                  ),
+                                ),
+
+                                ValueListenableBuilder<String?>(
+                                  valueListenable: _selectedVendorNotifier,
+                                  builder: (context, selectedVendor, _) {
+                                    return ValueListenableBuilder<String?>(
+                                      valueListenable: _selectedInvoiceNotifier,
+                                      builder: (context, selectedInvoice, _) {
+                                        return Container(
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Scrollbar(
+                                                controller:
+                                                    _horizontalScrollController,
+                                                thumbVisibility: true,
+                                                child: SingleChildScrollView(
+                                                  controller:
+                                                      _horizontalScrollController,
+                                                  scrollDirection:
+                                                      Axis.horizontal,
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Container(
+                                                        decoration:
+                                                            const BoxDecoration(
+                                                              color: Colors
+                                                                  .blueAccent,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 16,
+                                                            ),
+                                                        child: SizedBox(
+                                                          width: totalWidth,
+                                                          child: Row(
+                                                            children: [
+                                                              _buildHeaderCell(
+                                                                'No',
+                                                                columnWidths[0],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Select',
+                                                                columnWidths[1],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'View',
+                                                                columnWidths[2],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Action',
+                                                                columnWidths[3],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Pdf',
+                                                                columnWidths[4],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Due Days',
+                                                                columnWidths[5],
+                                                                sortColumn:
+                                                                    'dueDays',
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Vendor Name',
+                                                                columnWidths[6],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Invoice No',
+                                                                columnWidths[7],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Invoice Date',
+                                                                columnWidths[8],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'GRN No',
+                                                                columnWidths[9],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'AP No',
+                                                                columnWidths[10],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Total Amount',
+                                                                columnWidths[11],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Tax',
+                                                                columnWidths[12],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Discount',
+                                                                columnWidths[13],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Total',
+                                                                columnWidths[14],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Paid Amount',
+                                                                columnWidths[15],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Remaining',
+                                                                columnWidths[16],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Payment Terms',
+                                                                columnWidths[17],
+                                                                sortColumn:
+                                                                    'paymentTerms',
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      SizedBox(
+                                                        height: 360,
+                                                        child: Scrollbar(
+                                                          controller:
+                                                              _verticalScrollController,
+                                                          thumbVisibility: true,
+                                                          child: SizedBox(
+                                                            width: totalWidth,
+                                                            child: ListView.builder(
+                                                              controller:
+                                                                  _verticalScrollController,
+                                                              itemCount:
+                                                                  filtered
+                                                                      .length,
+
+                                                              addRepaintBoundaries:
+                                                                  true,
+                                                              addAutomaticKeepAlives:
+                                                                  false,
+                                                              cacheExtent: 300,
+
+                                                              itemBuilder: (context, index) {
+                                                                return ValueListenableBuilder<
+                                                                  List<bool>
+                                                                >(
+                                                                  valueListenable:
+                                                                      _selectedRowsNotifier,
+                                                                  builder:
+                                                                      (
+                                                                        context,
+                                                                        selectedRows,
+                                                                        _,
+                                                                      ) {
+                                                                        final bool
+                                                                        isSelected =
+                                                                            selectedRows.isNotEmpty &&
+                                                                            index <
+                                                                                selectedRows.length &&
+                                                                            selectedRows[index];
+
+                                                                        return RepaintBoundary(
+                                                                          child: Container(
+                                                                            height:
+                                                                                60.0,
+                                                                            color:
+                                                                                isSelected
+                                                                                ? Colors.blue.shade50
+                                                                                : (index.isEven
+                                                                                      ? Colors.white
+                                                                                      : Colors.grey.shade50),
+
+                                                                            child: _buildDataRow(
+                                                                              index,
+                                                                              filtered[index],
+                                                                              grnMap,
+                                                                              apMap,
+                                                                              columnWidths,
+                                                                            ),
+                                                                          ),
+                                                                        );
+                                                                      },
+                                                                );
+                                                              },
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
                                     );
                                   },
-                                );
-                              },
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               );

@@ -1,4 +1,4 @@
-// ignore_for_file: avoid_print, use_rethrow_when_possible
+// ignore_for_file: prefer_final_fields, use_build_context_synchronously, avoid_print, use_rethrow_when_possible
 
 import 'dart:async';
 import 'package:dio/dio.dart';
@@ -19,12 +19,13 @@ class APInvoiceProvider extends ChangeNotifier {
   String? _error;
   String _filterStatus = 'Pending';
   bool _isFetching = false;
-
   List<ApInvoice> get apInvoices => _apInvoices;
   List<Outgoing> get outgoings => _outgoings;
   List<GRN> get grns => _grns;
   bool get loading => _loading;
   String get filterStatus => _filterStatus;
+  bool _isInitialLoad = true;
+  bool get isInitialLoad => _isInitialLoad;
 
   set filterStatus(String status) {
     _filterStatus = status;
@@ -34,7 +35,6 @@ class APInvoiceProvider extends ChangeNotifier {
   String? get error => _error;
 
   final String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
-
   late Dio _dio;
 
   APInvoiceProvider() {
@@ -64,98 +64,46 @@ class APInvoiceProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> fetchAPInvoices({String? status}) async {
-    if (_isFetching) return; // 🔥 STOP LOOP
+  Future<void> fetchAPInvoices({
+    String? status,
+    String? vendorName,
+    DateTime? date,
+    int skip = 0,
+    int limit = 50,
+  }) async {
+    if (_isFetching) return;
 
     _isFetching = true;
-
     _setLoading(true);
     _setError(null);
 
     try {
-      final Map<String, dynamic> queryParams = {};
-      if (status != null && status.isNotEmpty) {
-        queryParams['status'] = status;
-      }
+      final queryParams = {
+        'skip': skip,
+        'limit': limit,
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (vendorName != null && vendorName.isNotEmpty)
+          'vendorName': vendorName,
+        if (date != null) 'fromDate': date.toIso8601String(),
+        if (date != null) 'toDate': date.toIso8601String(),
+      };
 
       final response = await _dio.get(
-        '/apinvoices/getAll',
+        '/apinvoices/',
         queryParameters: queryParams,
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
 
-        _apInvoices = data
-            .take(100) // 🔥 LIMIT DATA (VERY IMPORTANT)
-            .map((json) => ApInvoice.fromJson(json))
-            .toList();
+        _apInvoices = data.map((e) => ApInvoice.fromJson(e)).toList();
       }
     } catch (e) {
-      _setError("Error");
+      _setError("Failed to fetch AP invoices");
     } finally {
-      _setLoading(false);
-      _isFetching = false; // 🔥 release lock
-    }
-  }
-
-  Future<Map<String, dynamic>> postOutgoingAndUpdateDiscount(
-    String invoiceId, {
-    required double apDiscountPrice,
-    required double roundOffAdjustment,
-    required Function(bool) setLoading,
-    required Function(String?) setError,
-  }) async {
-    setLoading(true);
-    setError(null);
-
-    try {
-      final currentDateTime = ServerTimeService.now.toIso8601String();
-      final requestBody = {
-        'invoiceId': invoiceId,
-        'apDiscountPrice': apDiscountPrice,
-        'roundOffAdjustment': roundOffAdjustment,
-        'lastUpdatedDate': currentDateTime,
-        'outgoingDate': currentDateTime,
-      };
-
-      print(
-        'Sending PATCH to: /apinvoices/$invoiceId/convert-to-outgoing-and-discount',
-      );
-      print('Request Body: $requestBody');
-
-      final response = await _dio.patch(
-        '/apinvoices/$invoiceId/convert-to-outgoing-and-discount',
-        data: requestBody,
-        options: Options(
-          sendTimeout: const Duration(seconds: 15),
-          receiveTimeout: const Duration(seconds: 15),
-        ),
-      );
-
-      print('Response: ${response.statusCode} ${response.data}');
-
-      if (response.statusCode == 200) {
-        final data = response.data as Map<String, dynamic>;
-
-        final removedIndex = _apInvoices.indexWhere(
-          (inv) => inv.invoiceId == invoiceId,
-        );
-        if (removedIndex != -1) {
-          _apInvoices.removeAt(removedIndex);
-          notifyListeners();
-          print('✅ Payment success - Card removed from UI');
-        }
-
-        return data;
-      } else {
-        throw Exception('Payment failed: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('❌ Payment failed - Card remains');
-      throw e;
-    } finally {
-      setLoading(false);
+      _loading = false;
+      _isFetching = false;
+      notifyListeners();
     }
   }
 
@@ -238,7 +186,8 @@ class APInvoiceProvider extends ChangeNotifier {
     }
   }
 
-  void _setLoading(bool isLoading) {
+  void _setLoading(bool isLoading, {bool force = false}) {
+    if (!force && _apInvoices.isNotEmpty) return;
     _loading = isLoading;
     notifyListeners();
   }
@@ -266,7 +215,6 @@ class RetryInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     final attempt = err.requestOptions.extra['retry_attempt'] ?? 0;
     if (attempt < retries && err.type == DioExceptionType.connectionTimeout) {
-      print('Retrying request, attempt ${attempt + 1}');
       err.requestOptions.extra['retry_attempt'] = attempt + 1;
       await Future.delayed(retryDelays[attempt]);
       try {

@@ -3,9 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/freight_name_model.dart';
-import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
-
 import '../../widgets/numeric_Calculator.dart';
 
 class FreightDialog extends StatefulWidget {
@@ -152,7 +150,7 @@ class _FreightDialogState extends State<FreightDialog> {
       _taxAmount.value = freight.taxAmount ?? 0;
       _total.value = (freight.amount ?? 0) + (freight.taxAmount ?? 0);
     } catch (e) {
-      print("Freight calc error: $e");
+      debugPrint("❌ Failed to calculate freight totals: $e");
     }
   }
 
@@ -260,11 +258,9 @@ class _FreightDialogState extends State<FreightDialog> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(height: isMobile ? 8 : 12),
-                          // Freight Name and Amount side by side
                           twoCol(
                             Consumer<POProvider>(
                               builder: (context, provider, _) {
-                                // 👉 Show spinner while API loads
                                 if (provider.freightNames.isEmpty) {
                                   return InputDecorator(
                                     decoration: _buildFieldDecoration(
@@ -286,7 +282,6 @@ class _FreightDialogState extends State<FreightDialog> {
                                   );
                                 }
 
-                                // 👉 Show dropdown after data loads
                                 return ValueListenableBuilder<String?>(
                                   valueListenable: _selectedFreightId,
                                   builder: (context, selectedValue, _) {
@@ -373,7 +368,6 @@ class _FreightDialogState extends State<FreightDialog> {
                           twoCol(
                             Consumer<POProvider>(
                               builder: (context, provider, _) {
-                                // 👉 Show spinner while API loads
                                 if (provider.purchaseTaxes.isEmpty) {
                                   return InputDecorator(
                                     decoration: _buildFieldDecoration("Tax %"),
@@ -393,7 +387,6 @@ class _FreightDialogState extends State<FreightDialog> {
                                   );
                                 }
 
-                                // 👉 Show dropdown after data loads
                                 return ValueListenableBuilder<String?>(
                                   valueListenable: _taxCode,
                                   builder: (context, taxCodeValue, child) {

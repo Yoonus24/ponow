@@ -33,13 +33,7 @@ class PaymentDialogProvider with ChangeNotifier {
        _isBulkPayment = isBulkPayment {
     amountNotifier.value = _totalPayableAmount;
     amountController.text = _totalPayableAmount.toStringAsFixed(2);
-
-    print(
-      'PaymentDialogProvider initialized with totalPayableAmount: $_totalPayableAmount, '
-      'isBulkPayment: $_isBulkPayment',
-    );
   }
-
 
   double get totalPayableAmount => _totalPayableAmount;
   bool get isBulkPayment => _isBulkPayment;
@@ -63,7 +57,6 @@ class PaymentDialogProvider with ChangeNotifier {
     if (paymentType.value == value) return;
 
     paymentType.value = value;
-    print('Set payment type: ${paymentType.value}');
 
     if (value == 'full') {
       amountNotifier.value = _totalPayableAmount;
@@ -85,17 +78,16 @@ class PaymentDialogProvider with ChangeNotifier {
     if (paymentMode.value == value) return;
 
     paymentMode.value = value;
-    print('Set payment mode: ${paymentMode.value}');
 
     if (value == 'Bank') {
       fetchBanks();
 
-      cashType.value = 'petty_cash'; 
+      cashType.value = 'petty_cash';
     } else {
       bankName.value = null;
       bankNameController.clear();
       transactionController.clear();
-      bankPaymentMethod.value = 'neft'; 
+      bankPaymentMethod.value = 'neft';
 
       _bankError = null;
     }
@@ -106,7 +98,6 @@ class PaymentDialogProvider with ChangeNotifier {
   void setCashType(String value) {
     if (cashType.value == value) return;
     cashType.value = value;
-    print('Set cash type: ${cashType.value}');
     notifyListeners();
   }
 
@@ -115,12 +106,6 @@ class PaymentDialogProvider with ChangeNotifier {
 
     bankPaymentMethod.value = value;
     transactionController.clear();
-
-    print(
-      'Set bank payment method: ${bankPaymentMethod.value}, '
-      'cleared transaction controller',
-    );
-
     notifyListeners();
   }
 
@@ -129,14 +114,12 @@ class PaymentDialogProvider with ChangeNotifier {
 
     bankName.value = name;
     bankNameController.text = name ?? '';
-    print('Set bank name: ${bankName.value}');
     notifyListeners();
   }
 
   void setAmount(double value) {
     amountNotifier.value = value;
     amountController.text = value == 0 ? '' : value.toStringAsFixed(2);
-    print('Updated amount: $value');
     notifyListeners();
   }
 
@@ -144,7 +127,6 @@ class PaymentDialogProvider with ChangeNotifier {
     if (amountNotifier.value > 0) return amountNotifier.value;
 
     final parsed = double.tryParse(amountController.text) ?? 0.0;
-    print('Retrieved amount (parsed): $parsed');
     return parsed;
   }
 
@@ -182,11 +164,8 @@ class PaymentDialogProvider with ChangeNotifier {
     _bankError = null;
     _isLoadingBanks = false;
     _isSubmitting = false;
-
-    print('Reset all fields to default values');
     notifyListeners();
   }
-
 
   Future<void> fetchBanks() async {
     if (_isLoadingBanks || _banks.isNotEmpty) {
@@ -195,8 +174,7 @@ class PaymentDialogProvider with ChangeNotifier {
 
     _isLoadingBanks = true;
     _bankError = null;
-    print('Fetching banks...');
-    notifyListeners(); 
+    notifyListeners();
 
     try {
       final dio = Dio()
@@ -212,43 +190,32 @@ class PaymentDialogProvider with ChangeNotifier {
             .map((json) => Bank.fromJson(json))
             .toList();
 
-        print('Fetched ${_banks.length} banks successfully');
-
         if (_banks.isNotEmpty) {
           bankName.value = _banks.first.bankName;
           bankNameController.text = bankName.value ?? '';
-          print('Set default bank name: ${bankName.value}');
         }
       } else {
         _bankError = 'Server error: ${response.statusCode}';
-        print('Bank fetch failed with status code: ${response.statusCode}');
       }
     } on DioException catch (e) {
       _bankError = 'Failed to load banks: ${e.message}';
-      print('Bank fetch error: ${e.message}');
     } finally {
       _isLoadingBanks = false;
-      print('Bank fetch completed, isLoadingBanks: $_isLoadingBanks');
       notifyListeners();
     }
   }
 
-
   @override
   void dispose() {
-    print('Disposing PaymentDialogProvider');
-
     paymentType.dispose();
     paymentMode.dispose();
     cashType.dispose();
     bankPaymentMethod.dispose();
     bankName.dispose();
     amountNotifier.dispose();
-
     amountController.dispose();
     bankNameController.dispose();
     transactionController.dispose();
-
     super.dispose();
   }
 }
