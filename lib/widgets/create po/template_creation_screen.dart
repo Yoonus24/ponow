@@ -12,6 +12,7 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/create%20po/add_item_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/address_fields.dart';
 import 'package:purchaseorders2/widgets/create%20po/discount_section.dart';
+import 'package:purchaseorders2/widgets/create%20po/freight_table.dart';
 import 'package:purchaseorders2/widgets/create%20po/items_table.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/purchase_order_logic.dart';
@@ -223,6 +224,9 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
     final poSnapshot = poData.copyWith(
       location: notifier.selectedLocation,
       locationName: notifier.selectedLocationName,
+      freights: notifier.freights,
+      totalFreightAmount: notifier.totalFreightAmount,
+      totalFreightTaxAmount: notifier.totalFreightTaxAmount,
     );
 
     final success = await templateProvider.createTemplate(
@@ -375,7 +379,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   }
 
   Future<PO> _createPOFromCurrentData(PurchaseOrderNotifier notifier) async {
-    DateTime serverNow = ServerTimeService.now; 
+    DateTime serverNow = ServerTimeService.now;
 
     return PO(
       purchaseOrderId: '',
@@ -386,6 +390,7 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       locationName: notifier.selectedLocationName,
 
       items: notifier.poItems,
+      freights: notifier.freights,
       totalOrderAmount: notifier.totalOrderAmount,
       pendingOrderAmount: notifier.pendingOrderAmount,
       pendingDiscountAmount: notifier.pendingDiscountAmount,
@@ -746,7 +751,8 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
                                     notifier.itemWiseDiscountMode,
                               ),
                             ),
-                            const SizedBox(height: 0),
+                            const FreightTable(),
+                            const SizedBox(height: 8),
 
                             const Text(
                               'Select Tax Type:',

@@ -1,6 +1,7 @@
 // ignore_for_file: unnecessary_null_comparison, unnecessary_non_null_assertion, dead_null_aware_expression, invalid_null_aware_operator, empty_catches
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
@@ -52,20 +53,16 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   Future<void> _loadInitialItems() async {
-    final items = widget.poProvider.purchaseItems;
+    while (widget.poProvider.purchaseItems.isEmpty) {
+      await Future.delayed(const Duration(milliseconds: 50));
+    }
 
-    _allPurchaseItems = List.from(items);
+    _allPurchaseItems = List.from(widget.poProvider.purchaseItems);
 
-    _allItemNames = items
+    _displayedItemsNotifier.value = _allPurchaseItems
         .map((e) => e.itemName ?? '')
-        .where((e) => e.isNotEmpty)
         .toList();
-
-    _cacheItems(items);
-
-    _displayedItemsNotifier.value = _allItemNames;
   }
-
 
   void _cacheItems(List<PurchaseItem> items) {
     for (var item in items) {
@@ -75,28 +72,20 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     }
   }
 
-  Future<void> _searchItems(String query) async {
-    _debounceTimer?.cancel();
+  void _searchItems(String query) {
+    final q = query.toLowerCase().trim();
 
-    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
-      final allItems = widget.poProvider.purchaseItems;
-
-      final filtered = query.isEmpty
-          ? allItems
-          : allItems.where((item) {
-              final name = item.itemName?.toLowerCase() ?? '';
-              return name.contains(query.toLowerCase());
-            }).toList();
-
-      _allPurchaseItems = filtered;
-
-      _allItemNames = filtered
+    if (q.isEmpty) {
+      _displayedItemsNotifier.value = _allPurchaseItems
           .map((e) => e.itemName ?? '')
-          .where((e) => e.isNotEmpty)
           .toList();
+      return;
+    }
 
-      _displayedItemsNotifier.value = _allItemNames;
-    });
+    _displayedItemsNotifier.value = _allPurchaseItems
+        .where((item) => (item.itemName ?? '').toLowerCase().contains(q))
+        .map((e) => e.itemName ?? '')
+        .toList();
   }
 
   Future<void> _loadMoreItems() async {
@@ -151,7 +140,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       _skip += newItems.length;
 
       _hasMore = newItems.length == _limit;
-
     } catch (e) {
     } finally {
       _isLoadingMoreNotifier.value = false;
@@ -159,8 +147,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   PurchaseItem? _findItemByName(String itemName) {
-
-
     if (_itemCache.containsKey(itemName)) {
       return _itemCache[itemName];
     }
@@ -227,8 +213,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                 _allPurchaseItems.add(foundItem);
 
                 widget.notifier.updateItemDetailsFromCache(foundItem);
-              } else {
-              }
+              } else {}
             } catch (e) {}
           }
 
@@ -260,14 +245,12 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
 
                     labelStyle: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey.shade800, 
+                      color: Colors.grey.shade800,
                     ),
 
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),
-                      borderSide: BorderSide(
-                        color: Colors.grey.shade500, 
-                      ),
+                      borderSide: BorderSide(color: Colors.grey.shade500),
                     ),
 
                     enabledBorder: OutlineInputBorder(
@@ -315,7 +298,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                   },
                   onChanged: (value) {
                     widget.controller.text = value;
-                    _queryNotifier.value = value;
+                    _searchItems(value);
                   },
                 ),
               );
@@ -328,27 +311,29 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               elevation: 4,
               borderRadius: BorderRadius.circular(8.0),
               color: Colors.white,
-              child: Container(
-                width: 250,
-                constraints: const BoxConstraints(maxHeight: 200),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey[300]!),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (scrollNotification) {
-                    if (scrollNotification.metrics.pixels >=
-                        scrollNotification.metrics.maxScrollExtent - 50) {
-                      if (!_isLoadingMoreNotifier.value && _hasMore) {
-                        _loadMoreItems();
-                      }
-                    }
-                    return false;
-                  },
-                  child: ValueListenableBuilder<List<String>>(
-                    valueListenable: _displayedItemsNotifier,
-                    builder: (context, displayedItems, _) {
-                      return ValueListenableBuilder<bool>(
+              child: ValueListenableBuilder<List<String>>(
+                valueListenable: _displayedItemsNotifier,
+                builder: (context, displayedItems, _) {
+                  return Container(
+                    width: 250,
+                    constraints: BoxConstraints(
+                      maxHeight: min(displayedItems.length * 50.0, 200),
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (scrollNotification) {
+                        if (scrollNotification.metrics.pixels >=
+                            scrollNotification.metrics.maxScrollExtent - 50) {
+                          if (!_isLoadingMoreNotifier.value && _hasMore) {
+                            _loadMoreItems();
+                          }
+                        }
+                        return false;
+                      },
+                      child: ValueListenableBuilder<bool>(
                         valueListenable: _isLoadingMoreNotifier,
                         builder: (context, isLoadingMore, __) {
                           return ListView.builder(
@@ -394,10 +379,10 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                             },
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           );
@@ -461,10 +446,17 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               onPressed: () {
                 textEditingController.clear();
                 widget.controller.clear();
+
                 _queryNotifier.value = '';
                 _currentQuery = '';
-                _displayedItemsNotifier.value = _allItemNames;
+
+                // reset dropdown list
+                _displayedItemsNotifier.value = _allPurchaseItems
+                    .map((e) => e.itemName ?? '')
+                    .toList();
+
                 widget.onItemSelected('');
+
                 focusNode.requestFocus();
               },
             );

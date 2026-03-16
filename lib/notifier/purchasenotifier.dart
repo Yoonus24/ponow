@@ -451,6 +451,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     super.dispose();
   }
 
+  bool get hasItemWiseDiscount {
+    return poItems.any(
+      (item) =>
+          (item.befTaxDiscountAmount ?? 0) > 0 ||
+          (item.afTaxDiscountAmount ?? 0) > 0,
+    );
+  }
+
   String _getControllerTextSafely(TextEditingController controller) {
     try {
       return controller.text;

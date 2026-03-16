@@ -1,3 +1,1766 @@
+// // ignore_for_file: unused_field, file_names
+
+// import 'package:flutter/material.dart';
+// import 'package:intl/intl.dart';
+// import 'package:purchaseorders2/models/ap.dart';
+// import 'package:purchaseorders2/models/grn.dart';
+// import 'package:purchaseorders2/models/outgoing.dart';
+// import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
+// import 'package:purchaseorders2/services/server_time_service.dart';
+// import 'package:purchaseorders2/widgets/ap%20invoice/ap_viewinvoice_modal.dart';
+// import 'package:purchaseorders2/widgets/outgoing%20payment/grn_details_screen.dart';
+// import 'package:purchaseorders2/widgets/outgoing%20payment/payment_dialogue.dart';
+// import 'package:purchaseorders2/widgets/outgoing%20payment/pending%20_outgoing_view_dialog.dart';
+// import 'package:printing/printing.dart';
+// import 'package:provider/provider.dart';
+// import '../../providers/outgoing_payment_provider.dart';
+
+// class PendingOutgoing extends StatefulWidget {
+//   final String filterStatus;
+
+//   const PendingOutgoing({super.key, required this.filterStatus});
+
+//   @override
+//   State<PendingOutgoing> createState() => _PendingOutgoingState();
+// }
+
+// class _PendingOutgoingState extends State<PendingOutgoing> {
+//   final ScrollController _verticalScrollController = ScrollController();
+//   final ScrollController _horizontalScrollController = ScrollController();
+//   final ScrollController _mainScrollController = ScrollController();
+//   final ValueNotifier<List<bool>> _selectedRowsNotifier =
+//       ValueNotifier<List<bool>>([]);
+//   final ValueNotifier<Set<int>> _selectedIndicesNotifier =
+//       ValueNotifier<Set<int>>({});
+//   OverlayEntry? _overlayEntry;
+//   int? _currentTooltipIndex;
+//   late TextEditingController _vendorController;
+//   late TextEditingController _invoiceSearchController;
+//   final ValueNotifier<String?> _selectedVendorNotifier = ValueNotifier<String?>(
+//     null,
+//   );
+//   final ValueNotifier<String?> _selectedInvoiceNotifier =
+//       ValueNotifier<String?>(null);
+//   final ValueNotifier<String> _sortColumnNotifier = ValueNotifier<String>(
+//     'dueDays',
+//   );
+//   final ValueNotifier<bool> _sortAscendingNotifier = ValueNotifier<bool>(true);
+//   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+//   final ValueNotifier<bool> _refreshDataNotifier = ValueNotifier<bool>(false);
+//   final ValueNotifier<int> _filteredCountNotifier = ValueNotifier<int>(0);
+
+//   bool _initialLoading = true;
+
+//   @override
+//   void initState() {
+//     super.initState();
+//     _vendorController = TextEditingController();
+//     _invoiceSearchController = TextEditingController();
+//     _selectedRowsNotifier.addListener(_updateSelection);
+//     _selectedIndicesNotifier.addListener(_updateSelection);
+//     _horizontalScrollController.addListener(_handleHorizontalScroll);
+
+//     _selectedRowsNotifier.value = [];
+
+//     WidgetsBinding.instance.addPostFrameCallback((_) {
+//       _loadInitialData();
+//     });
+//   }
+
+//   @override
+//   void dispose() {
+//     _horizontalScrollController.removeListener(_handleHorizontalScroll);
+//     _selectedRowsNotifier.dispose();
+//     _selectedIndicesNotifier.dispose();
+//     _verticalScrollController.dispose();
+//     _horizontalScrollController.dispose();
+//     _mainScrollController.dispose();
+//     _removeOverlay();
+//     _vendorController.dispose();
+//     _invoiceSearchController.dispose();
+//     _selectedVendorNotifier.dispose();
+//     _selectedInvoiceNotifier.dispose();
+//     _sortColumnNotifier.dispose();
+//     _sortAscendingNotifier.dispose();
+//     _refreshDataNotifier.dispose();
+//     _filteredCountNotifier.dispose();
+//     super.dispose();
+//   }
+
+//   void _handleHorizontalScroll() {
+//     if (_overlayEntry != null) {
+//       _removeOverlay();
+//     }
+//   }
+
+//   int _calculateDueDays(Outgoing outgoing) {
+//     if (outgoing.invoiceDate == null) return 0;
+
+//     final terms = outgoing.paymentTerms ?? '';
+//     final match = RegExp(r'\d+').firstMatch(terms);
+//     final int creditDays = match != null ? int.parse(match.group(0)!) : 0;
+
+//     final dueDate = outgoing.invoiceDate!.add(Duration(days: creditDays));
+
+//     final today = ServerTimeService.now;
+//     return dueDate.difference(today).inDays;
+//   }
+
+//   void _updateSelection() {}
+
+//   bool get isMultipleSelected => _selectedIndicesNotifier.value.length > 1;
+
+//   Future<void> _loadInitialData() async {
+//     final provider = context.read<OutgoingPaymentProvider>();
+
+//     provider.setLoadingOutgoings(true);
+
+//     try {
+//       await provider.fetchApInvoices();
+//       await provider.fetchGrnList();
+
+//       await provider.fetchFilteredOutgoings(
+//         status: 'Pending',
+//         filterBy: 'invoiceDate',
+//         limit: 100,
+//       );
+
+//       if (mounted) {
+//         _syncSelectedRows(provider.payments.length);
+//       }
+//     } catch (_) {
+//       if (mounted) {
+//         _scaffoldMessengerKey.currentState?.showSnackBar(
+//           const SnackBar(content: Text('Failed to load pending payments')),
+//         );
+//       }
+//     }
+//   }
+
+//   Future<void> _loadData() async {
+//     try {
+//       final provider = Provider.of<OutgoingPaymentProvider>(
+//         context,
+//         listen: false,
+//       );
+
+//       final String? vendorNameForApi =
+//           (_selectedVendorNotifier.value == null ||
+//               _selectedVendorNotifier.value!.isEmpty ||
+//               _selectedVendorNotifier.value == 'All Vendors')
+//           ? null
+//           : _selectedVendorNotifier.value!.trim();
+
+//       final String? invoiceNoForApi =
+//           (_selectedInvoiceNotifier.value == null ||
+//               _selectedInvoiceNotifier.value!.trim().isEmpty)
+//           ? null
+//           : _selectedInvoiceNotifier.value!.trim();
+
+//       debugPrint("🔥 CALLING API WITH:");
+//       debugPrint("vendor: $vendorNameForApi");
+//       debugPrint("invoice: $invoiceNoForApi");
+
+//       await provider.fetchFilteredOutgoings(
+//         status: 'Pending',
+//         filterBy: 'invoiceDate',
+//         limit: 100,
+//         vendorName: vendorNameForApi,
+//         invoiceNo: invoiceNoForApi,
+//       );
+
+//       debugPrint("✅ AFTER API: ${provider.payments.length}");
+
+//       _refreshDataNotifier.value = !_refreshDataNotifier.value;
+//     } catch (e) {
+//       debugPrint('❌ Error loading data: $e');
+//     }
+//   }
+
+//   void _removeOverlay() {
+//     _overlayEntry?.remove();
+//     _overlayEntry = null;
+//     _currentTooltipIndex = null;
+//   }
+
+//   void _showTaxTooltip(
+//     BuildContext context,
+//     GlobalKey key,
+//     Outgoing payment,
+//     int index,
+//   ) {
+//     _removeOverlay();
+//     final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+//     if (renderBox == null) return;
+//     final position = renderBox.localToGlobal(Offset.zero);
+//     final size = renderBox.size;
+
+//     _overlayEntry = OverlayEntry(
+//       builder: (context) => Listener(
+//         onPointerMove: (_) => _removeOverlay(),
+//         child: Stack(
+//           children: [
+//             Positioned.fill(
+//               child: GestureDetector(
+//                 onTap: _removeOverlay,
+//                 behavior: HitTestBehavior.translucent,
+//               ),
+//             ),
+//             Positioned(
+//               left: position.dx - (200 - size.width) / 2,
+//               top: position.dy + size.height + 4,
+//               width: 150,
+//               child: Material(
+//                 color: Colors.transparent,
+//                 child: Container(
+//                   padding: const EdgeInsets.all(8),
+//                   decoration: BoxDecoration(
+//                     color: Colors.blueAccent,
+//                     borderRadius: BorderRadius.circular(4),
+//                   ),
+//                   child: _buildTaxTooltipContent(payment),
+//                 ),
+//               ),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+
+//     _currentTooltipIndex = index;
+//     Overlay.of(context).insert(_overlayEntry!);
+//   }
+
+//   Widget _buildTaxTooltipContent(Outgoing payment) {
+//     double sgst = 0.0;
+//     double cgst = 0.0;
+//     double igst = 0.0;
+
+//     if (payment.itemDetails != null) {
+//       for (final item in payment.itemDetails!) {
+//         sgst += item.sgst ?? 0.0;
+//         cgst += item.cgst ?? 0.0;
+//         igst += item.igst ?? 0.0;
+//       }
+//     }
+
+//     final totalTax = sgst + cgst + igst;
+
+//     Text row(String label, double value, {bool bold = false}) {
+//       return Text(
+//         '$label : ${value.toStringAsFixed(2)}',
+//         style: TextStyle(
+//           color: Colors.white,
+//           fontSize: 12,
+//           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+//         ),
+//       );
+//     }
+
+//     return Column(
+//       crossAxisAlignment: CrossAxisAlignment.start,
+//       mainAxisSize: MainAxisSize.min,
+//       children: [
+//         row('SGST', sgst),
+//         row('CGST', cgst),
+//         row('IGST', igst),
+
+//         const SizedBox(height: 6),
+//         const Divider(color: Colors.white54, thickness: 1),
+//         const SizedBox(height: 4),
+
+//         row('TOTAL TAX', totalTax, bold: true),
+//       ],
+//     );
+//   }
+
+//   Widget _buildHeaderCell(String text, double width, {String? sortColumn}) {
+//     return SizedBox(
+//       width: width,
+//       child: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 4),
+//         child: ValueListenableBuilder<String>(
+//           valueListenable: _sortColumnNotifier,
+//           builder: (context, currentSortColumn, _) {
+//             return ValueListenableBuilder<bool>(
+//               valueListenable: _sortAscendingNotifier,
+//               builder: (context, isAscending, __) {
+//                 final bool isActive =
+//                     sortColumn != null && currentSortColumn == sortColumn;
+
+//                 return GestureDetector(
+//                   onTap: sortColumn == null
+//                       ? null
+//                       : () {
+//                           if (_sortColumnNotifier.value == sortColumn) {
+//                             _sortAscendingNotifier.value =
+//                                 !_sortAscendingNotifier.value;
+//                           } else {
+//                             _sortColumnNotifier.value = sortColumn;
+//                             _sortAscendingNotifier.value = true;
+//                           }
+//                         },
+
+//                   child: Tooltip(
+//                     message: text,
+//                     child: Row(
+//                       mainAxisAlignment: MainAxisAlignment.center,
+//                       mainAxisSize: MainAxisSize.min,
+//                       children: [
+//                         Flexible(
+//                           child: Text(
+//                             text,
+//                             style: const TextStyle(
+//                               color: Colors.white,
+//                               fontWeight: FontWeight.bold,
+//                               fontSize: 12,
+//                             ),
+//                             overflow: TextOverflow.ellipsis,
+//                             maxLines: 2,
+//                           ),
+//                         ),
+//                         if (sortColumn != null)
+//                           Padding(
+//                             padding: const EdgeInsets.only(left: 4),
+//                             child: Icon(
+//                               isActive
+//                                   ? (isAscending
+//                                         ? Icons.arrow_upward
+//                                         : Icons.arrow_downward)
+//                                   : Icons.unfold_more,
+//                               size: 12,
+//                               color: Colors.white,
+//                             ),
+//                           ),
+//                       ],
+//                     ),
+//                   ),
+//                 );
+//               },
+//             );
+//           },
+//         ),
+//       ),
+//     );
+//   }
+
+//   Widget _buildContentCell(
+//     String text,
+//     double width, {
+//     Widget? child,
+//     TextStyle? textStyle,
+//   }) {
+//     return SizedBox(
+//       width: width,
+//       child: Padding(
+//         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+//         child: Center(
+//           child:
+//               child ??
+//               Text(
+//                 text,
+//                 style: textStyle ?? const TextStyle(fontSize: 12),
+//                 textAlign: TextAlign.center,
+//                 maxLines: 2,
+//                 overflow: TextOverflow.ellipsis,
+//               ),
+//         ),
+//       ),
+//     );
+//   }
+
+//   Future<void> _showPaymentDialog(
+//     BuildContext context,
+//     List<Outgoing> selectedPayments,
+//     int? singleIndex,
+//     bool isBulkPayment,
+//   ) async {
+//     double totalPayableAmount = 0.0;
+//     for (var payment in selectedPayments) {
+//       totalPayableAmount += payment.totalPayableAmount ?? 0.0;
+//     }
+
+//     await showDialog(
+//       barrierDismissible: false,
+//       context: context,
+//       builder: (context) {
+//         return PaymentDialog(
+//           totalPayableAmount: totalPayableAmount,
+//           isBulkPayment: isBulkPayment,
+//           onPaymentConfirmed:
+//               (
+//                 paymentType,
+//                 amount,
+//                 paymentMode,
+//                 paymentMethod,
+//                 transactionDetails,
+//               ) async {
+//                 final provider = Provider.of<OutgoingPaymentProvider>(
+//                   context,
+//                   listen: false,
+//                 );
+
+//                 try {
+//                   if (isBulkPayment) {
+//                     final double perOutgoingAmount =
+//                         amount / selectedPayments.length;
+
+//                     final bulkPayments = selectedPayments.map((payment) {
+//                       String? transactionReference;
+
+//                       if (paymentMode == 'Bank') {
+//                         if (paymentMethod == 'neft') {
+//                           transactionReference = transactionDetails['neftNo'];
+//                         } else if (paymentMethod == 'rtgs') {
+//                           transactionReference = transactionDetails['rtgsNo'];
+//                         } else if (paymentMethod == 'imps') {
+//                           transactionReference = transactionDetails['impsNo'];
+//                         } else if (paymentMethod == 'upi') {
+//                           transactionReference = transactionDetails['upi'];
+//                         }
+//                       }
+
+//                       return BulkPayment(
+//                         outgoingId: payment.outgoingId ?? '',
+//                         paymentType: paymentType,
+//                         paymentMode: paymentMode,
+//                         paymentMethod: paymentMethod,
+
+//                         partialAmount: paymentType == 'partial' ? amount : null,
+
+//                         fullPaymentAmount: paymentType == 'full'
+//                             ? payment.totalPayableAmount
+//                             : null,
+
+//                         bankName: paymentMode == 'Bank'
+//                             ? transactionDetails['bankName']
+//                             : null,
+
+//                         transactionReference: transactionReference,
+//                         cashVoucherNo: null,
+
+//                         pettyCashAmount:
+//                             paymentMode == 'Cash' &&
+//                                 paymentMethod == 'petty_cash'
+//                             ? amount
+//                             : null,
+
+//                         hoCash:
+//                             paymentMode == 'Cash' && paymentMethod == 'ho_cash'
+//                             ? amount
+//                             : null,
+//                       );
+//                     }).toList();
+
+//                     await provider.processBulkPayments(
+//                       bulkPayments,
+//                       selectedPayments,
+//                     );
+//                   } else {
+//                     for (var payment in selectedPayments) {
+//                       await provider.processPayment(
+//                         outgoingId: payment.outgoingId ?? '',
+//                         paymentType: paymentType,
+//                         amount: amount / selectedPayments.length,
+//                         paymentMode: paymentMode,
+//                         paymentMethod: paymentMethod,
+//                         transactionDetails: transactionDetails,
+//                       );
+//                     }
+//                   }
+
+//                   if (context.mounted) {
+//                     if (singleIndex != null) {
+//                       final newSelectedRows = List<bool>.from(
+//                         _selectedRowsNotifier.value,
+//                       );
+//                       newSelectedRows[singleIndex] = false;
+//                       _selectedRowsNotifier.value = newSelectedRows;
+
+//                       final newSelectedIndices = Set<int>.from(
+//                         _selectedIndicesNotifier.value,
+//                       );
+//                       newSelectedIndices.remove(singleIndex);
+//                       _selectedIndicesNotifier.value = newSelectedIndices;
+//                     } else {
+//                       final newSelectedRows = List<bool>.from(
+//                         _selectedRowsNotifier.value,
+//                       );
+//                       for (var index
+//                           in _selectedIndicesNotifier.value.toList()) {
+//                         newSelectedRows[index] = false;
+//                       }
+//                       _selectedRowsNotifier.value = newSelectedRows;
+//                       _selectedIndicesNotifier.value = {};
+//                     }
+
+//                     _scaffoldMessengerKey.currentState?.showSnackBar(
+//                       const SnackBar(content: Text('Payment Confirmed')),
+//                     );
+//                     final provider = Provider.of<OutgoingPaymentProvider>(
+//                       context,
+//                       listen: false,
+//                     );
+
+//                     await provider.fetchApInvoices();
+//                     await provider.fetchFilteredOutgoings(
+//                       status: 'Pending',
+//                       filterBy: 'invoiceDate',
+//                       limit: 100,
+//                     );
+
+//                     _refreshDataNotifier.value = !_refreshDataNotifier.value;
+//                   }
+//                 } catch (e) {
+//                   if (context.mounted) {
+//                     _scaffoldMessengerKey.currentState?.showSnackBar(
+//                       SnackBar(content: Text('Payment Failed: $e')),
+//                     );
+//                   }
+//                 }
+//               },
+//         );
+//       },
+//     );
+//   }
+
+//   void _showGrnDetailsDialog(
+//     BuildContext context,
+//     String? grnId,
+//     List<GRN> grnList,
+//   ) {
+//     if (grnId == null || grnList.isEmpty) {
+//       _scaffoldMessengerKey.currentState?.showSnackBar(
+//         const SnackBar(content: Text('GRN details not found')),
+//       );
+//       return;
+//     }
+
+//     try {
+//       final grn = grnList.firstWhere(
+//         (g) => g.grnId == grnId,
+//         orElse: () => GRN(grnId: '', grnVerifiedDate: '', itemDetails: []),
+//       );
+
+//       if (grn.grnId != null && grn.grnId!.isNotEmpty) {
+//         showDialog(
+//           context: context,
+//           builder: (context) => GRNDetailsDialog(grn: grn),
+//         );
+//       } else {
+//         _scaffoldMessengerKey.currentState?.showSnackBar(
+//           const SnackBar(content: Text('not found')),
+//         );
+//       }
+//     } catch (e) {
+//       _scaffoldMessengerKey.currentState?.showSnackBar(
+//         const SnackBar(content: Text('not found')),
+//       );
+//     }
+//   }
+
+//   void _showApDetailsDialog(
+//     BuildContext context,
+//     String? invoiceId,
+//     List<ApInvoice> apInvoices,
+//   ) {
+//     if (invoiceId == null || apInvoices.isEmpty) {
+//       _scaffoldMessengerKey.currentState?.showSnackBar(
+//         const SnackBar(content: Text('AP Invoice details not found')),
+//       );
+//       return;
+//     }
+
+//     try {
+//       final apInvoice = apInvoices.firstWhere(
+//         (ap) => ap.invoiceId == invoiceId,
+//         orElse: () => ApInvoice(randomId: ''),
+//       );
+
+//       if (apInvoice.invoiceId != null && apInvoice.invoiceId!.isNotEmpty) {
+//         showDialog(
+//           context: context,
+//           builder: (context) => APViewInvoiceModal(apinvoice: apInvoice),
+//         );
+//       } else {
+//         _scaffoldMessengerKey.currentState?.showSnackBar(
+//           const SnackBar(content: Text('AP Invoice details not found')),
+//         );
+//       }
+//     } catch (e) {
+//       _scaffoldMessengerKey.currentState?.showSnackBar(
+//         const SnackBar(content: Text('AP Invoice details not found')),
+//       );
+//     }
+//   }
+
+//   void _handleVendorSelected(String? value) {
+//     _selectedVendorNotifier.value = (value == null || value == 'All Vendors')
+//         ? null
+//         : value;
+//     _loadData();
+//   }
+
+//   void _handleInvoiceSelected(String? value) {
+//     _selectedInvoiceNotifier.value = (value == null || value == 'All Invoices')
+//         ? null
+//         : value;
+
+//     _loadData();
+//   }
+
+//   Widget _buildVendorFilterField(OutgoingPaymentProvider provider) {
+//     return SizedBox(
+//       width: 250,
+//       child: Container(
+//         height: 40,
+//         decoration: BoxDecoration(
+//           color: Colors.grey[200],
+//           borderRadius: BorderRadius.circular(20),
+//         ),
+//         child: provider.isLoadingVendors
+//             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+//             : ValueListenableBuilder<String?>(
+//                 valueListenable: _selectedVendorNotifier,
+//                 builder: (context, selectedVendor, _) {
+//                   return Autocomplete<String>(
+//                     displayStringForOption: (option) => option,
+
+//                     optionsBuilder: (TextEditingValue textEditingValue) {
+//                       final options = [
+//                         'All Vendors',
+//                         ...provider.payments
+//                             .map((p) => p.vendorName ?? '')
+//                             .where((name) => name.isNotEmpty)
+//                             .toSet()
+//                             .toList(),
+//                       ];
+//                       if (textEditingValue.text.isEmpty) {
+//                         return options;
+//                       }
+
+//                       return options.where(
+//                         (vendor) => vendor.toLowerCase().contains(
+//                           textEditingValue.text.toLowerCase(),
+//                         ),
+//                       );
+//                     },
+
+//                     fieldViewBuilder:
+//                         (context, controller, focusNode, onFieldSubmitted) {
+//                           if (selectedVendor != null &&
+//                               selectedVendor.isNotEmpty &&
+//                               controller.text != selectedVendor) {
+//                             controller.text = selectedVendor;
+//                             controller.selection = TextSelection.fromPosition(
+//                               TextPosition(offset: controller.text.length),
+//                             );
+//                           }
+
+//                           return TextField(
+//                             controller: controller,
+//                             focusNode: focusNode,
+
+//                             style: const TextStyle(fontSize: 14),
+
+//                             decoration: InputDecoration(
+//                               hintText: 'Filter by Vendor',
+//                               hintStyle: const TextStyle(
+//                                 fontSize: 12,
+//                                 color: Colors.black54,
+//                               ),
+
+//                               prefixIcon: Padding(
+//                                 padding: const EdgeInsets.only(
+//                                   left: 10,
+//                                   right: 6,
+//                                 ),
+//                                 child: const Icon(
+//                                   Icons.person,
+//                                   size: 18,
+//                                   color: Colors.black54,
+//                                 ),
+//                               ),
+
+//                               prefixIconConstraints: const BoxConstraints(
+//                                 minWidth: 40,
+//                                 minHeight: 40,
+//                               ),
+
+//                               suffixIcon:
+//                                   controller.text.isNotEmpty &&
+//                                       controller.text != 'All Vendors'
+//                                   ? IconButton(
+//                                       icon: const Icon(Icons.clear, size: 18),
+//                                       onPressed: () {
+//                                         controller.clear();
+//                                         _handleVendorSelected(null);
+//                                         FocusScope.of(context).unfocus();
+//                                       },
+//                                     )
+//                                   : null,
+
+//                               border: InputBorder.none,
+
+//                               contentPadding: const EdgeInsets.only(
+//                                 top: 6,
+//                                 bottom: 0,
+//                                 left: 5,
+//                                 right: 5,
+//                               ),
+//                             ),
+
+//                             onTap: () {
+//                               if (controller.text == 'All Vendors') {
+//                                 controller.clear();
+//                               }
+//                             },
+//                           );
+//                         },
+
+//                     onSelected: (selected) {
+//                       _handleVendorSelected(selected);
+//                     },
+
+//                     optionsViewBuilder: (context, onSelected, options) {
+//                       return Align(
+//                         alignment: Alignment.topLeft,
+//                         child: Material(
+//                           elevation: 4.0,
+//                           color: Colors.white,
+//                           borderRadius: BorderRadius.circular(8),
+//                           child: ConstrainedBox(
+//                             constraints: const BoxConstraints(maxHeight: 200),
+//                             child: SizedBox(
+//                               width: 250,
+//                               child: ListView.builder(
+//                                 padding: EdgeInsets.zero,
+//                                 shrinkWrap: true,
+//                                 itemCount: options.length,
+//                                 itemBuilder: (context, index) {
+//                                   final option = options.elementAt(index);
+
+//                                   return InkWell(
+//                                     onTap: () {
+//                                       onSelected(option);
+//                                       FocusScope.of(context).unfocus();
+//                                     },
+//                                     child: Padding(
+//                                       padding: const EdgeInsets.symmetric(
+//                                         horizontal: 12,
+//                                         vertical: 10,
+//                                       ),
+//                                       child: Text(
+//                                         option,
+//                                         style: const TextStyle(fontSize: 13),
+//                                       ),
+//                                     ),
+//                                   );
+//                                 },
+//                               ),
+//                             ),
+//                           ),
+//                         ),
+//                       );
+//                     },
+//                   );
+//                 },
+//               ),
+//       ),
+//     );
+//   }
+
+//   Widget _buildInvoiceSearchField(OutgoingPaymentProvider provider) {
+//     return LayoutBuilder(
+//       builder: (context, constraints) {
+//         final double fieldWidth = constraints.maxWidth;
+
+//         return Container(
+//           height: 40,
+//           width: fieldWidth,
+//           decoration: BoxDecoration(
+//             color: Colors.grey[200],
+//             borderRadius: BorderRadius.circular(20),
+//           ),
+//           child: provider.isLoadingInvoices
+//               ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+//               : ValueListenableBuilder<String?>(
+//                   valueListenable: _selectedInvoiceNotifier,
+//                   builder: (context, selectedInvoice, _) {
+//                     return Autocomplete<String>(
+//                       displayStringForOption: (option) => option,
+
+//                       optionsBuilder: (TextEditingValue textEditingValue) {
+//                         final options = [
+//                           'All Invoices',
+//                           ...provider.invoiceNumbers,
+//                         ];
+
+//                         if (textEditingValue.text.isEmpty) {
+//                           return options;
+//                         }
+
+//                         return options.where(
+//                           (invoice) => invoice.toLowerCase().contains(
+//                             textEditingValue.text.toLowerCase(),
+//                           ),
+//                         );
+//                       },
+
+//                       fieldViewBuilder:
+//                           (context, controller, focusNode, onFieldSubmitted) {
+//                             if (selectedInvoice != null &&
+//                                 selectedInvoice.isNotEmpty &&
+//                                 controller.text != selectedInvoice) {
+//                               controller.text = selectedInvoice;
+//                               controller.selection = TextSelection.fromPosition(
+//                                 TextPosition(offset: controller.text.length),
+//                               );
+//                             }
+
+//                             return ClipRRect(
+//                               borderRadius: BorderRadius.circular(20),
+//                               child: TextField(
+//                                 controller: controller,
+//                                 focusNode: focusNode,
+
+//                                 onChanged: (value) {},
+
+//                                 onSubmitted: (value) {
+//                                   _handleInvoiceSelected(value);
+//                                 },
+
+//                                 style: const TextStyle(fontSize: 14),
+
+//                                 decoration: InputDecoration(
+//                                   hintText: 'Search by Invoice',
+//                                   hintStyle: const TextStyle(
+//                                     fontSize: 12,
+//                                     color: Colors.black54,
+//                                   ),
+
+//                                   prefixIcon: Padding(
+//                                     padding: const EdgeInsets.only(
+//                                       left: 10,
+//                                       right: 6,
+//                                     ),
+//                                     child: const Icon(
+//                                       Icons.search,
+//                                       size: 18,
+//                                       color: Colors.black54,
+//                                     ),
+//                                   ),
+
+//                                   prefixIconConstraints: const BoxConstraints(
+//                                     minWidth: 40,
+//                                     minHeight: 40,
+//                                   ),
+
+//                                   suffixIcon:
+//                                       controller.text.isNotEmpty &&
+//                                           controller.text != 'All Invoices'
+//                                       ? IconButton(
+//                                           icon: const Icon(
+//                                             Icons.clear,
+//                                             size: 18,
+//                                           ),
+//                                           onPressed: () {
+//                                             controller.clear();
+//                                             _handleInvoiceSelected(null);
+//                                             FocusScope.of(context).unfocus();
+//                                           },
+//                                         )
+//                                       : null,
+
+//                                   border: InputBorder.none,
+
+//                                   contentPadding: const EdgeInsets.only(
+//                                     top: 6,
+//                                     bottom: 0,
+//                                     left: 5,
+//                                     right: 5,
+//                                   ),
+//                                 ),
+
+//                                 onTap: () {
+//                                   if (controller.text == 'All Invoices') {
+//                                     controller.clear();
+//                                   }
+//                                 },
+//                               ),
+//                             );
+//                           },
+
+//                       onSelected: (selected) {
+//                         _handleInvoiceSelected(selected);
+//                       },
+
+//                       optionsViewBuilder: (context, onSelected, options) {
+//                         return Align(
+//                           alignment: Alignment.topLeft,
+//                           child: Material(
+//                             elevation: 4.0,
+//                             color: Colors.white,
+//                             borderRadius: BorderRadius.circular(8),
+//                             child: ConstrainedBox(
+//                               constraints: BoxConstraints(
+//                                 maxHeight: 200,
+//                                 maxWidth: fieldWidth,
+//                               ),
+//                               child: ListView.builder(
+//                                 padding: EdgeInsets.zero,
+//                                 shrinkWrap: true,
+//                                 itemCount: options.length,
+//                                 itemBuilder: (context, index) {
+//                                   final option = options.elementAt(index);
+
+//                                   return InkWell(
+//                                     onTap: () {
+//                                       onSelected(option);
+//                                       FocusScope.of(context).unfocus();
+//                                     },
+//                                     child: Padding(
+//                                       padding: const EdgeInsets.symmetric(
+//                                         horizontal: 12,
+//                                         vertical: 10,
+//                                       ),
+//                                       child: Text(
+//                                         option,
+//                                         style: const TextStyle(fontSize: 13),
+//                                       ),
+//                                     ),
+//                                   );
+//                                 },
+//                               ),
+//                             ),
+//                           ),
+//                         );
+//                       },
+//                     );
+//                   },
+//                 ),
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _buildMultiplePaymentButton(List<Outgoing> filteredPayments) {
+//     return ValueListenableBuilder<Set<int>>(
+//       valueListenable: _selectedIndicesNotifier,
+//       builder: (context, selectedIndices, _) {
+//         return Row(
+//           mainAxisSize: MainAxisSize.min,
+//           children: [
+//             IconButton(
+//               icon: Icon(
+//                 Icons.payments,
+//                 size: 22,
+//                 color: selectedIndices.length >= 2
+//                     ? Colors.blueAccent
+//                     : Colors.grey,
+//               ),
+//               tooltip: selectedIndices.length >= 2
+//                   ? 'Process Selected Payments'
+//                   : 'Select 2 or more items to enable',
+//               onPressed: selectedIndices.length >= 2
+//                   ? () {
+//                       final selectedPayments = selectedIndices
+//                           .map((index) => filteredPayments[index])
+//                           .toList();
+//                       _showPaymentDialog(context, selectedPayments, null, true);
+//                     }
+//                   : null,
+//             ),
+//             const SizedBox(width: 4),
+//             const Text('Multiple Pay', style: TextStyle(fontSize: 12)),
+//           ],
+//         );
+//       },
+//     );
+//   }
+
+//   Widget _buildDataRow(
+//     int index,
+//     Outgoing outgoing,
+//     Map<String, GRN> grnMap,
+//     Map<String, ApInvoice> apMap,
+//     List<double> columnWidths,
+//   ) {
+//     if (index < 0) {
+//       return Container(height: 60.0);
+//     }
+
+//     final GlobalKey cellKey = GlobalKey();
+//     final dueDays = _calculateDueDays(outgoing);
+
+//     final grn = grnMap[outgoing.grnId];
+//     final ap = apMap[outgoing.invoiceId];
+
+//     final grnDisplay = grn?.randomId ?? outgoing.grnId ?? 'N/A';
+//     final apDisplay = ap?.randomId ?? outgoing.invoiceId ?? 'N/A';
+
+//     return Row(
+//       children: [
+//         _buildContentCell('${index + 1}', columnWidths[0]),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[1],
+//           child: Builder(
+//             builder: (context) {
+//               final selectedRows = _selectedRowsNotifier.value;
+
+//               if (selectedRows.isEmpty || index >= selectedRows.length) {
+//                 return const Checkbox(
+//                   value: false,
+//                   onChanged: null,
+//                   activeColor: Colors.blueAccent,
+//                   checkColor: Colors.white,
+//                 );
+//               }
+
+//               final isSelected = selectedRows[index];
+
+//               return Checkbox(
+//                 value: isSelected,
+//                 activeColor: Colors.blue,
+//                 checkColor: Colors.white,
+//                 onChanged: (value) {
+//                   final newSelectedRows = List<bool>.from(selectedRows);
+
+//                   if (index < newSelectedRows.length) {
+//                     newSelectedRows[index] = value ?? false;
+//                     _selectedRowsNotifier.value = newSelectedRows;
+
+//                     final newSelectedIndices = Set<int>.from(
+//                       _selectedIndicesNotifier.value,
+//                     );
+
+//                     if (value == true) {
+//                       newSelectedIndices.add(index);
+//                     } else {
+//                       newSelectedIndices.remove(index);
+//                     }
+
+//                     _selectedIndicesNotifier.value = newSelectedIndices;
+//                   }
+//                 },
+//               );
+//             },
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[2],
+//           child: IconButton(
+//             icon: const Icon(
+//               Icons.remove_red_eye,
+//               color: Colors.blue,
+//               size: 18,
+//             ),
+//             onPressed: () {
+//               showDialog(
+//                 context: context,
+//                 builder: (context) => PendingOutgoingDialog(outgoing: outgoing),
+//               );
+//             },
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[3],
+//           child: ValueListenableBuilder<Set<int>>(
+//             valueListenable: _selectedIndicesNotifier,
+//             builder: (context, selectedIndices, _) {
+//               return IconButton(
+//                 icon: Icon(
+//                   Icons.payment,
+//                   color: selectedIndices.length > 1 ? Colors.grey : Colors.blue,
+//                   size: 18,
+//                 ),
+//                 onPressed: selectedIndices.length > 1
+//                     ? null
+//                     : () {
+//                         _showPaymentDialog(context, [outgoing], index, false);
+//                       },
+//               );
+//             },
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[4],
+//           child: IconButton(
+//             icon: const Icon(
+//               Icons.picture_as_pdf,
+//               color: Colors.blue,
+//               size: 18,
+//             ),
+//             onPressed: () async {
+//               try {
+//                 final poService = OutgoingPdf();
+//                 final pdfFile = await poService.generateOutgoingPdf(
+//                   outgoing.outgoingId,
+//                 );
+//                 await Printing.layoutPdf(
+//                   onLayout: (_) => pdfFile.readAsBytesSync(),
+//                 );
+//                 ScaffoldMessenger.of(context).showSnackBar(
+//                   const SnackBar(content: Text('PDF generated successfully')),
+//                 );
+//               } catch (e) {
+//                 ScaffoldMessenger.of(context).showSnackBar(
+//                   SnackBar(content: Text('Failed to generate PDF: $e')),
+//                 );
+//               }
+//             },
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           dueDays.toString(),
+//           columnWidths[5],
+//           textStyle: TextStyle(
+//             fontSize: 12,
+//             color: dueDays < 0
+//                 ? Colors.red
+//                 : dueDays <= 3
+//                 ? Colors.orange
+//                 : Colors.green,
+//           ),
+//         ),
+
+//         _buildContentCell(outgoing.vendorName ?? 'N/A', columnWidths[6]),
+//         _buildContentCell(outgoing.invoiceNo ?? 'N/A', columnWidths[7]),
+
+//         _buildContentCell(
+//           outgoing.invoiceDate != null
+//               ? DateFormat('dd-MM-yyyy').format(outgoing.invoiceDate!)
+//               : 'N/A',
+//           columnWidths[8],
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[9],
+//           child: GestureDetector(
+//             onTap: () => _showGrnDetailsDialog(
+//               context,
+//               outgoing.grnId,
+//               grnMap.values.toList(),
+//             ),
+//             child: Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+//               decoration: BoxDecoration(
+//                 color: Colors.blue.shade50,
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               child: Text(
+//                 grnDisplay,
+//                 style: const TextStyle(
+//                   fontSize: 12,
+//                   color: Colors.blue,
+//                   decoration: TextDecoration.underline,
+//                 ),
+//                 textAlign: TextAlign.center,
+//                 maxLines: 2,
+//                 overflow: TextOverflow.ellipsis,
+//               ),
+//             ),
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[10],
+//           child: GestureDetector(
+//             onTap: () => _showApDetailsDialog(
+//               context,
+//               outgoing.invoiceId,
+//               apMap.values.toList(),
+//             ),
+//             child: Container(
+//               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+//               decoration: BoxDecoration(
+//                 color: Colors.blue.shade50,
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               child: Text(
+//                 apDisplay,
+//                 style: const TextStyle(
+//                   fontSize: 12,
+//                   color: Colors.blue,
+//                   decoration: TextDecoration.underline,
+//                 ),
+//                 textAlign: TextAlign.center,
+//                 maxLines: 2,
+//                 overflow: TextOverflow.ellipsis,
+//               ),
+//             ),
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           outgoing.totalPrice?.toStringAsFixed(2) ?? 'N/A',
+//           columnWidths[11],
+//         ),
+
+//         _buildContentCell(
+//           '',
+//           columnWidths[12],
+//           child: GestureDetector(
+//             onTap: () => _showTaxTooltip(context, cellKey, outgoing, index),
+//             child: Container(
+//               key: cellKey,
+//               decoration: BoxDecoration(
+//                 color: Colors.blue.shade50,
+//                 borderRadius: BorderRadius.circular(4),
+//               ),
+//               padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+//               child: Text(
+//                 outgoing.taxDetails?.toString() ?? 'N/A',
+//                 style: const TextStyle(
+//                   fontSize: 12,
+//                   color: Colors.blue,
+//                   decoration: TextDecoration.underline,
+//                 ),
+//                 textAlign: TextAlign.center,
+//               ),
+//             ),
+//           ),
+//         ),
+
+//         _buildContentCell(
+//           outgoing.discountDetails?.toStringAsFixed(2) ?? '0.00',
+//           columnWidths[13],
+//         ),
+
+//         _buildContentCell(
+//           outgoing.payableAmount?.toStringAsFixed(2) ?? 'N/A',
+//           columnWidths[14],
+//         ),
+
+//         _buildContentCell(
+//           (outgoing.totalPaidAmount ?? 0.0).toStringAsFixed(2),
+//           columnWidths[15],
+//         ),
+
+//         _buildContentCell(
+//           outgoing.totalPayableAmount?.toStringAsFixed(2) ?? 'N/A',
+//           columnWidths[16],
+//         ),
+
+//         _buildContentCell(outgoing.paymentTerms ?? 'N/A', columnWidths[17]),
+//       ],
+//     );
+//   }
+
+//   void _syncSelectedRows(int filteredCount) {
+//     final currentRows = _selectedRowsNotifier.value;
+//     if (currentRows.length != filteredCount) {
+//       _selectedRowsNotifier.value = List<bool>.filled(filteredCount, false);
+//       _selectedIndicesNotifier.value = {};
+//     }
+//   }
+
+//   Future<void> _onRefresh() async {
+//     await _loadData();
+//   }
+
+//   @override
+//   Widget build(BuildContext context) {
+//     return PopScope(
+//       canPop: _overlayEntry == null,
+//       onPopInvoked: (didPop) {
+//         if (_overlayEntry != null) {
+//           _removeOverlay();
+//         }
+//       },
+//       child: ScaffoldMessenger(
+//         key: _scaffoldMessengerKey,
+//         child: Scaffold(
+//           body: ValueListenableBuilder<bool>(
+//             valueListenable: _refreshDataNotifier,
+//             builder: (context, refreshData, _) {
+//               return Consumer<OutgoingPaymentProvider>(
+//                 builder: (context, provider, child) {
+//                   final List<Outgoing> filtered = provider.allPayments.where((
+//                     p,
+//                   ) {
+//                     final selectedVendor = _selectedVendorNotifier.value;
+//                     final selectedInvoice = _selectedInvoiceNotifier.value;
+
+//                     final apiVendor = (p.vendorName ?? '').trim().toLowerCase();
+//                     final apiInvoice = (p.invoiceNo ?? '').trim().toLowerCase();
+
+//                     final vendor = selectedVendor?.trim().toLowerCase();
+//                     final invoice = selectedInvoice?.trim().toLowerCase();
+
+//                     final vendorMatch = (vendor == null || vendor.isEmpty)
+//                         ? true
+//                         : apiVendor.contains(vendor);
+
+//                     final invoiceMatch = (invoice == null || invoice.isEmpty)
+//                         ? true
+//                         : apiInvoice.contains(invoice);
+
+//                     return vendorMatch && invoiceMatch;
+//                   }).toList();
+//                   final List<GRN> grnList = provider.grnList;
+//                   final List<ApInvoice> apInvoices = provider.apInvoices;
+//                   final Map<String, GRN> grnMap = {
+//                     for (var g in grnList)
+//                       if (g.grnId != null) g.grnId!: g,
+//                   };
+
+//                   final Map<String, ApInvoice> apMap = {
+//                     for (var a in apInvoices)
+//                       if (a.invoiceId != null) a.invoiceId!: a,
+//                   };
+
+//                   if (provider.isLoadingOutgoings) {
+//                     return const Center(child: CircularProgressIndicator());
+//                   }
+
+//                   if (!provider.isLoadingOutgoings && filtered.isEmpty) {
+//                     return const Center(
+//                       child: Text(
+//                         'No pending outgoing',
+//                         style: TextStyle(
+//                           fontSize: 16,
+//                           color: Colors.grey,
+//                           fontWeight: FontWeight.w500,
+//                         ),
+//                       ),
+//                     );
+//                   }
+
+//                   // ================= SORT LOGIC =================
+//                   final String sortColumn = _sortColumnNotifier.value;
+//                   final bool ascending = _sortAscendingNotifier.value;
+
+//                   filtered.sort((a, b) {
+//                     int result = 0;
+
+//                     switch (sortColumn) {
+//                       case 'dueDays':
+//                         result = (a.intimationDays ?? 0).compareTo(
+//                           b.intimationDays ?? 0,
+//                         );
+//                         break;
+
+//                       case 'paymentTerms':
+//                         result = (a.paymentTerms ?? '').compareTo(
+//                           b.paymentTerms ?? '',
+//                         );
+//                         break;
+
+//                       case 'invoiceDate':
+//                         result = (a.invoiceDate ?? DateTime(1970)).compareTo(
+//                           b.invoiceDate ?? DateTime(1970),
+//                         );
+//                         break;
+
+//                       default:
+//                         result = 0;
+//                     }
+
+//                     return ascending ? result : -result;
+//                   });
+
+//                   debugPrint(
+//                     '🏗️ Building UI with ${filtered.length} filtered payments',
+//                   );
+
+//                   const columnWidths = <double>[
+//                     45,
+//                     50,
+//                     45,
+//                     50,
+//                     50,
+//                     150,
+//                     150,
+//                     85,
+//                     95,
+//                     85,
+//                     85,
+//                     95,
+//                     85,
+//                     85,
+//                     85,
+//                     95,
+//                     85,
+//                     150,
+//                   ];
+//                   final totalWidth = columnWidths.reduce((a, b) => a + b);
+
+//                   return RefreshIndicator(
+//                     onRefresh: _onRefresh,
+//                     displacement: 60,
+//                     color: Colors.blueAccent,
+//                     child: Scrollbar(
+//                       controller: _mainScrollController,
+//                       thumbVisibility: true,
+//                       child: SingleChildScrollView(
+//                         controller: _mainScrollController,
+//                         physics: const AlwaysScrollableScrollPhysics(),
+//                         scrollDirection: Axis.vertical,
+//                         child: Column(
+//                           children: [
+//                             Padding(
+//                               padding: const EdgeInsets.all(8.0),
+//                               child: Column(
+//                                 crossAxisAlignment: CrossAxisAlignment.start,
+//                                 children: [
+//                                   const Text(
+//                                     'PENDING OUTGOING',
+//                                     style: TextStyle(
+//                                       fontSize: 25,
+//                                       fontWeight: FontWeight.bold,
+//                                       color: Colors.black,
+//                                     ),
+//                                   ),
+//                                   const SizedBox(height: 8),
+//                                   Row(
+//                                     children: [
+//                                       Expanded(
+//                                         child: Text(
+//                                           'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
+//                                           style: const TextStyle(
+//                                             fontSize: 16,
+//                                             fontWeight: FontWeight.w700,
+//                                             color: Colors.red,
+//                                           ),
+//                                         ),
+//                                       ),
+//                                     ],
+//                                   ),
+//                                   const SizedBox(height: 8),
+
+//                                   LayoutBuilder(
+//                                     builder: (context, constraints) {
+//                                       if (constraints.maxWidth > 600) {
+//                                         return Row(
+//                                           children: [
+//                                             _buildVendorFilterField(provider),
+//                                             const SizedBox(width: 8),
+//                                             _buildInvoiceSearchField(provider),
+//                                             const SizedBox(width: 8),
+//                                             _buildMultiplePaymentButton(
+//                                               filtered,
+//                                             ),
+//                                             const SizedBox(width: 8),
+//                                             Expanded(
+//                                               child: ValueListenableBuilder<Set<int>>(
+//                                                 valueListenable:
+//                                                     _selectedIndicesNotifier,
+//                                                 builder: (context, selectedIndices, _) {
+//                                                   if (selectedIndices.length >
+//                                                       1) {
+//                                                     final amount =
+//                                                         selectedIndices.fold(
+//                                                           0.0,
+//                                                           (sum, index) =>
+//                                                               sum +
+//                                                               (filtered[index]
+//                                                                       .totalPayableAmount ??
+//                                                                   0.0),
+//                                                         );
+//                                                     return Text(
+//                                                       'Selected Amount: ${amount.toStringAsFixed(2)}',
+//                                                       style: const TextStyle(
+//                                                         fontSize: 16,
+//                                                         fontWeight:
+//                                                             FontWeight.w700,
+//                                                         color: Colors.black,
+//                                                       ),
+//                                                     );
+//                                                   }
+//                                                   return const SizedBox();
+//                                                 },
+//                                               ),
+//                                             ),
+//                                           ],
+//                                         );
+//                                       }
+//                                       return Column(
+//                                         children: [
+//                                           Row(
+//                                             children: [
+//                                               Expanded(
+//                                                 child: _buildVendorFilterField(
+//                                                   provider,
+//                                                 ),
+//                                               ),
+//                                               const SizedBox(width: 8),
+//                                               Expanded(
+//                                                 child: _buildInvoiceSearchField(
+//                                                   provider,
+//                                                 ),
+//                                               ),
+//                                             ],
+//                                           ),
+//                                           const SizedBox(height: 8),
+//                                           Row(
+//                                             children: [
+//                                               _buildMultiplePaymentButton(
+//                                                 filtered,
+//                                               ),
+//                                               const SizedBox(width: 8),
+//                                               Expanded(
+//                                                 child: ValueListenableBuilder<Set<int>>(
+//                                                   valueListenable:
+//                                                       _selectedIndicesNotifier,
+//                                                   builder: (context, selectedIndices, _) {
+//                                                     if (selectedIndices.length >
+//                                                         1) {
+//                                                       final amount =
+//                                                           selectedIndices.fold(
+//                                                             0.0,
+//                                                             (sum, index) =>
+//                                                                 sum +
+//                                                                 (filtered[index]
+//                                                                         .totalPayableAmount ??
+//                                                                     0.0),
+//                                                           );
+//                                                       return Text(
+//                                                         'Selected Amount: ${amount.toStringAsFixed(2)}',
+//                                                         style: const TextStyle(
+//                                                           fontSize: 16,
+//                                                           fontWeight:
+//                                                               FontWeight.w700,
+//                                                           color: Colors.black,
+//                                                         ),
+//                                                       );
+//                                                     }
+//                                                     return const SizedBox();
+//                                                   },
+//                                                 ),
+//                                               ),
+//                                             ],
+//                                           ),
+//                                         ],
+//                                       );
+//                                     },
+//                                   ),
+//                                 ],
+//                               ),
+//                             ),
+
+//                             ValueListenableBuilder<String?>(
+//                               valueListenable: _selectedVendorNotifier,
+//                               builder: (context, selectedVendor, _) {
+//                                 return ValueListenableBuilder<String?>(
+//                                   valueListenable: _selectedInvoiceNotifier,
+//                                   builder: (context, selectedInvoice, _) {
+//                                     return Container(
+//                                       margin: const EdgeInsets.symmetric(
+//                                         horizontal: 8,
+//                                       ),
+//                                       child: Column(
+//                                         children: [
+//                                           Scrollbar(
+//                                             controller:
+//                                                 _horizontalScrollController,
+//                                             thumbVisibility: true,
+//                                             child: SingleChildScrollView(
+//                                               controller:
+//                                                   _horizontalScrollController,
+//                                               scrollDirection: Axis.horizontal,
+//                                               child: Column(
+//                                                 crossAxisAlignment:
+//                                                     CrossAxisAlignment.start,
+//                                                 children: [
+//                                                   Container(
+//                                                     decoration:
+//                                                         const BoxDecoration(
+//                                                           color:
+//                                                               Colors.blueAccent,
+//                                                         ),
+//                                                     padding:
+//                                                         const EdgeInsets.symmetric(
+//                                                           vertical: 16,
+//                                                         ),
+//                                                     child: SizedBox(
+//                                                       width: totalWidth,
+//                                                       child: Row(
+//                                                         children: [
+//                                                           _buildHeaderCell(
+//                                                             'No',
+//                                                             columnWidths[0],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Select',
+//                                                             columnWidths[1],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'View',
+//                                                             columnWidths[2],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Action',
+//                                                             columnWidths[3],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Pdf',
+//                                                             columnWidths[4],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Due Days',
+//                                                             columnWidths[5],
+//                                                             sortColumn:
+//                                                                 'dueDays',
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Vendor Name',
+//                                                             columnWidths[6],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Invoice No',
+//                                                             columnWidths[7],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Invoice Date',
+//                                                             columnWidths[8],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'GRN No',
+//                                                             columnWidths[9],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'AP No',
+//                                                             columnWidths[10],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Total Amount',
+//                                                             columnWidths[11],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Tax',
+//                                                             columnWidths[12],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Discount',
+//                                                             columnWidths[13],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Total',
+//                                                             columnWidths[14],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Paid Amount',
+//                                                             columnWidths[15],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Remaining',
+//                                                             columnWidths[16],
+//                                                           ),
+//                                                           _buildHeaderCell(
+//                                                             'Payment Terms',
+//                                                             columnWidths[17],
+//                                                             sortColumn:
+//                                                                 'paymentTerms',
+//                                                           ),
+//                                                         ],
+//                                                       ),
+//                                                     ),
+//                                                   ),
+//                                                   SizedBox(
+//                                                     height: 360,
+//                                                     child: Scrollbar(
+//                                                       controller:
+//                                                           _verticalScrollController,
+//                                                       thumbVisibility: true,
+//                                                       child: SizedBox(
+//                                                         width: totalWidth,
+//                                                         child: ListView.builder(
+//                                                           controller:
+//                                                               _verticalScrollController,
+//                                                           itemCount:
+//                                                               filtered.length,
+
+//                                                           addRepaintBoundaries:
+//                                                               true,
+//                                                           addAutomaticKeepAlives:
+//                                                               false,
+//                                                           cacheExtent: 300,
+
+//                                                           itemBuilder: (context, index) {
+//                                                             return ValueListenableBuilder<
+//                                                               List<bool>
+//                                                             >(
+//                                                               valueListenable:
+//                                                                   _selectedRowsNotifier,
+//                                                               builder:
+//                                                                   (
+//                                                                     context,
+//                                                                     selectedRows,
+//                                                                     _,
+//                                                                   ) {
+//                                                                     final bool
+//                                                                     isSelected =
+//                                                                         selectedRows
+//                                                                             .isNotEmpty &&
+//                                                                         index <
+//                                                                             selectedRows.length &&
+//                                                                         selectedRows[index];
+
+//                                                                     return RepaintBoundary(
+//                                                                       child: Container(
+//                                                                         height:
+//                                                                             60.0,
+//                                                                         color:
+//                                                                             isSelected
+//                                                                             ? Colors.blue.shade50
+//                                                                             : (index.isEven
+//                                                                                   ? Colors.white
+//                                                                                   : Colors.grey.shade50),
+
+//                                                                         child: _buildDataRow(
+//                                                                           index,
+//                                                                           filtered[index],
+//                                                                           grnMap,
+//                                                                           apMap,
+//                                                                           columnWidths,
+//                                                                         ),
+//                                                                       ),
+//                                                                     );
+//                                                                   },
+//                                                             );
+//                                                           },
+//                                                         ),
+//                                                       ),
+//                                                     ),
+//                                                   ),
+//                                                 ],
+//                                               ),
+//                                             ),
+//                                           ),
+//                                         ],
+//                                       ),
+//                                     );
+//                                   },
+//                                 );
+//                               },
+//                             ),
+//                           ],
+//                         ),
+//                       ),
+//                     ),
+//                   );
+//                 },
+//               );
+//             },
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }
+
 // ignore_for_file: unused_field, file_names
 
 import 'package:flutter/material.dart';
@@ -48,9 +1811,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   final _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final ValueNotifier<bool> _refreshDataNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<int> _filteredCountNotifier = ValueNotifier<int>(0);
-  final ValueNotifier<bool> _isInitialized = ValueNotifier(false);
-
   bool _initialLoading = true;
+  final ValueNotifier<bool> _isLoadingMoreNotifier = ValueNotifier(false);
+  String? _selectedVendor;
 
   @override
   void initState() {
@@ -60,7 +1823,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     _selectedRowsNotifier.addListener(_updateSelection);
     _selectedIndicesNotifier.addListener(_updateSelection);
     _horizontalScrollController.addListener(_handleHorizontalScroll);
-
+    _verticalScrollController.addListener(_handleScroll);
     _selectedRowsNotifier.value = [];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -85,7 +1848,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     _sortAscendingNotifier.dispose();
     _refreshDataNotifier.dispose();
     _filteredCountNotifier.dispose();
-    _isInitialized.dispose();
+    _isLoadingMoreNotifier.dispose();
     super.dispose();
   }
 
@@ -111,20 +1874,49 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   void _updateSelection() {}
 
   bool get isMultipleSelected => _selectedIndicesNotifier.value.length > 1;
+  void _handleScroll() {
+    if (_isLoadingMoreNotifier.value) return;
+
+    if (_verticalScrollController.position.pixels >=
+        _verticalScrollController.position.maxScrollExtent - 150) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMoreNotifier.value) return;
+
+    _isLoadingMoreNotifier.value = true;
+
+    final provider = context.read<OutgoingPaymentProvider>();
+
+    final start = DateTime.now();
+
+    await provider.fetchFilteredOutgoings(
+      status: 'Pending',
+      filterByAmount: true,
+      skip: provider.payments.length,
+      limit: 100,
+    );
+
+    // ensure loader visible for minimum time
+    final diff = DateTime.now().difference(start);
+
+    if (diff.inMilliseconds < 400) {
+      await Future.delayed(Duration(milliseconds: 400 - diff.inMilliseconds));
+    }
+
+    _isLoadingMoreNotifier.value = false;
+  }
 
   Future<void> _loadInitialData() async {
     final provider = context.read<OutgoingPaymentProvider>();
 
-    provider.setLoadingOutgoings(true);
-
     try {
-      await provider.fetchApInvoices();
-      await provider.fetchGrnList();
-
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
         filterBy: 'invoiceDate',
-        limit: 100,
+        limit: 50,
       );
 
       if (mounted) {
@@ -137,8 +1929,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         );
       }
     }
-
-    _isInitialized.value = true;
   }
 
   Future<void> _loadData() async {
@@ -161,8 +1951,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           ? null
           : _selectedInvoiceNotifier.value!.trim();
 
-      // 🔥 ADD THIS LINE (IMPORTANT)
-      await provider.fetchApInvoices();
+      debugPrint("🔥 CALLING API WITH:");
+      debugPrint("vendor: $vendorNameForApi");
+      debugPrint("invoice: $invoiceNoForApi");
 
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
@@ -171,6 +1962,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         vendorName: vendorNameForApi,
         invoiceNo: invoiceNoForApi,
       );
+
+      debugPrint("✅ AFTER API: ${provider.payments.length}");
 
       _refreshDataNotifier.value = !_refreshDataNotifier.value;
     } catch (e) {
@@ -297,11 +2090,10 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                             _sortAscendingNotifier.value =
                                 !_sortAscendingNotifier.value;
                           } else {
-                            _sortColumnNotifier.value = sortColumn;
+                            _sortColumnNotifier.value = sortColumn!;
                             _sortAscendingNotifier.value = true;
                           }
                         },
-
                   child: Tooltip(
                     message: text,
                     child: Row(
@@ -318,6 +2110,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 2,
+                            textAlign: TextAlign.center,
                           ),
                         ),
                         if (sortColumn != null)
@@ -388,7 +2181,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         return PaymentDialog(
           totalPayableAmount: totalPayableAmount,
           isBulkPayment: isBulkPayment,
-          lockFullPayment: true,
           onPaymentConfirmed:
               (
                 paymentType,
@@ -427,20 +2219,26 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         paymentType: paymentType,
                         paymentMode: paymentMode,
                         paymentMethod: paymentMethod,
+
                         partialAmount: paymentType == 'partial' ? amount : null,
+
                         fullPaymentAmount: paymentType == 'full'
                             ? payment.totalPayableAmount
                             : null,
+
                         bankName: paymentMode == 'Bank'
                             ? transactionDetails['bankName']
                             : null,
+
                         transactionReference: transactionReference,
                         cashVoucherNo: null,
+
                         pettyCashAmount:
                             paymentMode == 'Cash' &&
                                 paymentMethod == 'petty_cash'
                             ? amount
                             : null,
+
                         hoCash:
                             paymentMode == 'Cash' && paymentMethod == 'ho_cash'
                             ? amount
@@ -490,20 +2288,22 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       _selectedIndicesNotifier.value = {};
                     }
 
-                    provider.payments.removeWhere((p) {
-                      final isSelected = selectedPayments.any(
-                        (sp) => sp.outgoingId == p.outgoingId,
-                      );
-
-                      return isSelected &&
-                          (p.status ?? '').toLowerCase() == 'fully paid';
-                    });
-
-                    _refreshDataNotifier.value = !_refreshDataNotifier.value;
-
                     _scaffoldMessengerKey.currentState?.showSnackBar(
                       const SnackBar(content: Text('Payment Confirmed')),
                     );
+                    final provider = Provider.of<OutgoingPaymentProvider>(
+                      context,
+                      listen: false,
+                    );
+
+                    await provider.fetchApInvoices();
+                    await provider.fetchFilteredOutgoings(
+                      status: 'Pending',
+                      filterBy: 'invoiceDate',
+                      limit: 100,
+                    );
+
+                    _refreshDataNotifier.value = !_refreshDataNotifier.value;
                   }
                 } catch (e) {
                   if (context.mounted) {
@@ -1277,399 +3077,377 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         key: _scaffoldMessengerKey,
         child: Scaffold(
           body: ValueListenableBuilder<bool>(
-            valueListenable: _isInitialized,
-            builder: (_, ready, __) {
-              if (!ready) {
-                return const Center(child: CircularProgressIndicator());
-              }
+            valueListenable: _refreshDataNotifier,
+            builder: (context, refreshData, _) {
+              return Consumer<OutgoingPaymentProvider>(
+                builder: (context, provider, child) {
+                  final List<Outgoing> filtered = provider.payments;
+                  final List<GRN> grnList = provider.grnList;
+                  final List<ApInvoice> apInvoices = provider.apInvoices;
+                  final Map<String, GRN> grnMap = {
+                    for (var g in grnList)
+                      if (g.grnId != null) g.grnId!: g,
+                  };
 
-              return ValueListenableBuilder<bool>(
-                valueListenable: _refreshDataNotifier,
-                builder: (context, refreshData, _) {
-                  return Consumer<OutgoingPaymentProvider>(
-                    builder: (context, provider, child) {
-                      final List<Outgoing> filtered = List.from(
-                        provider.payments,
-                      );
-                      final List<GRN> grnList = provider.grnList;
-                      final List<ApInvoice> apInvoices = provider.apInvoices;
-                      final Map<String, GRN> grnMap = {
-                        for (var g in grnList)
-                          if (g.grnId != null) g.grnId!: g,
-                      };
+                  final Map<String, ApInvoice> apMap = {
+                    for (var a in apInvoices)
+                      if (a.invoiceId != null) a.invoiceId!: a,
+                  };
 
-                      final Map<String, ApInvoice> apMap = {
-                        for (var a in apInvoices)
-                          if (a.invoiceId != null) a.invoiceId!: a,
-                      };
+                  if (provider.isLoadingOutgoings) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                      if (provider.isLoadingOutgoings &&
-                          provider.payments.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
+                  if (!provider.isLoadingOutgoings && filtered.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No pending outgoing',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    );
+                  }
 
-                      if (!provider.isLoadingOutgoings && filtered.isEmpty) {
-                        return const Center(
-                          child: Text(
-                            'No pending outgoing payments found.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                  // ================= SORT LOGIC =================
+                  final String sortColumn = _sortColumnNotifier.value;
+                  final bool ascending = _sortAscendingNotifier.value;
+
+                  filtered.sort((a, b) {
+                    int result = 0;
+
+                    switch (sortColumn) {
+                      case 'dueDays':
+                        result = (a.intimationDays ?? 0).compareTo(
+                          b.intimationDays ?? 0,
                         );
-                      }
+                        break;
 
-                      // ================= SORT LOGIC =================
-                      final String sortColumn = _sortColumnNotifier.value;
-                      final bool ascending = _sortAscendingNotifier.value;
+                      case 'paymentTerms':
+                        result = (a.paymentTerms ?? '').compareTo(
+                          b.paymentTerms ?? '',
+                        );
+                        break;
 
-                      filtered.sort((a, b) {
-                        int result = 0;
+                      case 'invoiceDate':
+                        result = (a.invoiceDate ?? DateTime(1970)).compareTo(
+                          b.invoiceDate ?? DateTime(1970),
+                        );
+                        break;
 
-                        switch (sortColumn) {
-                          case 'dueDays':
-                            result = (a.intimationDays ?? 0).compareTo(
-                              b.intimationDays ?? 0,
-                            );
-                            break;
+                      default:
+                        result = 0;
+                    }
 
-                          case 'paymentTerms':
-                            result = (a.paymentTerms ?? '').compareTo(
-                              b.paymentTerms ?? '',
-                            );
-                            break;
+                    return ascending ? result : -result;
+                  });
 
-                          case 'invoiceDate':
-                            result = (a.invoiceDate ?? DateTime(1970))
-                                .compareTo(b.invoiceDate ?? DateTime(1970));
-                            break;
+                  debugPrint(
+                    '🏗️ Building UI with ${filtered.length} filtered payments',
+                  );
 
-                          default:
-                            result = 0;
-                        }
+                  const columnWidths = <double>[
+                    45,
+                    50,
+                    45,
+                    50,
+                    50,
+                    150,
+                    150,
+                    85,
+                    95,
+                    85,
+                    85,
+                    95,
+                    85,
+                    85,
+                    85,
+                    95,
+                    85,
+                    150,
+                  ];
+                  final totalWidth = columnWidths.reduce((a, b) => a + b);
 
-                        return ascending ? result : -result;
-                      });
-
-                      debugPrint(
-                        '🏗️ Building UI with ${filtered.length} filtered payments',
-                      );
-
-                      const columnWidths = <double>[
-                        45,
-                        50,
-                        45,
-                        50,
-                        50,
-                        150,
-                        150,
-                        85,
-                        95,
-                        85,
-                        85,
-                        95,
-                        85,
-                        85,
-                        85,
-                        95,
-                        85,
-                        150,
-                      ];
-                      final totalWidth = columnWidths.reduce((a, b) => a + b);
-
-                      return RefreshIndicator(
-                        onRefresh: _onRefresh,
-                        displacement: 60,
-                        color: Colors.blueAccent,
-                        child: Scrollbar(
-                          controller: _mainScrollController,
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            controller: _mainScrollController,
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            scrollDirection: Axis.vertical,
-                            child: Column(
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                  return RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    displacement: 60,
+                    color: Colors.blueAccent,
+                    child: Scrollbar(
+                      controller: _mainScrollController,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _mainScrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        scrollDirection: Axis.vertical,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'PENDING OUTGOING',
+                                    style: TextStyle(
+                                      fontSize: 25,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
                                     children: [
-                                      const Text(
-                                        'PENDING OUTGOING',
-                                        style: TextStyle(
-                                          fontSize: 25,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.red,
-                                              ),
-                                            ),
+                                      Expanded(
+                                        child: Text(
+                                          'Total Payable Amount: ${filtered.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.red,
                                           ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-
-                                      LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          if (constraints.maxWidth > 600) {
-                                            return Row(
-                                              children: [
-                                                _buildVendorFilterField(
-                                                  provider,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                _buildInvoiceSearchField(
-                                                  provider,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                _buildMultiplePaymentButton(
-                                                  filtered,
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: ValueListenableBuilder<Set<int>>(
-                                                    valueListenable:
-                                                        _selectedIndicesNotifier,
-                                                    builder: (context, selectedIndices, _) {
-                                                      if (selectedIndices
-                                                              .length >
-                                                          1) {
-                                                        final amount =
-                                                            selectedIndices.fold(
-                                                              0.0,
-                                                              (sum, index) =>
-                                                                  sum +
-                                                                  (filtered[index]
-                                                                          .totalPayableAmount ??
-                                                                      0.0),
-                                                            );
-                                                        return Text(
-                                                          'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 16,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w700,
-                                                                color: Colors
-                                                                    .black,
-                                                              ),
-                                                        );
-                                                      }
-                                                      return const SizedBox();
-                                                    },
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }
-                                          return Column(
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child:
-                                                        _buildVendorFilterField(
-                                                          provider,
-                                                        ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child:
-                                                        _buildInvoiceSearchField(
-                                                          provider,
-                                                        ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              Row(
-                                                children: [
-                                                  _buildMultiplePaymentButton(
-                                                    filtered,
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: ValueListenableBuilder<Set<int>>(
-                                                      valueListenable:
-                                                          _selectedIndicesNotifier,
-                                                      builder: (context, selectedIndices, _) {
-                                                        if (selectedIndices
-                                                                .length >
-                                                            1) {
-                                                          final amount =
-                                                              selectedIndices.fold(
-                                                                0.0,
-                                                                (sum, index) =>
-                                                                    sum +
-                                                                    (filtered[index]
-                                                                            .totalPayableAmount ??
-                                                                        0.0),
-                                                              );
-                                                          return Text(
-                                                            'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                            style:
-                                                                const TextStyle(
-                                                                  fontSize: 16,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w700,
-                                                                  color: Colors
-                                                                      .black,
-                                                                ),
-                                                          );
-                                                        }
-                                                        return const SizedBox();
-                                                      },
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          );
-                                        },
+                                        ),
                                       ),
                                     ],
                                   ),
-                                ),
+                                  const SizedBox(height: 8),
 
-                                ValueListenableBuilder<String?>(
-                                  valueListenable: _selectedVendorNotifier,
-                                  builder: (context, selectedVendor, _) {
-                                    return ValueListenableBuilder<String?>(
-                                      valueListenable: _selectedInvoiceNotifier,
-                                      builder: (context, selectedInvoice, _) {
-                                        return Container(
-                                          margin: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              Scrollbar(
-                                                controller:
-                                                    _horizontalScrollController,
-                                                thumbVisibility: true,
-                                                child: SingleChildScrollView(
-                                                  controller:
-                                                      _horizontalScrollController,
-                                                  scrollDirection:
-                                                      Axis.horizontal,
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Container(
-                                                        decoration:
-                                                            const BoxDecoration(
-                                                              color: Colors
-                                                                  .blueAccent,
-                                                            ),
-                                                        padding:
-                                                            const EdgeInsets.symmetric(
-                                                              vertical: 16,
-                                                            ),
-                                                        child: SizedBox(
-                                                          width: totalWidth,
-                                                          child: Row(
-                                                            children: [
-                                                              _buildHeaderCell(
-                                                                'No',
-                                                                columnWidths[0],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Select',
-                                                                columnWidths[1],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'View',
-                                                                columnWidths[2],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Action',
-                                                                columnWidths[3],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Pdf',
-                                                                columnWidths[4],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Due Days',
-                                                                columnWidths[5],
-                                                                sortColumn:
-                                                                    'dueDays',
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Vendor Name',
-                                                                columnWidths[6],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Invoice No',
-                                                                columnWidths[7],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Invoice Date',
-                                                                columnWidths[8],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'GRN No',
-                                                                columnWidths[9],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'AP No',
-                                                                columnWidths[10],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Total Amount',
-                                                                columnWidths[11],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Tax',
-                                                                columnWidths[12],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Discount',
-                                                                columnWidths[13],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Total',
-                                                                columnWidths[14],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Paid Amount',
-                                                                columnWidths[15],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Remaining',
-                                                                columnWidths[16],
-                                                              ),
-                                                              _buildHeaderCell(
-                                                                'Payment Terms',
-                                                                columnWidths[17],
-                                                                sortColumn:
-                                                                    'paymentTerms',
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
+                                  LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      if (constraints.maxWidth > 600) {
+                                        return Row(
+                                          children: [
+                                            _buildVendorFilterField(provider),
+                                            const SizedBox(width: 8),
+                                            _buildInvoiceSearchField(provider),
+                                            const SizedBox(width: 8),
+                                            _buildMultiplePaymentButton(
+                                              filtered,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: ValueListenableBuilder<Set<int>>(
+                                                valueListenable:
+                                                    _selectedIndicesNotifier,
+                                                builder: (context, selectedIndices, _) {
+                                                  if (selectedIndices.length >
+                                                      1) {
+                                                    final amount =
+                                                        selectedIndices.fold(
+                                                          0.0,
+                                                          (sum, index) =>
+                                                              sum +
+                                                              (filtered[index]
+                                                                      .totalPayableAmount ??
+                                                                  0.0),
+                                                        );
+                                                    return Text(
+                                                      'Selected Amount: ${amount.toStringAsFixed(2)}',
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Colors.black,
                                                       ),
-                                                      SizedBox(
-                                                        height: 360,
-                                                        child: Scrollbar(
+                                                    );
+                                                  }
+                                                  return const SizedBox();
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }
+                                      return Column(
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: _buildVendorFilterField(
+                                                  provider,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: _buildInvoiceSearchField(
+                                                  provider,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              _buildMultiplePaymentButton(
+                                                filtered,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: ValueListenableBuilder<Set<int>>(
+                                                  valueListenable:
+                                                      _selectedIndicesNotifier,
+                                                  builder: (context, selectedIndices, _) {
+                                                    if (selectedIndices.length >
+                                                        1) {
+                                                      final amount =
+                                                          selectedIndices.fold(
+                                                            0.0,
+                                                            (sum, index) =>
+                                                                sum +
+                                                                (filtered[index]
+                                                                        .totalPayableAmount ??
+                                                                    0.0),
+                                                          );
+                                                      return Text(
+                                                        'Selected Amount: ${amount.toStringAsFixed(2)}',
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors.black,
+                                                        ),
+                                                      );
+                                                    }
+                                                    return const SizedBox();
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            ValueListenableBuilder<String?>(
+                              valueListenable: _selectedVendorNotifier,
+                              builder: (context, selectedVendor, _) {
+                                return ValueListenableBuilder<String?>(
+                                  valueListenable: _selectedInvoiceNotifier,
+                                  builder: (context, selectedInvoice, _) {
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Scrollbar(
+                                            controller:
+                                                _horizontalScrollController,
+                                            thumbVisibility: true,
+                                            child: SingleChildScrollView(
+                                              controller:
+                                                  _horizontalScrollController,
+                                              scrollDirection: Axis.horizontal,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          color:
+                                                              Colors.blueAccent,
+                                                        ),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 16,
+                                                        ),
+                                                    child: SizedBox(
+                                                      width: totalWidth,
+                                                      child: Row(
+                                                        children: [
+                                                          _buildHeaderCell(
+                                                            'No',
+                                                            columnWidths[0],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Select',
+                                                            columnWidths[1],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'View',
+                                                            columnWidths[2],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Action',
+                                                            columnWidths[3],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Pdf',
+                                                            columnWidths[4],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Due Days',
+                                                            columnWidths[5],
+                                                            sortColumn:
+                                                                'dueDays',
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Vendor Name',
+                                                            columnWidths[6],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Invoice No',
+                                                            columnWidths[7],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Invoice Date',
+                                                            columnWidths[8],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'GRN No',
+                                                            columnWidths[9],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'AP No',
+                                                            columnWidths[10],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Total Amount',
+                                                            columnWidths[11],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Tax',
+                                                            columnWidths[12],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Discount',
+                                                            columnWidths[13],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Total',
+                                                            columnWidths[14],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Paid Amount',
+                                                            columnWidths[15],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Remaining',
+                                                            columnWidths[16],
+                                                          ),
+                                                          _buildHeaderCell(
+                                                            'Payment Terms',
+                                                            columnWidths[17],
+                                                            sortColumn:
+                                                                'paymentTerms',
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    height: 360,
+                                                    child: ValueListenableBuilder<bool>(
+                                                      valueListenable:
+                                                          _isLoadingMoreNotifier,
+                                                      builder: (context, isLoadingMore, _) {
+                                                        return Scrollbar(
                                                           controller:
                                                               _verticalScrollController,
                                                           thumbVisibility: true,
@@ -1680,77 +3458,60 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                                   _verticalScrollController,
                                                               itemCount:
                                                                   filtered
-                                                                      .length,
-
-                                                              addRepaintBoundaries:
-                                                                  true,
-                                                              addAutomaticKeepAlives:
-                                                                  false,
-                                                              cacheExtent: 300,
-
+                                                                      .length +
+                                                                  (isLoadingMore
+                                                                      ? 1
+                                                                      : 0),
                                                               itemBuilder: (context, index) {
-                                                                return ValueListenableBuilder<
-                                                                  List<bool>
-                                                                >(
-                                                                  valueListenable:
-                                                                      _selectedRowsNotifier,
-                                                                  builder:
-                                                                      (
-                                                                        context,
-                                                                        selectedRows,
-                                                                        _,
-                                                                      ) {
-                                                                        final bool
-                                                                        isSelected =
-                                                                            selectedRows.isNotEmpty &&
-                                                                            index <
-                                                                                selectedRows.length &&
-                                                                            selectedRows[index];
+                                                                /// Loader row
+                                                                if (index >=
+                                                                    filtered
+                                                                        .length) {
+                                                                  return Container(
+                                                                    height:
+                                                                        70, // important: ensures loader space
+                                                                    alignment:
+                                                                        Alignment
+                                                                            .center,
+                                                                    child: const CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2,
+                                                                    ),
+                                                                  );
+                                                                }
 
-                                                                        return RepaintBoundary(
-                                                                          child: Container(
-                                                                            height:
-                                                                                60.0,
-                                                                            color:
-                                                                                isSelected
-                                                                                ? Colors.blue.shade50
-                                                                                : (index.isEven
-                                                                                      ? Colors.white
-                                                                                      : Colors.grey.shade50),
+                                                                final outgoing =
+                                                                    filtered[index];
 
-                                                                            child: _buildDataRow(
-                                                                              index,
-                                                                              filtered[index],
-                                                                              grnMap,
-                                                                              apMap,
-                                                                              columnWidths,
-                                                                            ),
-                                                                          ),
-                                                                        );
-                                                                      },
+                                                                return _buildDataRow(
+                                                                  index,
+                                                                  outgoing,
+                                                                  grnMap,
+                                                                  apMap,
+                                                                  columnWidths,
                                                                 );
                                                               },
                                                             ),
                                                           ),
-                                                        ),
-                                                      ),
-                                                    ],
+                                                        );
+                                                      },
+                                                    ),
                                                   ),
-                                                ),
+                                                ],
                                               ),
-                                            ],
+                                            ),
                                           ),
-                                        );
-                                      },
+                                        ],
+                                      ),
                                     );
                                   },
-                                ),
-                              ],
+                                );
+                              },
                             ),
-                          ),
+                          ],
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   );
                 },
               );

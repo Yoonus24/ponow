@@ -149,8 +149,7 @@ class _DiscountSectionState extends State<DiscountSection> {
           item.totalPrice = baseAmount;
           item.pendingTotalPrice = baseAmount;
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
     notifier.overallDiscountAmount = 0.0;
     notifier.overallDiscountValue = 0.0;
@@ -373,16 +372,16 @@ class _DiscountSectionState extends State<DiscountSection> {
     } catch (_) {}
   }
 
-  double get actualItemWiseDiscount {
-    double total = 0.0;
-    for (var item in widget.poItems) {
-      total += _getItemProperty(item, 'befTaxDiscountAmount') ?? 0.0;
-      if (widget.discountMode.value == DiscountMode.none) {
-        total += _getItemProperty(item, 'afTaxDiscountAmount') ?? 0.0;
-      }
-    }
-    return total;
-  }
+  // double get actualItemWiseDiscount {
+  //   double total = 0.0;
+  //   for (var item in widget.poItems) {
+  //     total += _getItemProperty(item, 'befTaxDiscountAmount') ?? 0.0;
+  //     if (widget.discountMode.value == DiscountMode.none) {
+  //       total += _getItemProperty(item, 'afTaxDiscountAmount') ?? 0.0;
+  //     }
+  //   }
+  //   return total;
+  // }
 
   double get totalTaxAmount {
     return widget.poItems.fold(
@@ -429,6 +428,12 @@ class _DiscountSectionState extends State<DiscountSection> {
 
       _lastAppliedDiscount = discountValue;
       _lastAppliedMode = mode;
+
+      // ✅ CLEAR FIELD AFTER APPLY
+      widget.overallDiscountController.clear();
+
+      // ✅ DISABLE FIELD & BUTTON
+      widget.notifier.isOverallDiscountActive = false;
 
       widget.notifier.calculateTotals();
       widget.onCalculationsUpdate();
@@ -522,11 +527,15 @@ class _DiscountSectionState extends State<DiscountSection> {
                 final isEnabled = mode != DiscountMode.none;
                 return Switch(
                   value: isEnabled,
-                  onChanged: widget.notifier.isOverallDisabledFromItem == true
+                  onChanged: (widget.notifier.hasItemWiseDiscount)
                       ? null
                       : (val) {
                           if (val) {
                             widget.discountMode.value = DiscountMode.percentage;
+                            widget.notifier.isOverallDiscountActive = true;
+
+                            widget.notifier.isOverallDisabledFromItem = true;
+
                             _showInlineAlert.value = true;
                             Future.delayed(const Duration(seconds: 3), () {
                               if (mounted) {
@@ -536,12 +545,17 @@ class _DiscountSectionState extends State<DiscountSection> {
                           } else {
                             widget.discountMode.value = DiscountMode.none;
                             widget.overallDiscountController.text = "0";
+
+                            widget.notifier.isOverallDiscountActive = false;
+
+                            widget.notifier.isOverallDisabledFromItem = false;
+
                             _showInlineAlert.value = false;
                           }
 
+                          widget.notifier.notifyListeners();
                           widget.onCalculationsUpdate();
                         },
-
                   activeThumbColor: Colors.blue,
                 );
               },
@@ -685,7 +699,8 @@ class _DiscountSectionState extends State<DiscountSection> {
               flex: 2,
               child: GestureDetector(
                 onTap: () {
-                  if (mode != DiscountMode.none) {
+                  if (mode != DiscountMode.none &&
+                      widget.notifier.isOverallDiscountActive) {
                     _openNumericKeyboard(
                       title: mode == DiscountMode.percentage
                           ? "Discount Percentage"
@@ -707,7 +722,9 @@ class _DiscountSectionState extends State<DiscountSection> {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       suffixText: mode == DiscountMode.percentage ? "%" : "₹",
-                      enabled: mode != DiscountMode.none,
+                      enabled:
+                          mode != DiscountMode.none &&
+                          widget.notifier.isOverallDiscountActive,
                       contentPadding: const EdgeInsets.all(12),
                     ),
                   ),
@@ -716,6 +733,7 @@ class _DiscountSectionState extends State<DiscountSection> {
             ),
 
             const SizedBox(width: 8),
+
             Expanded(
               flex: 2,
               child: ValueListenableBuilder<String?>(
@@ -774,12 +792,16 @@ class _DiscountSectionState extends State<DiscountSection> {
             ),
 
             const SizedBox(width: 8),
+
             Expanded(
               flex: 1,
               child: SizedBox(
                 height: 48,
                 child: ElevatedButton(
-                  onPressed: _isApplying ? null : _handleApplyDiscount,
+                  onPressed:
+                      (_isApplying || !widget.notifier.isOverallDiscountActive)
+                      ? null
+                      : _handleApplyDiscount,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,

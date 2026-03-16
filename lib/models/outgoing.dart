@@ -244,7 +244,7 @@ class Outgoing {
       );
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('❌ Error parsing Outgoing: $e');
+
       }
       rethrow;
     }

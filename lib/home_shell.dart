@@ -89,7 +89,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       CommonAppBar.selectedLabel.value = "Home";
       _onTabChanged(0);
     } catch (e) {
-      debugPrint("Create PO dialog error: $e");
+
     } finally {
       if (mounted) {
         _isOpeningCreatePO.value = false;

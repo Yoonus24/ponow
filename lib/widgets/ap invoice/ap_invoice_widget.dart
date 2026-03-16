@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/pdfs/apinvoice_pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import '../../widgets/ap invoice/ap_invoice_model.dart';
 import 'package:purchaseorders2/models/globals.dart' as globals;
 
@@ -141,7 +143,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 2,
-                  softWrap: true, 
+                  softWrap: true,
                   overflow: TextOverflow.visible,
                 ),
               ),
@@ -150,11 +152,20 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.remove_red_eye, color: Colors.white),
-                    onPressed: () {
-                      showDialog(
+                    onPressed: () async {
+                      final result = await showDialog(
                         context: context,
                         builder: (_) => APInvoiceModal(apinvoice: apinvoice),
                       );
+
+                      // refresh AP list if invoice returned
+                      if (result == true && context.mounted) {
+                        await context.read<APInvoiceProvider>().fetchAPInvoices(
+                          status: "Outgoing Posted",
+                          skip: 0,
+                          limit: 50,
+                        );
+                      }
                     },
                   ),
                   IconButton(
@@ -191,7 +202,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
               ),
               Expanded(
                 child: Text(
-                  "Date: ${_formatDate(apinvoice.invoiceDate)}",
+                  "Date: ${_formatDate(apinvoice.apinvoiceDate)}",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -206,8 +217,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
       ),
     );
   }
-
-
 
   String _formatStatus(String? status) {
     if (status == null) return "Unknown";
@@ -229,7 +238,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
         return status;
     }
   }
-
 
   Widget _buildTable(ApInvoice apinvoice) {
     final items = apinvoice.itemDetails ?? [];
@@ -253,7 +261,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
 
     return Row(
       children: [
-      
         SizedBox(
           width: 150,
           child: Column(
@@ -360,7 +367,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
- 
   String _getValue(String col, dynamic item) {
     switch (col) {
       case "UOM":

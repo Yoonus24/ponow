@@ -120,7 +120,7 @@ class ApprovedPOLogic {
       _dialogMessengerKey;
 
   void initialize() {
-    normalizePoDiscountsForApproval();
+    // normalizePoDiscountsForApproval();
     _initializeControllers();
     _setupScrollSync();
 
@@ -160,6 +160,11 @@ class ApprovedPOLogic {
         receivedQtyController[item]!.text = qtyToLoad.toStringAsFixed(2);
       }
     }
+    final now = ServerTimeService.now;
+    invoiceDateController.text =
+        '${now.day.toString().padLeft(2, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.year}';
   }
 
   bool validateRoundOff() {
@@ -180,15 +185,19 @@ class ApprovedPOLogic {
     for (final res in items) {
       final item = po.items.firstWhere((i) => i.itemId == res["itemId"]);
 
+      /// BEFORE TAX DISCOUNT
       item.pendingBefTaxDiscountAmount =
           (res["pendingBefTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
+      /// AFTER TAX DISCOUNT
       item.pendingAfTaxDiscountAmount =
           (res["pendingAfTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
+      /// TOTAL DISCOUNT
       item.pendingDiscountAmount =
           (res["pendingDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
+      /// TAX
       item.pendingTaxAmount =
           (res["pendingTaxAmount"] as num?)?.toDouble() ?? 0.0;
 
@@ -198,10 +207,25 @@ class ApprovedPOLogic {
 
       item.pendingIgst = (res["pendingIgst"] as num?)?.toDouble() ?? 0.0;
 
+      /// FINAL PRICE
       item.pendingFinalPrice =
           (res["pendingFinalPrice"] as num?)?.toDouble() ?? 0.0;
+
+      /// IMPORTANT FIX
+      /// Save discount percentages so GRN conversion works
+
+      item.befTaxDiscount =
+          (res["befTaxDiscount"] as num?)?.toDouble() ??
+          item.befTaxDiscount ??
+          0.0;
+
+      item.afTaxDiscount =
+          (res["afTaxDiscount"] as num?)?.toDouble() ??
+          item.afTaxDiscount ??
+          0.0;
     }
 
+    /// SUMMARY UPDATE
     final summary = data["summary"] ?? {};
 
     po.pendingDiscountAmount =
@@ -213,6 +237,7 @@ class ApprovedPOLogic {
     po.totalOrderAmount =
         (summary["totalFinalAmount"] as num?)?.toDouble() ?? 0.0;
 
+    /// REFRESH UI
     onUpdated();
   }
 
@@ -225,9 +250,10 @@ class ApprovedPOLogic {
     }
 
     try {
-      _approvedExtraDiscount += entered;
+      _approvedExtraDiscount = entered;
 
-      final double totalDiscount = _poBaseDiscount + _approvedExtraDiscount;
+      /// ✅ IMPORTANT FIX
+      final double totalDiscount = _poBaseDiscount + entered;
 
       final response = await poProvider.calculateGrnOverallDiscount(
         items: po.items.map((item) {
@@ -235,13 +261,13 @@ class ApprovedPOLogic {
             "itemId": item.itemId,
             "receivedQuantity": item.receivedQuantity ?? item.quantity,
             "grnPrice": item.newPrice,
-            "befTaxDiscount": 0.0,
-            "afTaxDiscount": 0.0,
+            "befTaxDiscount": 0,
+            "afTaxDiscount": 0,
             "taxPercentage": item.taxPercentage ?? 0.0,
             "taxType": item.taxType ?? "cgst_sgst",
           };
         }).toList(),
-        discountAmount: totalDiscount, // ✅ IMPORTANT
+        discountAmount: totalDiscount,
         discountType: isBefTaxDiscount.value ? "before" : "after",
       );
 
@@ -250,10 +276,8 @@ class ApprovedPOLogic {
         return;
       }
 
-      // ✅ APPLY RESPONSE
       _applyDiscountResponseToItems(response);
 
-      // ✅ Update PO summary
       po.pendingDiscountAmount =
           (response["summary"]["totalDiscountAmount"] as num?)?.toDouble() ??
           0.0;
@@ -290,25 +314,28 @@ class ApprovedPOLogic {
   }
 
   double get receivedSubTotal {
-    return po.items.fold(
-      0.0,
-      (sum, i) => sum + (i.pendingTotalPrice ?? i.totalPrice ?? 0.0),
-    );
+    return po.items.fold(0.0, (sum, i) => sum + (i.pendingTotalPrice ?? 0.0));
+  }
+
+  double get pendingDiscountFromItems {
+    return po.pendingDiscountAmount ?? 0.0;
   }
 
   double get totalFreightAmount {
-    final base =
-        (po.totalFreightAmount ?? 0.0) + (po.totalFreightTaxAmount ?? 0.0);
-
-    return base + addedFreightAmount + addedFreightTaxAmount;
+    return (po.totalFreightAmount ?? 0.0) + (po.totalFreightTaxAmount ?? 0.0);
   }
 
   double get receivedFinalAmount {
-    final discount = po.pendingDiscountAmount ?? 0.0;
-    final tax = po.pendingTaxAmount ?? 0.0;
-    final roundOff = roundOffAmount.value;
+    final double itemsFinal = po.items.fold(
+      0.0,
+      (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
+    );
 
-    return receivedSubTotal - discount + tax + totalFreightAmount + roundOff;
+    return itemsFinal + totalFreightAmount + roundOffAmount.value;
+  }
+
+  double get itemTaxAmount {
+    return po.pendingTaxAmount ?? 0.0;
   }
 
   void recalculateFinalAmountAfterDiscount() {
@@ -358,7 +385,7 @@ class ApprovedPOLogic {
 
       final response = await poProvider.calculateGrnOverallDiscount(
         items: itemsPayload,
-        discountAmount: _poBaseDiscount,
+        discountAmount: 0,
         discountType: "after",
       );
 
@@ -518,13 +545,10 @@ class ApprovedPOLogic {
     expiryDateErrors.clear();
 
     for (var item in po.items) {
-      // ✅ FIX: Ensure count is never 0
       final count = item.pendingCount ?? item.count ?? 1;
 
-      // ✅ FIX: Ensure quantity fallback
       final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
 
-      // ✅ FIX: Always calculate properly
       item.pendingCount = count;
       item.pendingQuantity = qty;
       item.pendingTotalQuantity = count * qty;
@@ -541,15 +565,7 @@ class ApprovedPOLogic {
 
       expiryDateErrors[item] = ValueNotifier<String?>(null);
 
-      double defaultReceived = 0.0;
-
-      if ((item.receivedQuantity ?? 0) > 0) {
-        defaultReceived = item.receivedQuantity ?? 0.0;
-      } else if ((item.pendingTotalQuantity ?? 0) > 0) {
-        defaultReceived = item.pendingTotalQuantity ?? 0.0;
-      } else if ((item.poQuantity ?? 0) > 0) {
-        defaultReceived = item.poQuantity ?? 0.0;
-      }
+      double defaultReceived = item.receivedQuantity ?? 0.0;
 
       receivedQtyController[item] = TextEditingController(
         text: defaultReceived.toStringAsFixed(2),
@@ -875,14 +891,13 @@ class ApprovedPOLogic {
                 try {
                   await poProvider.changePoStatusToPending(po.purchaseOrderId);
 
+                  await poProvider.applyCurrentFilters();
+
                   if (context.mounted) {
                     Navigator.of(context).pop();
-
                     Navigator.of(context).pop();
 
-                    Future.delayed(const Duration(milliseconds: 100), () {
-                      onUpdated();
-                    });
+                    onUpdated();
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -893,7 +908,7 @@ class ApprovedPOLogic {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    Navigator.of(context).pop(); 
+                    Navigator.of(context).pop();
 
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -921,79 +936,43 @@ class ApprovedPOLogic {
     try {
       isSaving.value = true;
 
+      debugPrint("=========== GRN CONVERSION START ===========");
+
       if (!validateForm()) {
         isSaving.value = false;
         return;
       }
 
+      /// SHOW LOADER
       showDialog(
-        context: Navigator.of(context, rootNavigator: true).context,
-
-        useRootNavigator: true,
+        context: context,
         barrierDismissible: false,
+        useRootNavigator: true,
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
       normalizeBeforeApi();
-      await poProvider.updatePO(
-        po.copyWith(
-          items: po.items.map((item) {
-            final double resolvedPoQuantity =
-                (item.poQuantity != null && item.poQuantity! > 0)
-                ? item.poQuantity!
-                : ((item.count ?? 1) * (item.eachQuantity ?? 0));
 
-            return item.copyWith(poQuantity: resolvedPoQuantity);
-          }).toList(),
-        ),
-      );
-
-      final double overallDiscount =
-          po.pendingDiscountAmount ?? po.overallDiscountValue ?? 0.0;
-
-      Map<String, dynamic>? discountResult;
-
-      if (overallDiscount > 0) {
-        discountResult = await poProvider.calculateGrnOverallDiscount(
-          items: po.items.map((item) {
-            return {
-              "itemId": item.itemId,
-              "receivedQuantity": item.receivedQuantity ?? item.quantity,
-              "grnPrice": item.newPrice,
-              "befTaxDiscount": 0.0,
-              "afTaxDiscount": 0.0,
-              "taxPercentage": item.taxPercentage ?? 0.0,
-              "taxType": item.taxType ?? "cgst_sgst",
-            };
-          }).toList(),
-          discountAmount: overallDiscount,
-          discountType: "after",
-        );
-      }
-
+      /// PREPARE ITEMS
       final List<Item> receivedItems = po.items.map((item) {
-        final calculatedItem = discountResult?["items"]?.firstWhere(
-          (e) => e["itemId"] == item.itemId,
-          orElse: () => null,
-        );
-
         return item.copyWith(
-          receivedQuantity: item.receivedQuantity ?? item.quantity,
-          befTaxDiscount: calculatedItem?["befTaxDiscount"] ?? 0.0,
-          afTaxDiscount: calculatedItem?["afTaxDiscount"] ?? 0.0,
+          receivedQuantity: item.receivedQuantity ?? 0,
+          befTaxDiscount: item.befTaxDiscount ?? 0,
+          afTaxDiscount: item.afTaxDiscount ?? 0,
           befTaxDiscountType: "percentage",
           afTaxDiscountType: "percentage",
           expiryDate: item.expiryDate,
         );
       }).toList();
 
+      /// PARSE INVOICE DATE
       final pickedDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
 
       final now = ServerTimeService.now;
 
-      final DateTime parsedInvoiceDate = DateTime(
+      final parsedInvoiceDate = DateTime(
         pickedDate.year,
         pickedDate.month,
         pickedDate.day,
@@ -1002,12 +981,13 @@ class ApprovedPOLogic {
         now.second,
       );
 
+      /// MAIN API CALL (CREATES GRN)
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
         invoiceNumberController.text.trim(),
         parsedInvoiceDate,
-        overallDiscount,
+        0,
         roundOffAdjustment: roundOffAmount.value,
       );
 
@@ -1015,36 +995,32 @@ class ApprovedPOLogic {
         throw Exception("GRN creation failed");
       }
 
-      await poProvider.convertPoToGrn(
-        context,
-        po.purchaseOrderId,
-        invoiceNumberController.text.trim(),
-        overallDiscount,
-        response["grnId"],
-        roundOffAdjustment: roundOffAmount.value,
-      );
+      debugPrint("✅ GRN CREATED: ${response["grnId"]}");
 
-      await poProvider.applyCurrentFilters();
-      await grnProvider.fetchFilteredGRNs();
-
+      /// CLOSE LOADER + DIALOG IMMEDIATELY
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        Navigator.of(context, rootNavigator: true).pop(); // loader
+        Navigator.of(context).pop(); // ApprovedPO dialog
       }
-      ScaffoldMessenger.of(
-        Navigator.of(context, rootNavigator: true).context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text("PO converted to GRN successfully!"),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
-        ),
-      );
 
-      await Future.delayed(const Duration(milliseconds: 300));
+      /// REFRESH LISTS IN BACKGROUND (DO NOT WAIT)
+      Future.microtask(() {
+        poProvider.fetchPOsWithFilters(
+          status: "Approved,PartiallyReceived",
+          clearExisting: true,
+        );
 
+        grnProvider.fetchFilteredGRNs();
+      });
+
+      /// SUCCESS MESSAGE
       if (context.mounted) {
-        Navigator.of(context).pop(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("PO converted to GRN successfully!"),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e, stack) {
       debugPrint("❌ Convert PO to GRN failed: $e");
@@ -1058,27 +1034,24 @@ class ApprovedPOLogic {
         const SnackBar(
           content: Text("Failed to convert PO to GRN"),
           backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.fromLTRB(16, 0, 16, 100),
         ),
       );
     } finally {
       isSaving.value = false;
     }
   }
+  // void normalizePoDiscountsForApproval() {
+  //   for (var item in po.items) {
+  //     item.befTaxDiscount = 0.0;
+  //     item.afTaxDiscount = 0.0;
 
-  void normalizePoDiscountsForApproval() {
-    for (var item in po.items) {
-      item.befTaxDiscount = 0.0;
-      item.afTaxDiscount = 0.0;
-
-      item.befTaxDiscountAmount = 0.0;
-      item.afTaxDiscountAmount = 0.0;
-      item.discountAmount = 0.0;
-    }
-    _poBaseDiscount = po.pendingDiscountAmount ?? 0.0;
-    _approvedExtraDiscount = 0.0;
-  }
+  //     item.befTaxDiscountAmount = 0.0;
+  //     item.afTaxDiscountAmount = 0.0;
+  //     item.discountAmount = 0.0;
+  //   }
+  //   _poBaseDiscount = po.pendingDiscountAmount ?? 0.0;
+  //   _approvedExtraDiscount = 0.0;
+  // }
 
   void resetPoDiscountsForApproval() {
     for (var item in po.items) {
@@ -1149,14 +1122,19 @@ class ApprovedPOLogic {
   String getOrderedItemValue(Item item, String column) {
     switch (column) {
       case 'Count':
-        final count = (item.poQuantity ?? 0) / (item.eachQuantity ?? 1);
+        final count = item.pendingCount ?? item.count ?? 0;
         return count.toStringAsFixed(2);
 
       case 'Qty':
-        return (item.eachQuantity ?? 0).toStringAsFixed(2);
+        final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
+        return qty.toStringAsFixed(2);
 
       case 'Total':
-        return (item.poQuantity ?? 0).toStringAsFixed(2);
+        final totalQty =
+            item.pendingTotalQuantity ??
+            item.poQuantity ??
+            ((item.count ?? 0) * (item.eachQuantity ?? 0));
+        return totalQty.toStringAsFixed(2);
 
       case 'Price':
         return (item.newPrice ?? 0).toStringAsFixed(2);
@@ -1171,21 +1149,20 @@ class ApprovedPOLogic {
         return (item.taxPercentage ?? 0).toStringAsFixed(2);
 
       case 'Total Price':
-        final total =
+        final totalPrice =
+            item.pendingTotalPrice ??
             item.poQuantitypendingTotalPrice ??
-            (item.poQuantity ?? 0) * (item.newPrice ?? 0);
-        return total.toStringAsFixed(2);
+            ((item.pendingTotalQuantity ?? item.poQuantity ?? 0) *
+                (item.newPrice ?? 0));
+        return totalPrice.toStringAsFixed(2);
 
       case 'Final':
-        final subtotal = (item.poQuantity ?? 0) * (item.newPrice ?? 0);
-
-        final tax =
-            item.poQuantityTaxAmount ??
-            (subtotal * (item.taxPercentage ?? 0) / 100);
-
-        final finalVal = item.poQuantitypendingFinalPrice ?? (subtotal + tax);
-
-        return finalVal.toStringAsFixed(2);
+        final finalPrice =
+            item.pendingFinalPrice ??
+            item.poQuantitypendingFinalPrice ??
+            item.finalPrice ??
+            0.0;
+        return finalPrice.toStringAsFixed(2);
 
       default:
         return '';

@@ -4,8 +4,7 @@
 // import 'package:flutter/material.dart';
 // import 'package:camera/camera.dart';
 // import 'package:image/image.dart' as img;
-// import 'package:path_provider/path_provider.dart';
-// import 'package:path/path.dart' as p;
+// // import 'package:path/path.dart' as p;
 // import 'dart:io';
 // import 'package:permission_handler/permission_handler.dart';
 // import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -1175,8 +1174,7 @@
 // // import 'package:flutter/material.dart';
 // // import 'package:camera/camera.dart';
 // // import 'package:image/image.dart' as img;
-// // import 'package:path_provider/path_provider.dart';
-// // import 'package:path/path.dart' as p;
+// // // // import 'package:path/path.dart' as p;
 // // import 'dart:io';
 // // import 'package:permission_handler/permission_handler.dart';
 // // import 'package:googleapis/vision/v1.dart' as vision;

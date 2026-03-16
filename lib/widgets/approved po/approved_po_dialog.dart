@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_logic.dart';
@@ -44,13 +45,22 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Future<void> _showConvertToGRNConfirmation() async {
-    if (!mounted) return;
+    print("🟢 _showConvertToGRNConfirmation START");
+
+    if (!mounted) {
+      print("⚠️ Widget not mounted. Aborting dialog.");
+      return;
+    }
+
+    print("📢 Showing confirmation dialog...");
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) {
+        print("🪟 Dialog builder executed");
+
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
@@ -72,7 +82,10 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           actionsAlignment: MainAxisAlignment.end,
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
+              onPressed: () {
+                print("❌ User pressed CANCEL");
+                Navigator.of(ctx).pop(false);
+              },
               style: TextButton.styleFrom(
                 foregroundColor: Colors.blueAccent,
                 padding: const EdgeInsets.symmetric(
@@ -87,7 +100,12 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
+              onPressed: () {
+                print("✅ User pressed CONFIRM");
+                Navigator.of(ctx).pop(true);
+                // print("⚙️ Calling convertPoToGRN()");
+                // _logic.convertPoToGRN(context);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
@@ -110,13 +128,25 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       },
     );
 
-    if (!mounted) return;
+    print("📥 Dialog result: $confirmed");
+
+    if (!mounted) {
+      print("⚠️ Widget unmounted after dialog");
+      return;
+    }
 
     if (confirmed == true && mounted) {
+      print("🚀 User confirmed. Starting PO → GRN conversion");
+
       Future.microtask(() {
+        print("⚙️ Calling convertPoToGRN()");
         _logic.convertPoToGRN(context);
       });
+    } else {
+      print("⛔ Conversion cancelled by user");
     }
+
+    print("🏁 _showConvertToGRNConfirmation END");
   }
 
   void _openFreightDialog() {
@@ -146,10 +176,11 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               );
 
               _logic.recalculateFinalAmountAfterDiscount();
-
               _logic.refreshUI();
 
-              Navigator.of(dialogContext).pop();
+              if (Navigator.canPop(dialogContext)) {
+                Navigator.pop(dialogContext);
+              }
             } catch (e) {
               debugPrint("Freight update error: $e");
             }
@@ -255,18 +286,32 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildInvoiceNumberField() {
-    return ValueListenableBuilder(
+    return ValueListenableBuilder<String?>(
       valueListenable: _logic.invoiceValidationMessage,
       builder: (context, error, _) {
         return TextFormField(
           controller: _logic.invoiceNumberController,
           style: const TextStyle(fontSize: 11),
+          maxLength: 50,
+          inputFormatters: [
+            LengthLimitingTextInputFormatter(50),
+            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-_\/]')),
+          ],
+          buildCounter:
+              (
+                context, {
+                required int currentLength,
+                required bool isFocused,
+                int? maxLength,
+              }) => null,
+
           decoration: InputDecoration(
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(
               vertical: 7,
               horizontal: 6,
             ),
+
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(3),
               borderSide: BorderSide(
@@ -274,6 +319,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 width: error != null ? 2.0 : 1.0,
               ),
             ),
+
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(3),
               borderSide: BorderSide(
@@ -281,24 +327,49 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 width: error != null ? 2.0 : 1.0,
               ),
             ),
+
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(3),
               borderSide: BorderSide(
-                color: error != null ? Colors.red : Colors.grey.shade400,
+                color: error != null ? Colors.red : Colors.blueAccent,
                 width: error != null ? 2.0 : 1.0,
               ),
             ),
+
             hintText: "Invoice No",
             hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
           ),
+
           onChanged: (value) {
-            if (value.trim().isNotEmpty) {
-              _logic.invoiceValidationMessage.value = null;
-            }
+            _validateInvoiceNumber(value);
           },
         );
       },
     );
+  }
+
+  void _validateInvoiceNumber(String value) {
+    final trimmed = value.trim();
+
+    if (trimmed.isEmpty) {
+      _logic.invoiceValidationMessage.value = null;
+      return;
+    }
+
+    if (trimmed.length > 50) {
+      _logic.invoiceValidationMessage.value = "Maximum 50 characters allowed";
+      return;
+    }
+
+    final regex = RegExp(r'^[A-Za-z0-9\-_/]+$');
+
+    if (!regex.hasMatch(trimmed)) {
+      _logic.invoiceValidationMessage.value =
+          "Only letters, numbers, -, /, _ allowed";
+      return;
+    }
+
+    _logic.invoiceValidationMessage.value = null;
   }
 
   Widget _buildInvoiceDateField() {
@@ -589,12 +660,10 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
 
             _summaryRow(
               isOrdered ? "Pending Discount" : "Received Discount",
-              po.pendingDiscountAmount,
+              _logic.pendingDiscountFromItems,
             ),
             _summaryRow("Freight", _logic.totalFreightAmount),
-
-            _summaryRow("Tax", po.pendingTaxAmount),
-
+            _summaryRow("Tax", _logic.itemTaxAmount),
             _summaryRow("Round Off", _logic.roundOffAmount.value),
             _summaryRow(
               "Final Amount",

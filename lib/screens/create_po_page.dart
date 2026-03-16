@@ -604,6 +604,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       location: notifier.selectedLocation,
       locationName: notifier.selectedLocationName,
       items: notifier.poItems,
+      freights: notifier.freights,
       totalOrderAmount: notifier.totalOrderAmount,
       pendingOrderAmount: notifier.pendingOrderAmount,
       pendingDiscountAmount: notifier.pendingDiscountAmount,

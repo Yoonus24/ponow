@@ -4,8 +4,7 @@
 // import 'package:camera/camera.dart';
 // import 'package:image/image.dart' as img;
 // import 'package:pdf/widgets.dart' as pw;
-// import 'package:path_provider/path_provider.dart';
-// import 'package:path/path.dart' as p;
+// // import 'package:path/path.dart' as p;
 // import 'package:permission_handler/permission_handler.dart';
 // import 'package:printing/printing.dart';
 // import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -674,5 +673,3 @@
 //     }
 //   }
 // }
-
-

@@ -20,24 +20,64 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   final TextEditingController vendorCtrl = TextEditingController();
   final TextEditingController dateCtrl = TextEditingController();
   final ValueNotifier<bool> isInitialized = ValueNotifier(false);
-  final ValueNotifier<DateTime?> selectedDate = ValueNotifier(null);
+  final ValueNotifier<DateTimeRange?> selectedDateRange = ValueNotifier(null);
   final ValueNotifier<String> vendorName = ValueNotifier("");
   TextEditingController? _autoVendorCtrl;
-
+  final ScrollController _scrollController = ScrollController();
   final int skip = 0;
   final int limit = 50;
   Timer? _vendorDebounce;
+  List<String> _allVendors = [];
+  List<String> _displayedVendors = [];
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initializeData());
+
+    _scrollController.addListener(() {
+      final provider = context.read<POProvider>();
+
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        if (!provider.isLoading && provider.pos.length >= 50) {
+          provider.fetchPOsWithFilters(
+            status: "Approved,PartiallyReceived",
+            vendorName: vendorName.value.isNotEmpty ? vendorName.value : null,
+            fromDate: selectedDateRange.value?.start,
+            toDate: selectedDateRange.value?.end,
+            filterByField: "orderDate",
+            skip: provider.pos.length,
+            append: true,
+          );
+        }
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      final provider = context.read<POProvider>();
+
+      await provider.fetchApprovedPOsOnly();
+
+      if (_allVendors.isEmpty) {
+        final vendors = await provider.fetchingAllVendors(
+          vendorName: '',
+          skip: 0,
+          limit: 5000,
+        );
+        _allVendors = vendors.map((e) => e.vendorName).toList();
+        _displayedVendors = List.from(_allVendors);
+      }
+
+      isInitialized.value = true;
+    });
   }
 
   Future<void> _onRefresh() async {
     final provider = context.read<POProvider>();
 
-    if (vendorName.value.isNotEmpty || selectedDate.value != null) {
+    if (vendorName.value.isNotEmpty || selectedDateRange.value != null) {
       await _applyFilters();
     } else {
       await provider.fetchApprovedPOsOnly();
@@ -45,10 +85,24 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   }
 
   Future<void> _initializeData() async {
-    final provider = Provider.of<POProvider>(context, listen: false);
+    final provider = context.read<POProvider>();
 
-    await provider.fetchApprovedPOsOnly();
-    await provider.fetchingVendors(vendorName: "", skip: skip, limit: limit);
+    isInitialized.value = false;
+
+    if (provider.pos.isEmpty && !provider.isLoading) {
+      await provider.fetchApprovedPOsOnly();
+    }
+
+    if (_allVendors.isEmpty) {
+      final vendors = await provider.fetchingAllVendors(
+        vendorName: '',
+        skip: 0,
+        limit: 5000,
+      );
+
+      _allVendors = vendors.map((e) => e.vendorName).toList();
+      _displayedVendors = List.from(_allVendors);
+    }
 
     isInitialized.value = true;
   }
@@ -58,31 +112,53 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     _vendorDebounce?.cancel();
     vendorCtrl.dispose();
     dateCtrl.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
+  void _searchVendor(String query) {
+    final q = query.toLowerCase().trim();
+
+    if (q.isEmpty) {
+      _displayedVendors = List.from(_allVendors);
+      return;
+    }
+
+    _displayedVendors = _allVendors
+        .where((v) => v.toLowerCase().contains(q))
+        .toList();
+  }
+
   Future<void> _applyFilters() async {
-    final provider = Provider.of<POProvider>(context, listen: false);
+    final provider = context.read<POProvider>();
 
     DateTime? fromDate;
     DateTime? toDate;
 
-    if (selectedDate.value != null) {
-      fromDate = selectedDate.value;
-      toDate = selectedDate.value!.add(const Duration(days: 1));
+    if (selectedDateRange.value != null) {
+      final range = selectedDateRange.value!;
+
+      fromDate = DateTime(range.start.year, range.start.month, range.start.day);
+
+      // include the full end day
+      toDate = DateTime(
+        range.end.year,
+        range.end.month,
+        range.end.day,
+      ).add(const Duration(days: 1));
     }
 
     await provider.fetchPOsWithFilters(
-      status: "Approved",
+      status: "Approved,PartiallyReceived",
       vendorName: vendorName.value.isNotEmpty ? vendorName.value : null,
       fromDate: fromDate,
       toDate: toDate,
-      filterByField: "approvedDate",
+      filterByField: "orderDate",
       clearExisting: true,
     );
   }
 
-  Future<void> _pickDate() async {
+  Future<void> _pickDateRange() async {
     DateTime initialDate;
 
     try {
@@ -91,24 +167,25 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
       initialDate = DateTime.now();
     }
 
-    final picked = await showDatePicker(
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: selectedDate.value ?? initialDate,
       firstDate: DateTime(2000),
       lastDate: initialDate,
+      initialDateRange: selectedDateRange.value,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              background: Colors.white,
+              primary: Colors.blueAccent, // header + selected range
+              onPrimary: Colors.white, // text on selected
+              onSurface: Colors.black, // normal text
               surface: Colors.white,
-              primary: Colors.blueAccent,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
             ),
             dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent, // Cancel / Save buttons
+              ),
             ),
           ),
           child: child!,
@@ -117,8 +194,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     );
 
     if (picked != null) {
-      selectedDate.value = picked;
-      dateCtrl.text = _fmt(picked);
+      selectedDateRange.value = picked;
+
+      dateCtrl.text = "${_fmt(picked.start)} → ${_fmt(picked.end)}";
+
       _applyFilters();
     }
   }
@@ -126,13 +205,14 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   void _clearVendor() {
     vendorCtrl.clear();
     _autoVendorCtrl?.clear();
+    _displayedVendors = List.from(_allVendors);
     vendorName.value = "";
     FocusScope.of(context).unfocus();
     _applyFilters();
   }
 
   void _clearDate() {
-    selectedDate.value = null;
+    selectedDateRange.value = null;
     dateCtrl.clear();
     _applyFilters();
   }
@@ -141,7 +221,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     vendorCtrl.clear();
     dateCtrl.clear();
     vendorName.value = "";
-    selectedDate.value = null;
+    selectedDateRange.value = null;
     _applyFilters();
   }
 
@@ -157,10 +237,17 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
             return SizedBox(
               height: 52,
               child: Autocomplete<String>(
-                optionsBuilder: (TextEditingValue text) {
-                  return provider.filteredVendorNames;
-                },
+                optionsBuilder: (value) {
+                  final query = value.text.toLowerCase().trim();
 
+                  if (query.isEmpty) {
+                    return _displayedVendors;
+                  }
+
+                  return _displayedVendors.where(
+                    (vendor) => vendor.toLowerCase().contains(query),
+                  );
+                },
                 onSelected: (selected) {
                   vendorCtrl.text = selected;
                   vendorName.value = selected;
@@ -225,35 +312,36 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                             ),
                     ),
                     onChanged: (v) {
-                      vendorName.value = v;
+                      _searchVendor(v);
 
-                      _vendorDebounce?.cancel();
-                      _vendorDebounce = Timer(
-                        const Duration(milliseconds: 500),
-                        () {
-                          if (v.isNotEmpty) {
-                            _applyFilters();
-                          }
-                        },
-                      );
+                      if (v.isEmpty) {
+                        vendorName.value = "";
+                        _applyFilters();
+                      }
                     },
                   );
                 },
 
                 optionsViewBuilder: (context, onSelected, options) {
+                  final optionList = options.toList();
+
                   return Align(
                     alignment: Alignment.topLeft,
                     child: Material(
-                      elevation: 4,
                       color: Colors.white,
+                      elevation: 4,
                       borderRadius: BorderRadius.circular(12),
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 240),
+                        constraints: BoxConstraints(
+                          maxHeight: optionList.length * 48.0 > 240
+                              ? 240
+                              : optionList.length * 48.0,
+                        ),
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(vertical: 6),
-                          itemCount: options.length,
-                          itemBuilder: (context, i) {
-                            final option = options.elementAt(i);
+                          itemCount: optionList.length,
+                          itemBuilder: (context, index) {
+                            final option = optionList[index];
                             return ListTile(
                               dense: true,
                               title: Text(
@@ -277,15 +365,15 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   }
 
   Widget _buildDateField() {
-    return ValueListenableBuilder<DateTime?>(
-      valueListenable: selectedDate,
+    return ValueListenableBuilder<DateTimeRange?>(
+      valueListenable: selectedDateRange,
       builder: (_, value, __) {
         return SizedBox(
           height: 52,
           child: TextField(
             controller: dateCtrl,
             readOnly: true,
-            onTap: _pickDate,
+            onTap: _pickDateRange,
             decoration: InputDecoration(
               labelText: "Date",
               labelStyle: TextStyle(color: Colors.grey[700]),
@@ -354,157 +442,118 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     return Scaffold(
       appBar: const CommonAppBar(title: "Approved Purchase Orders"),
 
-      body: RefreshIndicator(
-        color: Colors.blueAccent,
-        onRefresh: _onRefresh,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: RefreshIndicator(
+          color: Colors.blueAccent,
+          onRefresh: _onRefresh,
 
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _filters(),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _filters(),
 
-                    const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-                    ValueListenableBuilder<bool>(
-                      valueListenable: isInitialized,
-                      builder: (_, ready, __) {
-                        if (!ready) {
-                          return const Padding(
-                            padding: EdgeInsets.only(top: 120),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
+                  ValueListenableBuilder<bool>(
+                    valueListenable: isInitialized,
+                    builder: (_, ready, __) {
+                      if (!ready) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 120),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
 
-                        return Consumer<POProvider>(
-                          builder: (_, provider, __) {
-                            if (provider.isLoading && provider.pos.isEmpty) {
-                              return const Padding(
-                                padding: EdgeInsets.only(top: 120),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              );
-                            }
+                      return Consumer<POProvider>(
+                        builder: (_, provider, __) {
+                          if (provider.isLoading || !isInitialized.value) {
+                            return const Padding(
+                              padding: EdgeInsets.only(top: 120),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
 
-                            if (provider.error != null) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 120),
-                                child: Center(
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        "${provider.error}",
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                        ),
+                          if (provider.error != null) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 120),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      "${provider.error}",
+                                      style: const TextStyle(
+                                        color: Colors.grey,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            }
+                              ),
+                            );
+                          }
 
-                            final list = provider.pos.where((po) {
-                              if (po.poStatus != 'Approved' &&
-                                  po.poStatus != 'PartiallyReceived') {
-                                return false;
-                              }
+                          final list = provider.pos;
+                          if (list.isEmpty) {
+                            final hasFilters =
+                                vendorName.value.isNotEmpty ||
+                                selectedDateRange.value != null;
 
-                              if (vendorName.value.isNotEmpty) {
-                                final vendorMatch =
-                                    po.vendorName?.toLowerCase().contains(
-                                      vendorName.value.toLowerCase(),
-                                    ) ??
-                                    false;
-
-                                if (!vendorMatch) return false;
-                              }
-
-                              if (selectedDate.value != null) {
-                                final approvedDateStr = po.approvedDate;
-                                if (approvedDateStr == null ||
-                                    approvedDateStr.isEmpty) {
-                                  return false;
-                                }
-
-                                final approvedDate = DateTime.tryParse(
-                                  approvedDateStr,
-                                );
-                                if (approvedDate == null) return false;
-
-                                final selected = selectedDate.value!;
-                                final sameDay =
-                                    approvedDate.year == selected.year &&
-                                    approvedDate.month == selected.month &&
-                                    approvedDate.day == selected.day;
-
-                                if (!sameDay) return false;
-                              }
-
-                              return true;
-                            }).toList();
-
-                            if (list.isEmpty) {
-                              final hasFilters =
-                                  vendorName.value.isNotEmpty ||
-                                  selectedDate.value != null;
-
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 140),
-                                child: Center(
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        hasFilters
-                                            ? "No results for filters"
-                                            : "No approved POs Found",
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                        ),
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 140),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      hasFilters
+                                          ? "No results for filters"
+                                          : "No approved POs Found",
+                                      style: const TextStyle(
+                                        color: Colors.grey,
                                       ),
-                                      const SizedBox(height: 12),
-                                      if (hasFilters)
-                                        TextButton(
-                                          onPressed: _clearAll,
-                                          child: const Text(
-                                            "Clear Filters",
-                                            style: TextStyle(
-                                              color: Colors.blueAccent,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (hasFilters)
+                                      TextButton(
+                                        onPressed: _clearAll,
+                                        child: const Text(
+                                          "Clear Filters",
+                                          style: TextStyle(
+                                            color: Colors.blueAccent,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                    ],
-                                  ),
+                                      ),
+                                  ],
                                 ),
-                              );
-                            }
+                              ),
+                            );
+                          }
 
-                            return GridViewApproveWidget<PO>(
+                          return Expanded(
+                            child: GridViewApproveWidget<PO>(
                               items: list,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
+                              // shrinkWrap: true,
+                              // physics: const NeverScrollableScrollPhysics(),
                               itemBuilder: (_, i) => ApprovedPOWidget(
                                 po: list[i],
                                 poProvider: provider,
                               ),
                               fixedHeight: 220,
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

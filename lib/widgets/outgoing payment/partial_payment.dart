@@ -25,12 +25,22 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   final ValueNotifier<String> _errorMessageNotifier = ValueNotifier<String>('');
   Timer? _debounceTimer;
   late final FocusNode _searchFocusNode;
+  int _skip = 0;
+  final int _limit = 50;
+  final ValueNotifier<bool> _loadingMoreNotifier = ValueNotifier(false);
+  final ScrollController _verticalScrollController = ScrollController();
 
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _verticalScrollController.addListener(() {
+      if (_verticalScrollController.position.pixels >
+          _verticalScrollController.position.maxScrollExtent - 200) {
+        _loadMore();
+      }
+    });
     _searchFocusNode = FocusNode();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
@@ -46,6 +56,8 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     _errorMessageNotifier.dispose();
     _debounceTimer?.cancel();
     _searchFocusNode.dispose();
+    _verticalScrollController.dispose();
+    _loadingMoreNotifier.dispose();
     super.dispose();
   }
 
@@ -81,12 +93,16 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
       _isLoadingNotifier.value = true;
 
+      _skip = 0;
+
       await provider.fetchFilteredOutgoings(
         status: 'Partially Paid',
         filterBy: 'invoiceDate',
-        limit: 200,
+        skip: _skip,
+        limit: _limit,
       );
 
+      _skip += _limit;
       if (!mounted) return;
 
       _filteredPaymentsNotifier.value = provider.payments
@@ -103,6 +119,30 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     } finally {
       _isLoading = false;
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMoreNotifier.value) return;
+
+    _loadingMoreNotifier.value = true;
+
+    final provider = Provider.of<OutgoingPaymentProvider>(
+      context,
+      listen: false,
+    );
+
+    await provider.fetchFilteredOutgoings(
+      status: 'Partially Paid',
+      filterBy: 'invoiceDate',
+      skip: _skip,
+      limit: _limit,
+    );
+
+    _skip += _limit;
+
+    _filterPayments();
+
+    _loadingMoreNotifier.value = false;
   }
 
   void _filterPayments() {
@@ -230,222 +270,240 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                         Expanded(
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Table Header
-                                Container(
-                                  margin: const EdgeInsets.only(
-                                    left: 16,
-                                    right: 16,
-                                    top: 0,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: headerColor,
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(4),
-                                      topRight: Radius.circular(4),
+                            child: SizedBox(
+                              width: 1200,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // HEADER
+                                  Container(
+                                    margin: const EdgeInsets.only(
+                                      left: 16,
+                                      right: 16,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: headerColor,
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(4),
+                                        topRight: Radius.circular(4),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        _buildHeaderCell(
+                                          'No',
+                                          width: 50,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'View',
+                                          width: 70,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'PDF',
+                                          width: 70,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Vendor Name',
+                                          width: 150,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Invoice No',
+                                          width: 120,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Invoice Date',
+                                          width: 100,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Total Amount',
+                                          width: 110,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Amount Paid',
+                                          width: 110,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Payment Date',
+                                          width: 100,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Discount',
+                                          width: 90,
+                                          center: true,
+                                        ),
+                                        _buildHeaderCell(
+                                          'Payable Amount',
+                                          width: 120,
+                                          center: true,
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      _buildHeaderCell(
-                                        'No',
-                                        width: 50,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'View',
-                                        width: 70,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'PDF',
-                                        width: 70,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Vendor Name',
-                                        width: 150,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Invoice No',
-                                        width: 120,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Invoice Date',
-                                        width: 100,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Total Amount',
-                                        width: 110,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Amount Paid',
-                                        width: 110,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Payment Date',
-                                        width: 100,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Discount',
-                                        width: 90,
-                                        center: true,
-                                      ),
-                                      _buildHeaderCell(
-                                        'Payable Amount',
-                                        width: 120,
-                                        center: true,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Table Rows
-                                Container(
-                                  margin: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                  child: Column(
-                                    children: filteredList.asMap().entries.map((
-                                      entry,
-                                    ) {
-                                      final index = entry.key;
-                                      final payment = entry.value;
-                                      final serialNo = index + 1;
 
-                                      return Container(
-                                        height: 56,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: Colors.grey.shade300,
-                                              width: 0.5,
-                                            ),
-                                            left: BorderSide(
-                                              color: Colors.grey.shade300,
-                                              width: 0.5,
-                                            ),
-                                            right: BorderSide(
-                                              color: Colors.grey.shade300,
-                                              width: 0.5,
-                                            ),
-                                          ),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            // No - Serial Number
-                                            _buildCell(
-                                              '$serialNo',
-                                              width: 50,
-                                              center: true,
-                                            ),
+                                  // ROW LIST
+                                  Expanded(
+                                    child: ValueListenableBuilder<bool>(
+                                      valueListenable: _loadingMoreNotifier,
+                                      builder: (_, loadingMore, __) {
+                                        return ListView.builder(
+                                          controller: _verticalScrollController,
+                                          itemCount:
+                                              filteredList.length +
+                                              (loadingMore ? 1 : 0),
+                                          itemBuilder: (context, index) {
+                                            // Bottom loading spinner
+                                            if (index >= filteredList.length) {
+                                              return const Padding(
+                                                padding: EdgeInsets.all(16),
+                                                child: Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
+                                              );
+                                            }
 
-                                            // View Button
-                                            _buildIconCell(
-                                              Icons.remove_red_eye,
-                                              color: Colors.black87,
-                                              onPressed: () =>
-                                                  showPaymentDetailsDialog(
-                                                    context,
-                                                    payment,
+                                            final payment = filteredList[index];
+                                            final serialNo = index + 1;
+
+                                            return Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
                                                   ),
-                                              width: 70,
-                                            ),
-
-                                            // PDF Button
-                                            _buildIconCell(
-                                              Icons.picture_as_pdf,
-                                              color: Colors.redAccent,
-                                              onPressed: () =>
-                                                  _generateAndViewPdf(payment),
-                                              width: 70,
-                                            ),
-
-                                            // Vendor Name
-                                            _buildCell(
-                                              payment.vendorName ?? 'N/A',
-                                              width: 150,
-                                              center: true,
-                                            ),
-
-                                            // Invoice No
-                                            _buildCell(
-                                              payment.invoiceNo ?? 'N/A',
-                                              width: 120,
-                                              center: true,
-                                            ),
-
-                                            // Invoice Date
-                                            _buildCell(
-                                              _formatDate(payment.invoiceDate),
-                                              width: 100,
-                                              center: true,
-                                            ),
-
-                                            // Total Amount
-                                            _buildCell(
-                                              _formatCurrency(
-                                                payment.totalPayableAmount,
+                                              height: 56,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                border: Border(
+                                                  bottom: BorderSide(
+                                                    color: Colors.grey.shade300,
+                                                    width: 0.5,
+                                                  ),
+                                                  left: BorderSide(
+                                                    color: Colors.grey.shade300,
+                                                    width: 0.5,
+                                                  ),
+                                                  right: BorderSide(
+                                                    color: Colors.grey.shade300,
+                                                    width: 0.5,
+                                                  ),
+                                                ),
                                               ),
-                                              width: 110,
-                                              center: true,
-                                              isBold: true,
-                                            ),
+                                              child: Row(
+                                                children: [
+                                                  _buildCell(
+                                                    '$serialNo',
+                                                    width: 50,
+                                                    center: true,
+                                                  ),
 
-                                            // Amount Paid
-                                            _buildCell(
-                                              _formatCurrency(
-                                                payment.totalPaidAmount,
+                                                  _buildIconCell(
+                                                    Icons.remove_red_eye,
+                                                    color: Colors.black87,
+                                                    onPressed: () =>
+                                                        showPaymentDetailsDialog(
+                                                          context,
+                                                          payment,
+                                                        ),
+                                                    width: 70,
+                                                  ),
+
+                                                  _buildIconCell(
+                                                    Icons.picture_as_pdf,
+                                                    color: Colors.redAccent,
+                                                    onPressed: () =>
+                                                        _generateAndViewPdf(
+                                                          payment,
+                                                        ),
+                                                    width: 70,
+                                                  ),
+
+                                                  _buildCell(
+                                                    payment.vendorName ?? 'N/A',
+                                                    width: 150,
+                                                    center: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    payment.invoiceNo ?? 'N/A',
+                                                    width: 120,
+                                                    center: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatDate(
+                                                      payment.invoiceDate,
+                                                    ),
+                                                    width: 100,
+                                                    center: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatCurrency(
+                                                      payment
+                                                          .totalPayableAmount,
+                                                    ),
+                                                    width: 110,
+                                                    center: true,
+                                                    isBold: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatCurrency(
+                                                      payment.totalPaidAmount,
+                                                    ),
+                                                    width: 110,
+                                                    center: true,
+                                                    isBold: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatDate(
+                                                      payment.paymentDate,
+                                                    ),
+                                                    width: 100,
+                                                    center: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatCurrency(
+                                                      payment.discountDetails,
+                                                    ),
+                                                    width: 90,
+                                                    center: true,
+                                                    isBold: true,
+                                                  ),
+
+                                                  _buildCell(
+                                                    _formatCurrency(
+                                                      payment.payableAmount,
+                                                    ),
+                                                    width: 120,
+                                                    center: true,
+                                                    isBold: true,
+                                                  ),
+                                                ],
                                               ),
-                                              width: 110,
-                                              center: true,
-                                              isBold: true,
-                                            ),
-
-                                            // Payment Date
-                                            _buildCell(
-                                              _formatDate(payment.paymentDate),
-                                              width: 100,
-                                              center: true,
-                                            ),
-
-                                            // Discount
-                                            _buildCell(
-                                              _formatCurrency(
-                                                payment.discountDetails,
-                                              ),
-                                              width: 90,
-                                              center: true,
-                                              isBold: true,
-                                            ),
-
-                                            // Payable Amount
-                                            _buildCell(
-                                              _formatCurrency(
-                                                payment.payableAmount,
-                                              ),
-                                              width: 120,
-                                              center: true,
-                                              isBold: true,
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
+                                            );
+                                          },
+                                        );
+                                      },
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),

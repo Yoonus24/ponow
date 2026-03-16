@@ -26,6 +26,8 @@ class APInvoiceProvider extends ChangeNotifier {
   String get filterStatus => _filterStatus;
   bool _isInitialLoad = true;
   bool get isInitialLoad => _isInitialLoad;
+  bool hasMore = true;
+  bool isLoadingMore = false;
 
   set filterStatus(String status) {
     _filterStatus = status;
@@ -67,25 +69,45 @@ class APInvoiceProvider extends ChangeNotifier {
   Future<void> fetchAPInvoices({
     String? status,
     String? vendorName,
-    DateTime? date,
+    DateTime? fromDate,
+    DateTime? toDate,
     int skip = 0,
     int limit = 50,
   }) async {
     if (_isFetching) return;
 
     _isFetching = true;
-    _setLoading(true);
+
+    // Reset pagination when new filter applied
+    if (skip == 0) {
+      hasMore = true;
+      _setLoading(true);
+    }
+
     _setError(null);
 
     try {
+      String? formattedFromDate;
+      String? formattedToDate;
+
+      if (fromDate != null) {
+        formattedFromDate =
+            "${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}";
+      }
+
+      if (toDate != null) {
+        formattedToDate =
+            "${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}";
+      }
+
       final queryParams = {
         'skip': skip,
         'limit': limit,
         if (status != null && status.isNotEmpty) 'status': status,
         if (vendorName != null && vendorName.isNotEmpty)
           'vendorName': vendorName,
-        if (date != null) 'fromDate': date.toIso8601String(),
-        if (date != null) 'toDate': date.toIso8601String(),
+        if (formattedFromDate != null) 'fromDate': formattedFromDate,
+        if (formattedToDate != null) 'toDate': formattedToDate,
       };
 
       final response = await _dio.get(
@@ -94,11 +116,33 @@ class APInvoiceProvider extends ChangeNotifier {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
+        _isInitialLoad = false;
 
-        _apInvoices = data.map((e) => ApInvoice.fromJson(e)).toList();
+        List<dynamic> data;
+
+        // Handle both List and Map responses
+        if (response.data is List) {
+          data = response.data;
+        } else if (response.data is Map && response.data['data'] != null) {
+          data = response.data['data'];
+        } else {
+          data = [];
+        }
+
+        print("AP RAW RESPONSE => $data");
+
+        final newInvoices = data.map((e) => ApInvoice.fromJson(e)).toList();
+
+        if (skip == 0) {
+          _apInvoices = newInvoices;
+        } else {
+          _apInvoices.addAll(newInvoices);
+        }
+
+        hasMore = newInvoices.length == limit;
       }
     } catch (e) {
+      print("AP INVOICE ERROR => $e");
       _setError("Failed to fetch AP invoices");
     } finally {
       _loading = false;
@@ -130,42 +174,40 @@ class APInvoiceProvider extends ChangeNotifier {
         );
 
         await Future.wait([
-          fetchAPInvoices(),
+          fetchAPInvoices(status: "Outgoing Posted", skip: 0, limit: 50),
           grnProvider.fetchFilteredGRNs(),
           outgoingProvider.fetchFilteredOutgoings(),
         ]);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('AP returned to GRN successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('AP returned to GRN successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
         throw Exception("Return failed.");
       }
     } on DioException catch (e) {
       final message = _getReadableError(e);
-
       _setError(message);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.grey.shade200,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.grey),
+        );
+      }
     } catch (e) {
       const message = "Something went wrong.";
       _setError(message);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text(message)));
+      }
     } finally {
       _setLoading(false);
     }
@@ -186,8 +228,7 @@ class APInvoiceProvider extends ChangeNotifier {
     }
   }
 
-  void _setLoading(bool isLoading, {bool force = false}) {
-    if (!force && _apInvoices.isNotEmpty) return;
+  void _setLoading(bool isLoading) {
     _loading = isLoading;
     notifyListeners();
   }

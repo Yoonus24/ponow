@@ -13,13 +13,24 @@ class POPage extends StatefulWidget {
 
 class _POPageState extends State<POPage> {
   final ScrollController _scrollController = ScrollController();
+  bool _isInitialized = false;
 
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<POProvider>().refreshPOList();
+      if (!mounted) return;
+
+      final provider = context.read<POProvider>();
+
+      if (!_isInitialized) {
+        if (provider.pendingPOs.isEmpty) {
+          provider.refreshPOList();
+        }
+
+        _isInitialized = true;
+      }
     });
   }
 
@@ -36,15 +47,25 @@ class _POPageState extends State<POPage> {
         onRefresh: _refreshPOs,
         child: Consumer<POProvider>(
           builder: (context, poProvider, _) {
-            // ✅ FIX 1: use pendingPOs instead of pos
-            if (poProvider.isLoading && poProvider.pendingPOs.isEmpty) {
+            final pendingOrders = poProvider.pendingPOs;
+
+            // ✅ Show loader first time only
+            if (poProvider.isLoading && pendingOrders.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final pendingOrders = poProvider.pendingPOs;
+            // ✅ Show error only if no data
+            if (poProvider.error != null && pendingOrders.isEmpty) {
+              return Center(
+                child: Text(
+                  poProvider.error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                ),
+              );
+            }
 
-            // ✅ FIX 2: show empty FIRST (important)
-            if (pendingOrders.isEmpty) {
+            // ✅ Show empty only after loading finished
+            if (!poProvider.isLoading && pendingOrders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
@@ -59,20 +80,11 @@ class _POPageState extends State<POPage> {
               );
             }
 
-            // ✅ FIX 3: error should not override empty state
-            if (poProvider.error != null) {
-              return Center(
-                child: Text(
-                  poProvider.error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
-                ),
-              );
-            }
-
             return ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
               children: [
+                // 🔹 Small loader when refreshing
                 if (poProvider.isLoading)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -86,6 +98,7 @@ class _POPageState extends State<POPage> {
                   ),
 
                 POListView(
+                  key: const PageStorageKey("po_list"),
                   purchaseOrders: pendingOrders,
                   scrollController: _scrollController,
                   onStatusChanged: _refreshPOs,

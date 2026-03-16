@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -47,59 +47,44 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
   }
 
   Future<void> _loadInitialVendors() async {
-    _isLoading.value = true;
+    if (widget.poProvider.vendorCache.isNotEmpty) {
+      _allVendors = widget.poProvider.vendorCache;
 
-    _skip = 0;
-    _hasMore = true;
+      _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+
+      return;
+    }
+
+    _isLoading.value = true;
 
     final fetched = await widget.poProvider.fetchingAllVendors(
       vendorName: '',
       skip: 0,
-      limit: _limit,
+      limit: 5000,
       append: false,
     );
 
     _allVendors = fetched;
 
-    _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+    widget.poProvider.vendorCache = fetched; 
 
-    _skip += fetched.length;
+    _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
 
     _isLoading.value = false;
   }
 
-
   void _search(String query) {
-    _debounceTimer?.cancel();
+    final q = query.toLowerCase().trim();
 
-    _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
-      if (query.isEmpty) {
-        await _loadInitialVendors();
-        return;
-      }
-
-      _isLoading.value = true;
-
-      _skip = 0;
-      _hasMore = true;
-      _currentQuery = query;
-
-      final fetched = await widget.poProvider.fetchingAllVendors(
-        vendorName: query,
-        skip: _skip,
-        limit: _limit,
-        append: false,
-      );
-
-      _allVendors = fetched;
-
+    if (q.isEmpty) {
       _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+      return;
+    }
 
-      _skip += fetched.length;
-      _hasMore = fetched.length == _limit;
-
-      _isLoading.value = false;
-    });
+    _displayedVendors.value = _allVendors
+        .where((v) => v.vendorName.toLowerCase().contains(q))
+        .map((e) => e.vendorName)
+        .toList();
   }
 
   Future<void> _loadMore() async {
@@ -138,7 +123,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
       builder: (context, vendorList, _) {
         return Autocomplete<String>(
           optionsBuilder: (value) {
-            final query = value.text.trim().toLowerCase();
+            final query = value.text.toLowerCase().trim();
 
             if (query.isEmpty) {
               return vendorList;
@@ -166,9 +151,12 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                 elevation: 4,
                 borderRadius: BorderRadius.circular(8.0),
                 color: Colors.white,
+
                 child: Container(
                   width: 250,
-                  constraints: const BoxConstraints(maxHeight: 200),
+                  constraints: BoxConstraints(
+                    maxHeight: min(vendorList.length * 48.0, 200),
+                  ),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey[300]!),
                     borderRadius: BorderRadius.circular(8.0),
@@ -185,6 +173,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                       valueListenable: _isLoadingMore,
                       builder: (_, loadingMore, __) {
                         return ListView.builder(
+                          shrinkWrap: true,
                           padding: EdgeInsets.zero,
                           itemCount: vendorList.length + (loadingMore ? 1 : 0),
                           itemBuilder: (_, i) {
@@ -290,23 +279,11 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                             size: 20,
                             color: Colors.grey[600],
                           ),
-                          onPressed: () async {
+                          onPressed: () {
                             textController.clear();
                             widget.controller.clear();
 
                             _currentQuery = '';
-                            _skip = 0;
-                            _hasMore = true;
-
-                            final fetched = await widget.poProvider
-                                .fetchingAllVendors(
-                                  vendorName: '',
-                                  skip: 0,
-                                  limit: _limit,
-                                  append: false,
-                                );
-
-                            _allVendors = fetched;
 
                             _displayedVendors.value = _allVendors
                                 .map((e) => e.vendorName)
@@ -329,7 +306,15 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                 },
                 onChanged: (value) {
                   widget.controller.text = value;
-                  _search(value);
+
+                  if (value.isEmpty) {
+                    _currentQuery = '';
+                    _displayedVendors.value = _allVendors
+                        .map((e) => e.vendorName)
+                        .toList();
+                  } else {
+                    _search(value);
+                  }
                 },
               ),
             );
@@ -348,3 +333,5 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     super.dispose();
   }
 }
+
+

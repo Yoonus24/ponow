@@ -23,38 +23,88 @@ class _APInvoicePageState extends State<APInvoicePage> {
   });
 
   final ValueNotifier<String> _vendorNotifier = ValueNotifier('');
-  final ValueNotifier<DateTime?> _selectedDateNotifier = ValueNotifier(null);
-
+  final ValueNotifier<DateTimeRange?> _selectedDateRangeNotifier =
+      ValueNotifier(null);
   final TextEditingController _vendorController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   final GlobalKey _autocompleteKey = GlobalKey();
 
   TextEditingController? _autoController;
 
-  final int _skip = 0;
+  int _skip = 0;
   final int _limit = 50;
-  bool isInitialLoad = true;
   Timer? _debounce;
-
+  final ValueNotifier<List<String>> _allVendors = ValueNotifier(
+    [],
+  ); // List<String> _displayedVendors = [];
   @override
   void initState() {
     super.initState();
 
-    Future.microtask(() async {
-      _applyFilters();
-      await Provider.of<POProvider>(
-        context,
-        listen: false,
-      ).fetchingVendors(vendorName: '', skip: _skip, limit: _limit);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+
+      final provider = context.read<APInvoiceProvider>();
+
+      // ✅ Load only first time (same logic as GRN page)
+      if (provider.apInvoices.isEmpty) {
+        _applyFilters();
+      }
+
+      final poProvider = context.read<POProvider>();
+
+      final vendors = await poProvider.fetchingAllVendors(
+        vendorName: '',
+        skip: 0,
+        limit: 5000,
+      );
+
+      final names = vendors
+          .map((e) => e.vendorName ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      if (!mounted) return;
+
+      _allVendors.value = names;
+
+      print("ALL VENDORS LOADED => ${names.length}");
     });
+  }
+
+  Future<void> _loadMore() async {
+    final provider = context.read<APInvoiceProvider>();
+
+    if (!provider.hasMore || provider.isLoadingMore) return;
+
+    provider.isLoadingMore = true;
+    provider.notifyListeners();
+
+    _skip += _limit;
+
+    await provider.fetchAPInvoices(
+      status: _statusFilters.value.first,
+      vendorName: _vendorNotifier.value.isNotEmpty
+          ? _vendorNotifier.value
+          : null,
+      skip: _skip,
+      limit: _limit,
+    );
+
+    provider.isLoadingMore = false;
+    provider.notifyListeners();
   }
 
   @override
   void dispose() {
+    _debounce?.cancel(); // add this
+
     _vendorNotifier.dispose();
-    _selectedDateNotifier.dispose();
+    _selectedDateRangeNotifier.dispose();
     _vendorController.dispose();
     _dateController.dispose();
+    _allVendors.dispose();
+
     super.dispose();
   }
 
@@ -65,6 +115,23 @@ class _APInvoicePageState extends State<APInvoicePage> {
       return DateTime.now();
     }
   }
+
+  // void _searchVendor(String query) {
+  //   final q = query.toLowerCase().trim();
+
+  //   if (q.isEmpty) {
+  //     setState(() {
+  //       _displayedVendors = List.from(_allVendors);
+  //     });
+  //     return;
+  //   }
+
+  //   setState(() {
+  //     _displayedVendors = _allVendors
+  //         .where((v) => v.toLowerCase().contains(q))
+  //         .toList();
+  //   });
+  // }
 
   bool isGoodsInvoice(ApInvoice inv) {
     if (inv.itemDetails == null || inv.itemDetails!.isEmpty) return false;
@@ -96,13 +163,33 @@ class _APInvoicePageState extends State<APInvoicePage> {
   }
 
   void _applyFilters() {
+    _skip = 0;
     _debounce?.cancel();
 
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      Provider.of<APInvoiceProvider>(context, listen: false).fetchAPInvoices(
+      if (!mounted) return;
+
+      DateTime? fromDate;
+      DateTime? toDate;
+
+      final range = _selectedDateRangeNotifier.value;
+
+      if (range != null) {
+        fromDate = DateTime(
+          range.start.year,
+          range.start.month,
+          range.start.day,
+        );
+        toDate = DateTime(range.end.year, range.end.month, range.end.day);
+      }
+
+      context.read<APInvoiceProvider>().fetchAPInvoices(
         status: _statusFilters.value.first,
-        vendorName: _vendorNotifier.value,
-        date: _selectedDateNotifier.value,
+        vendorName: _vendorNotifier.value.isNotEmpty
+            ? _vendorNotifier.value
+            : null,
+        fromDate: fromDate,
+        toDate: toDate,
       );
     });
   }
@@ -149,22 +236,23 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
   }
 
-  Future<void> _selectDate() async {
+  Future<void> _selectDateRange() async {
     final backendDate = await _getServerDate();
 
-    final picked = await showDatePicker(
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: _selectedDateNotifier.value ?? backendDate,
       firstDate: DateTime(2000),
       lastDate: backendDate,
+      initialDateRange: _selectedDateRangeNotifier.value,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
               primary: Colors.blueAccent,
               onPrimary: Colors.white,
-              onSurface: Colors.black87,
+              onSurface: Colors.black,
             ),
+            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
@@ -175,19 +263,25 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
 
     if (picked != null) {
-      _selectedDateNotifier.value = picked; 
+      _selectedDateRangeNotifier.value = picked;
 
       _dateController.text =
-          "${picked.day.toString().padLeft(2, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.year}";
+          "${_formatDate(picked.start)} → ${_formatDate(picked.end)}";
 
-      _applyFilters(); 
+      _applyFilters();
     }
   }
 
   void _clearDate() {
-    _selectedDateNotifier.value = null;
+    _selectedDateRangeNotifier.value = null;
     _dateController.clear();
     _applyFilters();
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.year}';
   }
 
   void _clearVendor() {
@@ -198,111 +292,123 @@ class _APInvoicePageState extends State<APInvoicePage> {
   }
 
   Widget _buildVendorField() {
-    return Consumer<POProvider>(
-      builder: (context, poProvider, _) {
-        return SizedBox(
-          height: 52,
-          child: Autocomplete<String>(
-            key: _autocompleteKey,
-            optionsBuilder: (value) async {
-              await poProvider.fetchingVendors(
-                vendorName: value.text.trim(),
-                skip: _skip,
-                limit: _limit,
-              );
-              return poProvider.filteredVendorNames;
-            },
-            onSelected: (v) {
-              _vendorController.text = v;
-              _vendorNotifier.value = v;
-              _applyFilters();
-            },
-            fieldViewBuilder: (context, controller, focusNode, _) {
-              _autoController = controller;
+    return SizedBox(
+      height: 52,
+      child: Autocomplete<String>(
+        key: _autocompleteKey,
+        optionsBuilder: (TextEditingValue value) {
+          final query = value.text.toLowerCase().trim();
+          final vendors = _allVendors.value;
 
-              if (_vendorController.text != controller.text) {
-                _vendorController.text = controller.text;
-                _vendorController.selection = controller.selection;
-              }
+          if (query.isEmpty) {
+            return vendors;
+          }
 
-              return TextField(
-                controller: controller,
-                focusNode: focusNode,
-                decoration: InputDecoration(
-                  labelText: "Vendor",
-                  labelStyle: TextStyle(color: Colors.grey[700]),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 14,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: Colors.blueAccent,
-                      width: 1.8,
-                    ),
-                  ),
-                  suffixIcon: controller.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.clear,
-                            color: Colors.grey[700],
-                            size: 20,
-                          ),
-                          onPressed: _clearVendor,
-                        )
-                      : Icon(Icons.search, color: Colors.grey[600], size: 22),
+          return vendors.where(
+            (vendor) => vendor.toLowerCase().contains(query),
+          );
+        },
+
+        onSelected: (v) {
+          _vendorController.text = v;
+          _vendorNotifier.value = v;
+
+          FocusScope.of(context).unfocus();
+
+          _applyFilters();
+        },
+
+        fieldViewBuilder: (context, controller, focusNode, _) {
+          _autoController = controller;
+
+          return TextField(
+            controller: controller,
+            focusNode: focusNode,
+            decoration: InputDecoration(
+              labelText: "Vendor",
+              labelStyle: TextStyle(color: Colors.grey[700]),
+
+              filled: true,
+              fillColor: Colors.grey[50],
+
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(
+                  color: Colors.blueAccent,
+                  width: 1.8,
                 ),
-                onChanged: (v) {
-                  _vendorNotifier.value = v;
-                  _applyFilters();
+              ),
+
+              suffixIcon: ValueListenableBuilder(
+                valueListenable: _vendorNotifier,
+                builder: (_, value, __) {
+                  if (value.isNotEmpty) {
+                    return IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.redAccent),
+                      onPressed: _clearVendor,
+                    );
+                  }
+
+                  return Icon(Icons.search, color: Colors.grey[700]);
                 },
-              );
+              ),
+            ),
+            onChanged: (v) {
+              _vendorNotifier.value = v;
             },
-            optionsViewBuilder: (context, onSelected, options) {
-              return Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  color: Colors.white,
-                  elevation: 4,
-                  borderRadius: BorderRadius.circular(12),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 240),
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: options.length,
-                      itemBuilder: (context, index) {
-                        final option = options.elementAt(index);
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            option,
-                            style: const TextStyle(fontSize: 14.5),
-                          ),
-                          onTap: () {
-                            onSelected(option);
-                            FocusScope.of(context).unfocus();
-                          },
-                        );
+          );
+        },
+
+        optionsViewBuilder: (context, onSelected, options) {
+          final optionList = options.toList();
+
+          return Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              color: Colors.white,
+              elevation: 4,
+              borderRadius: BorderRadius.circular(12),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  itemCount: optionList.length,
+                  shrinkWrap: true,
+                  itemBuilder: (context, index) {
+                    final option = optionList[index];
+
+                    return ListTile(
+                      dense: true,
+                      title: Text(
+                        option,
+                        style: const TextStyle(fontSize: 14.5),
+                      ),
+                      onTap: () {
+                        onSelected(option);
                       },
-                    ),
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        );
-      },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -337,21 +443,21 @@ class _APInvoicePageState extends State<APInvoicePage> {
             minWidth: 40,
             minHeight: 40,
           ),
-          suffixIcon: ValueListenableBuilder<DateTime?>(
-            valueListenable: _selectedDateNotifier,
-            builder: (_, date, __) {
+          suffixIcon: ValueListenableBuilder<DateTimeRange?>(
+            valueListenable: _selectedDateRangeNotifier,
+            builder: (_, range, __) {
               return IconButton(
                 icon: Icon(
-                  date != null ? Icons.clear : Icons.calendar_today,
-                  color: date != null ? Colors.redAccent : Colors.grey[700],
+                  range != null ? Icons.clear : Icons.calendar_today,
+                  color: range != null ? Colors.redAccent : Colors.grey[700],
                   size: 20,
                 ),
-                onPressed: date != null ? _clearDate : _selectDate,
+                onPressed: range != null ? _clearDate : _selectDateRange,
               );
             },
           ),
         ),
-        onTap: _selectDate,
+        onTap: _selectDateRange,
       ),
     );
   }
@@ -495,112 +601,141 @@ class _APInvoicePageState extends State<APInvoicePage> {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CommonAppBar(title: "AP Invoices"),
-      body: Column(
-        children: [
-          _buildFilterRow(),
-          _buildInvoiceTypeRow(),
-          Expanded(
-            child: RefreshIndicator(
-              color: Colors.blueAccent,
-              backgroundColor: Colors.white,
-              displacement: 40,
-              strokeWidth: 3,
-              onRefresh: () async {
-                _applyFilters();
-              },
-              child: ValueListenableBuilder(
-                valueListenable: _vendorNotifier,
-                builder: (_, __, ___) {
-                  return ValueListenableBuilder(
-                    valueListenable: _selectedDateNotifier,
-                    builder: (_, __, ___) {
-                      return ValueListenableBuilder(
-                        valueListenable: _invoiceType,
-                        builder: (_, __, ___) {
-                          return ValueListenableBuilder(
-                            valueListenable: _statusFilters,
-                            builder: (_, __, ___) {
-                              return Consumer<APInvoiceProvider>(
-                                builder: (context, provider, _) {
-                                  if (provider.loading &&
-                                      provider.isInitialLoad) {
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        color: Colors.blueAccent,
-                                      ),
-                                    );
-                                  }
-
-                                  if (provider.error != null) {
-                                    return ListView(
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
-                                      children: [
-                                        const SizedBox(height: 200),
-                                        Center(
-                                          child: Column(
-                                            children: [
-                                              Text(
-                                                provider.error!,
-                                                style: const TextStyle(
-                                                  fontSize: 15,
-                                                  color: Colors.grey,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                            ],
-                                          ),
+    return GestureDetector(
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        appBar: const CommonAppBar(title: "AP Invoices"),
+        body: Column(
+          children: [
+            _buildFilterRow(),
+            _buildInvoiceTypeRow(),
+            Expanded(
+              child: RefreshIndicator(
+                color: Colors.blueAccent,
+                backgroundColor: Colors.white,
+                displacement: 40,
+                strokeWidth: 3,
+                onRefresh: () async {
+                  _applyFilters();
+                },
+                child: ValueListenableBuilder(
+                  valueListenable: _vendorNotifier,
+                  builder: (_, __, ___) {
+                    return ValueListenableBuilder(
+                      valueListenable: _selectedDateRangeNotifier,
+                      builder: (_, __, ___) {
+                        return ValueListenableBuilder(
+                          valueListenable: _invoiceType,
+                          builder: (_, __, ___) {
+                            return ValueListenableBuilder(
+                              valueListenable: _statusFilters,
+                              builder: (_, __, ___) {
+                                return Consumer<APInvoiceProvider>(
+                                  builder: (context, provider, _) {
+                                    if (provider.loading) {
+                                      return const Center(
+                                        child: CircularProgressIndicator(
+                                          color: Colors.blueAccent,
                                         ),
-                                      ],
-                                    );
-                                  }
+                                      );
+                                    }
 
-                                  var list = provider.apInvoices;
-                                  if (list.isEmpty) {
-                                    return ListView(
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(), 
-                                      children: const [
-                                        SizedBox(height: 200),
-                                        Center(
-                                          child: Text(
-                                            "No invoices found",
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.grey,
+                                    if (provider.error != null) {
+                                      return ListView(
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+                                        children: [
+                                          const SizedBox(height: 200),
+                                          Center(
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  provider.error!,
+                                                  style: const TextStyle(
+                                                    fontSize: 15,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    );
-                                  }
-
-                                  return GridViewWidget<ApInvoice>(
-                                    physics:
-                                        const AlwaysScrollableScrollPhysics(),
-                                    items: list,
-                                    itemBuilder: (context, index) {
-                                      return APInvoiceWidget(
-                                        apinvoice: list[index],
+                                        ],
                                       );
-                                    },
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
+                                    }
+
+                                    List<ApInvoice> list = List.from(
+                                      provider.apInvoices,
+                                    );
+
+                                    final selectedType = _invoiceType.value;
+
+                                    if (selectedType == "Goods") {
+                                      list = list.where((inv) {
+                                        return inv.itemDetails != null &&
+                                            inv.itemDetails!.any(
+                                              (item) =>
+                                                  (item.quantity ?? 0) > 0,
+                                            );
+                                      }).toList();
+                                    }
+
+                                    if (selectedType == "Service") {
+                                      list = list.where((inv) {
+                                        return inv.itemDetails == null ||
+                                            inv.itemDetails!.isEmpty;
+                                      }).toList();
+                                    }
+                                    if (list.isEmpty) {
+                                      return ListView(
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+                                        children: const [
+                                          SizedBox(height: 200),
+                                          Center(
+                                            child: Text(
+                                              "No invoices found",
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    }
+
+                                    return GridViewWidget<ApInvoice>(
+                                      physics:
+                                          const AlwaysScrollableScrollPhysics(),
+                                      items: list,
+                                      hasMore: provider.hasMore,
+                                      isLoading: provider.isLoadingMore,
+                                      onLoadMore: _loadMore,
+                                      itemBuilder: (context, index) {
+                                        return APInvoiceWidget(
+                                          apinvoice: list[index],
+                                        );
+                                      },
+                                    );
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

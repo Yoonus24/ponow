@@ -7,6 +7,7 @@ import 'package:purchaseorders2/models/grnitem.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_Calculator.dart';
+import '../../providers/ap_invoice_provider.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 
@@ -274,17 +275,30 @@ class _GRNModalState extends State<GRNModal> {
     double totalIGST = 0.0;
     double totalDiscount = 0.0;
 
+    final double overallDiscount = grn.discountPrice ?? 0.0;
+    final int itemCount = grn.itemDetails?.length ?? 0;
+
+    final double discountPerItem = itemCount > 0
+        ? overallDiscount / itemCount
+        : 0.0;
+
     for (final item in grn.itemDetails ?? []) {
       final double base = item.totalPrice ?? 0.0;
-      final double discount = item.discountAmount ?? 0.0;
+
+      double discount = item.discountAmount ?? 0.0;
+
+      // apply overall discount if item discount not present
+      if (discount == 0 && overallDiscount > 0) {
+        discount = discountPerItem;
+      }
+
       final double tax = item.taxAmount ?? 0.0;
 
-      // ✅ CORRECT CALCULATION
       final double finalItem = base - discount + tax;
 
       itemTotal += finalItem;
-
       totalDiscount += discount;
+
       totalSGST += item.sgst ?? 0.0;
       totalCGST += item.cgst ?? 0.0;
       totalIGST += item.igst ?? 0.0;
@@ -437,6 +451,57 @@ class _GRNModalState extends State<GRNModal> {
     );
   }
 
+  Future<void> _convertGrnToPo(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Convert GRN to PO"),
+        content: const Text(
+          "Are you sure you want to cancel this GRN and move it back to PO?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Confirm"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final success = await context.read<GRNProvider>().cancelGRN(
+        grn.grnId ?? '',
+      );
+
+      if (!context.mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("GRN moved back to PO successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.of(context).pop();
+      } else {
+        throw Exception("Failed");
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _convertToAP(BuildContext context) async {
     if (isConverting.value) return;
 
@@ -487,18 +552,13 @@ class _GRNModalState extends State<GRNModal> {
       isConverting.value = true;
 
       final totals = _recalculateGRNTotal();
-
       final double manualRound = totals['roundOff'] ?? 0.0;
 
       double finalRound = manualRound;
-
       finalRound = double.parse(finalRound.toStringAsFixed(2));
 
       if (finalRound > 2.0) finalRound = 2.0;
       if (finalRound < -2.0) finalRound = -2.0;
-
-      final double uiFinal = totals['totalReceivedAmount'] ?? 0.0;
-      final double backendBase = grn.grnAmount ?? 0.0;
 
       final result = await context
           .read<GRNProvider>()
@@ -507,28 +567,37 @@ class _GRNModalState extends State<GRNModal> {
             discountPrice: grn.discountPrice ?? 0.0,
             roundOffAdjustment: finalRound,
             itemUpdates:
-                grn.itemDetails
-                    ?.map(
-                      (item) => ItemDetail(
-                        itemId: item.itemId,
-                        befTaxDiscount: item.befTaxDiscount ?? 0.0,
-                        afTaxDiscount: item.afTaxDiscount ?? 0.0,
-                        expiryDate: item.expiryDate,
-                      ),
-                    )
-                    .toList() ??
+                grn.itemDetails?.map((item) {
+                  return ItemDetail(
+                    itemId: item.itemId,
+                    befTaxDiscount: item.befTaxDiscount ?? 0.0,
+                    afTaxDiscount: item.afTaxDiscount ?? 0.0,
+                    expiryDate: item.expiryDate,
+                  );
+                }).toList() ??
                 [],
           );
 
       if (result['success'] == true && context.mounted) {
+        /// CLOSE DIALOG IMMEDIATELY
+        Navigator.of(context).pop();
+
+        /// REFRESH AP INVOICES IN BACKGROUND (DO NOT WAIT)
+        Future.microtask(() {
+          context.read<APInvoiceProvider>().fetchAPInvoices(
+            status: "Outgoing Posted",
+            skip: 0,
+            limit: 50,
+          );
+        });
+
+        /// SUCCESS MESSAGE
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('GRN converted successfully'),
             backgroundColor: Colors.green,
           ),
         );
-
-        Navigator.of(context).pop();
       } else {
         throw Exception(result['error'] ?? 'Conversion failed');
       }
@@ -1205,17 +1274,38 @@ class _GRNModalState extends State<GRNModal> {
 
               const SizedBox(height: 12),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 10,
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    GestureDetector(
+                      onTap: () => _convertGrnToPo(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          "Revert to PO",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
                       ),
-                      child: Text(
+                    ),
+
+                    const SizedBox(width: 16),
+
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).pop(),
+                      child: const Text(
                         "Close",
                         style: TextStyle(
                           color: Colors.blueAccent,
@@ -1224,46 +1314,50 @@ class _GRNModalState extends State<GRNModal> {
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  ValueListenableBuilder<bool>(
-                    valueListenable: isConverting,
-                    builder: (_, converting, __) {
-                      return GestureDetector(
-                        onTap: converting ? null : () => _convertToAP(context),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: converting
-                                ? Colors.blueAccent.withOpacity(0.7)
-                                : Colors.blueAccent,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: converting
-                              ? const SizedBox(
-                                  height: 18,
-                                  width: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+
+                    const SizedBox(width: 16),
+
+                    ValueListenableBuilder<bool>(
+                      valueListenable: isConverting,
+                      builder: (_, converting, __) {
+                        return GestureDetector(
+                          onTap: converting
+                              ? null
+                              : () => _convertToAP(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: converting
+                                  ? Colors.blueAccent.withOpacity(0.7)
+                                  : Colors.blueAccent,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: converting
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Convert to AP",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                )
-                              : const Text(
-                                  "Convert to AP",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

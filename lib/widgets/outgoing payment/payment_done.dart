@@ -33,33 +33,72 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   final ValueNotifier<bool> loadingNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> errorNotifier = ValueNotifier<String>("");
   final ScrollController horizontalController = ScrollController();
+  int _skip = 0;
+  final int _limit = 50;
+  final ValueNotifier<bool> loadingMoreNotifier = ValueNotifier(false);
+  final ScrollController verticalScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+
     searchController.addListener(_filterPayments);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
+      _loadInitial();
+    });
+
+    verticalScrollController.addListener(() {
+      if (verticalScrollController.position.pixels >
+          verticalScrollController.position.maxScrollExtent - 200) {
+        _loadMore();
+      }
     });
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadInitial() async {
     loadingNotifier.value = true;
-    errorNotifier.value = "";
 
     try {
       final provider = context.read<OutgoingPaymentProvider>();
-      await provider.fetchAllOutgoings(
-        fromDate: widget.fromDate,
-        toDate: widget.toDate,
+
+      _skip = 0;
+
+      await provider.fetchFilteredOutgoings(
+        status: "paid",
+        skip: _skip,
+        limit: _limit,
       );
 
+      _skip += _limit;
+
       _filterPayments();
+
       loadingNotifier.value = false;
     } catch (e) {
       errorNotifier.value = "Failed to load payments: $e";
       loadingNotifier.value = false;
     }
+  }
+
+  Future<void> _loadMore() async {
+    if (loadingMoreNotifier.value) return;
+
+    loadingMoreNotifier.value = true;
+
+    final provider = context.read<OutgoingPaymentProvider>();
+
+    await provider.fetchFilteredOutgoings(
+      status: "paid",
+      skip: _skip,
+      limit: _limit,
+    );
+
+    _skip += _limit;
+
+    _filterPayments();
+
+    loadingMoreNotifier.value = false;
   }
 
   void _filterPayments() {
@@ -194,7 +233,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                   ),
                                   const SizedBox(height: 20),
                                   ElevatedButton(
-                                    onPressed: _loadData,
+                                    onPressed: _loadInitial,
                                     child: const Text("Retry"),
                                   ),
                                 ],
@@ -223,183 +262,205 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   controller: horizontalController,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        height: 48,
-                                        color: const Color.fromARGB(
-                                          255,
-                                          74,
-                                          122,
-                                          227,
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            _buildHeaderCell(
-                                              'NO',
-                                              columnWidths['no']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'STATUS',
-                                              columnWidths['status']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'VIEW',
-                                              columnWidths['view']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'PDF',
-                                              columnWidths['pdf']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'VENDOR',
-                                              columnWidths['vendor']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'INVOICE',
-                                              columnWidths['invoice']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'DATE',
-                                              columnWidths['date']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'TOTAL',
-                                              columnWidths['total']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'PAID',
-                                              columnWidths['paid']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'BALANCE',
-                                              columnWidths['balance']!,
-                                              align: TextAlign.center,
-                                            ),
-                                            _buildHeaderCell(
-                                              'PAYMENT DATE',
-                                              columnWidths['payment_date']!,
-                                              align: TextAlign.center,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        decoration: BoxDecoration(
-                                          border: Border(
-                                            left: BorderSide(
-                                              color: Colors.grey.shade300,
-                                            ),
-                                            right: BorderSide(
-                                              color: Colors.grey.shade300,
-                                            ),
-                                            bottom: BorderSide(
-                                              color: Colors.grey.shade300,
-                                            ),
+                                  child: SizedBox(
+                                    width: 1140,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        // HEADER
+                                        Container(
+                                          height: 48,
+                                          color: const Color.fromARGB(
+                                            255,
+                                            74,
+                                            122,
+                                            227,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              _buildHeaderCell(
+                                                'NO',
+                                                columnWidths['no']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'STATUS',
+                                                columnWidths['status']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'VIEW',
+                                                columnWidths['view']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'PDF',
+                                                columnWidths['pdf']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'VENDOR',
+                                                columnWidths['vendor']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'INVOICE',
+                                                columnWidths['invoice']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'DATE',
+                                                columnWidths['date']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'TOTAL',
+                                                columnWidths['total']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'PAID',
+                                                columnWidths['paid']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'BALANCE',
+                                                columnWidths['balance']!,
+                                              ),
+                                              _buildHeaderCell(
+                                                'PAYMENT DATE',
+                                                columnWidths['payment_date']!,
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                        child: Column(
-                                          children: payments.asMap().entries.map((
-                                            entry,
-                                          ) {
-                                            final index = entry.key;
-                                            final payment = entry.value;
-                                            final isEven = index % 2 == 0;
 
-                                            return Container(
-                                              height: 60,
-                                              color: isEven
-                                                  ? Colors.white
-                                                  : Colors.grey.shade50,
-                                              child: Row(
-                                                children: [
-                                                  _buildDataCell(
-                                                    '${index + 1}',
-                                                    columnWidths['no']!,
-                                                    align: TextAlign.center,
-                                                  ),
-                                                  _buildStatusCell(
-                                                    payment.status,
-                                                    columnWidths['status']!,
-                                                  ),
-                                                  _buildViewCell(
-                                                    context,
-                                                    payment,
-                                                    columnWidths['view']!,
-                                                  ),
-                                                  _buildPdfCell(
-                                                    context,
-                                                    payment,
-                                                    columnWidths['pdf']!,
-                                                  ),
-                                                  _buildDataCell(
-                                                    payment.vendorName ?? 'N/A',
-                                                    columnWidths['vendor']!,
-                                                    align: TextAlign.center,
-                                                  ),
-                                                  _buildDataCell(
-                                                    payment.invoiceNo ?? 'N/A',
-                                                    columnWidths['invoice']!,
-                                                    align: TextAlign.center,
-                                                  ),
-                                                  _buildDataCell(
-                                                    _formatDate(
-                                                      payment.invoiceDate,
+                                        // ROWS
+                                        // ROWS
+                                        Expanded(
+                                          child: ValueListenableBuilder<bool>(
+                                            valueListenable:
+                                                loadingMoreNotifier,
+                                            builder: (_, loadingMore, __) {
+                                              return ListView.builder(
+                                                controller:
+                                                    verticalScrollController,
+                                                itemCount:
+                                                    payments.length +
+                                                    (loadingMore ? 1 : 0),
+                                                itemBuilder: (context, index) {
+                                                  // bottom spinner
+                                                  if (index >=
+                                                      payments.length) {
+                                                    return const Padding(
+                                                      padding: EdgeInsets.all(
+                                                        16,
+                                                      ),
+                                                      child: Center(
+                                                        child:
+                                                            CircularProgressIndicator(),
+                                                      ),
+                                                    );
+                                                  }
+
+                                                  final payment =
+                                                      payments[index];
+                                                  final isEven = index % 2 == 0;
+
+                                                  return Container(
+                                                    height: 60,
+                                                    decoration: BoxDecoration(
+                                                      color: isEven
+                                                          ? Colors.white
+                                                          : Colors.grey.shade50,
+                                                      border: Border(
+                                                        left: BorderSide(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                        ),
+                                                        right: BorderSide(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                        ),
+                                                        bottom: BorderSide(
+                                                          color: Colors
+                                                              .grey
+                                                              .shade300,
+                                                        ),
+                                                      ),
                                                     ),
-                                                    columnWidths['date']!,
-                                                    align: TextAlign.center,
-                                                  ),
-                                                  _buildDataCell(
-                                                    _formatCurrency(
-                                                      payment.payableAmount,
+                                                    child: Row(
+                                                      children: [
+                                                        _buildDataCell(
+                                                          '${index + 1}',
+                                                          columnWidths['no']!,
+                                                          align:
+                                                              TextAlign.center,
+                                                        ),
+                                                        _buildStatusCell(
+                                                          payment.status,
+                                                          columnWidths['status']!,
+                                                        ),
+                                                        _buildViewCell(
+                                                          context,
+                                                          payment,
+                                                          columnWidths['view']!,
+                                                        ),
+                                                        _buildPdfCell(
+                                                          context,
+                                                          payment,
+                                                          columnWidths['pdf']!,
+                                                        ),
+                                                        _buildDataCell(
+                                                          payment.vendorName ??
+                                                              'N/A',
+                                                          columnWidths['vendor']!,
+                                                        ),
+                                                        _buildDataCell(
+                                                          payment.invoiceNo ??
+                                                              'N/A',
+                                                          columnWidths['invoice']!,
+                                                        ),
+                                                        _buildDataCell(
+                                                          _formatDate(
+                                                            payment.invoiceDate,
+                                                          ),
+                                                          columnWidths['date']!,
+                                                        ),
+                                                        _buildDataCell(
+                                                          _formatCurrency(
+                                                            payment
+                                                                .payableAmount,
+                                                          ),
+                                                          columnWidths['total']!,
+                                                          isBold: true,
+                                                        ),
+                                                        _buildDataCell(
+                                                          _formatCurrency(
+                                                            payment.totalPaidAmount ??
+                                                                0,
+                                                          ),
+                                                          columnWidths['paid']!,
+                                                          isBold: true,
+                                                        ),
+                                                        _buildDataCell(
+                                                          _formatCurrency(
+                                                            payment.remainingPayableAmount ??
+                                                                0,
+                                                          ),
+                                                          columnWidths['balance']!,
+                                                          isBold: true,
+                                                        ),
+                                                        _buildDataCell(
+                                                          _formatDate(
+                                                            payment.paymentDate,
+                                                          ),
+                                                          columnWidths['payment_date']!,
+                                                        ),
+                                                      ],
                                                     ),
-                                                    columnWidths['total']!,
-                                                    align: TextAlign.center,
-                                                    isBold: true,
-                                                  ),
-                                                  _buildDataCell(
-                                                    _formatCurrency(
-                                                      payment.totalPaidAmount ??
-                                                          0,
-                                                    ),
-                                                    columnWidths['paid']!,
-                                                    align: TextAlign.center,
-                                                    isBold: true,
-                                                  ),
-                                                  _buildDataCell(
-                                                    _formatCurrency(
-                                                      payment.remainingPayableAmount ??
-                                                          0,
-                                                    ),
-                                                    columnWidths['balance']!,
-                                                    align: TextAlign.center,
-                                                    isBold: true,
-                                                  ),
-                                                  _buildDataCell(
-                                                    _formatDate(
-                                                      payment.paymentDate,
-                                                    ),
-                                                    columnWidths['payment_date']!,
-                                                    align: TextAlign.center,
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          }).toList(),
+                                                  );
+                                                },
+                                              );
+                                            },
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               );
@@ -622,6 +683,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                     maxWidth: 350,
                   ),
                   child: ListView.builder(
+                    controller: verticalScrollController,
                     padding: EdgeInsets.zero,
                     shrinkWrap: true,
                     itemCount: options.length,

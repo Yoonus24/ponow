@@ -280,6 +280,9 @@ class _POWidgetState extends State<POWidget> {
   }
 
   Widget _buildPOItemsTable(PO updatedPO) {
+    final items = updatedPO.items
+        .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
+        .toList();
     const double rowHeight = 48;
     const double headerHeight = 48;
     const double itemNameWidth = 120;
@@ -339,7 +342,7 @@ class _POWidgetState extends State<POWidget> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Column(
-                  children: updatedPO.items.map((item) {
+                  children: items.map((item) {
                     return Container(
                       width: itemNameWidth,
                       height: rowHeight,
@@ -365,7 +368,7 @@ class _POWidgetState extends State<POWidget> {
                     child: SizedBox(
                       width: rightTotalWidth,
                       child: Column(
-                        children: updatedPO.items.map((item) {
+                        children: items.map((item) {
                           return SizedBox(
                             height: rowHeight,
                             child: Row(
@@ -493,7 +496,7 @@ class _POWidgetState extends State<POWidget> {
 
     final fullPO = await poProvider.fetchPOById(po.purchaseOrderId);
 
-    Navigator.of(context).pop(); 
+    Navigator.of(context).pop();
 
     if (fullPO == null) {
       ScaffoldMessenger.of(context).showSnackBar(

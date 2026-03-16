@@ -947,13 +947,21 @@ class _AddItemDialogState extends State<AddItemDialog> {
           notifier.itemWiseDiscount + (notifier.overallDiscountAmount ?? 0.0);
 
       notifier.notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _addOrUpdateItem(PurchaseOrderNotifier notifier) async {
-    if (!_formKey.currentState!.validate()) return;
-    if (notifier.itemController.text.isEmpty) return;
+    print("=========== ADD / UPDATE ITEM START ===========");
+
+    if (!_formKey.currentState!.validate()) {
+      print("Form validation failed");
+      return;
+    }
+
+    if (notifier.itemController.text.isEmpty) {
+      print("Item name is empty");
+      return;
+    }
 
     _loadingNotifier.value = true;
 
@@ -971,10 +979,22 @@ class _AddItemDialogState extends State<AddItemDialog> {
       final double taxPercentage =
           double.tryParse(_fieldControllers['taxPercentage']!.text) ?? 0;
 
+      print("User Inputs:");
+      print("Count: $count");
+      print("Each Quantity: $eachQty");
+      print("New Price: $newPrice");
+      print("Before Tax Discount: $befTaxDiscount");
+      print("After Tax Discount: $afTaxDiscount");
+      print("Tax Percentage: $taxPercentage");
+
       final double totalQuantity = count * eachQty;
       final double baseAmount = totalQuantity * newPrice;
 
+      print("Calculated totalQuantity: $totalQuantity");
+      print("Calculated baseAmount: $baseAmount");
+
       if (count <= 0) {
+        print("Invalid count");
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Count must be greater than 0')));
@@ -982,6 +1002,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       }
 
       if (eachQty <= 0) {
+        print("Invalid quantity");
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Quantity must be greater than 0')),
         );
@@ -989,6 +1010,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       }
 
       if (newPrice <= 0) {
+        print("Invalid price");
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Price must be greater than 0')));
@@ -998,8 +1020,11 @@ class _AddItemDialogState extends State<AddItemDialog> {
       final bool isAmountMode =
           notifier.itemWiseDiscountMode == DiscountMode.fixedAmount;
 
+      print("Discount Mode: ${isAmountMode ? "Amount" : "Percentage"}");
+
       if (isAmountMode) {
         if (befTaxDiscount > baseAmount) {
+          print("Before tax discount exceeds base amount");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Before-tax discount cannot exceed base amount'),
@@ -1012,7 +1037,12 @@ class _AddItemDialogState extends State<AddItemDialog> {
         double taxAmount = afterBefTax * (taxPercentage / 100);
         double priceAfterTax = afterBefTax + taxAmount;
 
+        print("After Bef Tax Price: $afterBefTax");
+        print("Tax Amount: $taxAmount");
+        print("Price After Tax: $priceAfterTax");
+
         if (afTaxDiscount > priceAfterTax) {
+          print("After tax discount exceeds price after tax");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('After-tax discount cannot exceed price after tax'),
@@ -1022,6 +1052,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
         }
       } else {
         if (befTaxDiscount > 100) {
+          print("Before tax discount > 100%");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Before-tax discount cannot exceed 100%')),
           );
@@ -1029,12 +1060,15 @@ class _AddItemDialogState extends State<AddItemDialog> {
         }
 
         if (afTaxDiscount > 100) {
+          print("After tax discount > 100%");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('After-tax discount cannot exceed 100%')),
           );
           return;
         }
       }
+
+      print("Preparing backend parameters...");
 
       Map<String, dynamic> backendParams = {
         'pendingTotalQuantity': totalQuantity,
@@ -1044,25 +1078,12 @@ class _AddItemDialogState extends State<AddItemDialog> {
         'taxType': notifier.taxType,
       };
 
-      if (isAmountMode) {
-        backendParams['befTaxDiscountAmount'] = befTaxDiscount;
-        backendParams['afTaxDiscountAmount'] = afTaxDiscount;
-        backendParams['befTaxDiscountType'] = 'amount';
-        backendParams['afTaxDiscountType'] = 'amount';
-
-        backendParams['befTaxDiscount'] = 0.0;
-        backendParams['afTaxDiscount'] = 0.0;
-      } else {
-        backendParams['befTaxDiscount'] = befTaxDiscount;
-        backendParams['afTaxDiscount'] = afTaxDiscount;
-        backendParams['befTaxDiscountType'] = 'percentage';
-        backendParams['afTaxDiscountType'] = 'percentage';
-
-        backendParams['befTaxDiscountAmount'] = 0.0;
-        backendParams['afTaxDiscountAmount'] = 0.0;
-      }
+      print("Backend Params: $backendParams");
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
+
+      print("Calling backend API calculateItemTotalsBackend...");
+
       final result = await poProvider.calculateItemTotalsBackend(
         pendingTotalQuantity: totalQuantity,
         poQuantity: widget.editingItem?.poQuantity ?? totalQuantity,
@@ -1077,7 +1098,10 @@ class _AddItemDialogState extends State<AddItemDialog> {
         taxType: notifier.taxType,
       );
 
+      print("Backend Result: $result");
+
       if (result.containsKey('error')) {
+        print("Backend returned error: ${result['error']}");
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(result['error'])));
@@ -1085,6 +1109,9 @@ class _AddItemDialogState extends State<AddItemDialog> {
       }
 
       final String selectedItemName = notifier.itemController.text;
+
+      print("Selected Item Name: $selectedItemName");
+
       final PurchaseItem? selectedPurchaseItem = notifier.purchaseItems
           .firstWhere(
             (item) => item.itemName == selectedItemName,
@@ -1100,28 +1127,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
             ),
           );
 
-      double finalBefTaxDiscount = isAmountMode
-          ? befTaxDiscount
-          : befTaxDiscount;
-      double finalAfTaxDiscount = isAmountMode ? afTaxDiscount : afTaxDiscount;
-
-      double befTaxPercentageForDisplay = 0.0;
-      double afTaxPercentageForDisplay = 0.0;
-
-      if (isAmountMode && baseAmount > 0) {
-        befTaxPercentageForDisplay = (befTaxDiscount / baseAmount) * 100;
-
-        double afterBefTax = baseAmount - befTaxDiscount;
-        double taxAmount = afterBefTax * (taxPercentage / 100);
-        double priceAfterTax = afterBefTax + taxAmount;
-
-        if (priceAfterTax > 0) {
-          afTaxPercentageForDisplay = (afTaxDiscount / priceAfterTax) * 100;
-        }
-      } else {
-        befTaxPercentageForDisplay = befTaxDiscount;
-        afTaxPercentageForDisplay = afTaxDiscount;
-      }
+      print("Selected Purchase Item: ${selectedPurchaseItem?.purchaseItemId}");
 
       final Item newItem = Item(
         itemId: selectedPurchaseItem?.purchaseItemId,
@@ -1134,18 +1140,10 @@ class _AddItemDialogState extends State<AddItemDialog> {
         eachQuantity: eachQty,
         taxPercentage: taxPercentage,
         taxAmount: result['pendingTaxAmount'] ?? 0,
-
-        befTaxDiscount: isAmountMode
-            ? befTaxPercentageForDisplay
-            : befTaxDiscount,
-        afTaxDiscount: isAmountMode ? afTaxPercentageForDisplay : afTaxDiscount,
-
+        befTaxDiscount: befTaxDiscount,
+        afTaxDiscount: afTaxDiscount,
         befTaxDiscountAmount: result['pendingBefTaxDiscountAmount'] ?? 0,
         afTaxDiscountAmount: result['pendingAfTaxDiscountAmount'] ?? 0,
-
-        befTaxDiscountType: isAmountMode ? 'amount' : 'percentage',
-        afTaxDiscountType: isAmountMode ? 'amount' : 'percentage',
-
         totalPrice: result['pendingTotalPrice'] ?? 0,
         finalPrice: result['pendingFinalPrice'] ?? 0,
         variance:
@@ -1156,8 +1154,6 @@ class _AddItemDialogState extends State<AddItemDialog> {
         pendingCount: count,
         pendingQuantity: eachQty,
         pendingTotalQuantity: totalQuantity,
-        pendingBefTaxDiscountAmount: result['pendingBefTaxDiscountAmount'] ?? 0,
-        pendingAfTaxDiscountAmount: result['pendingAfTaxDiscountAmount'] ?? 0,
         pendingTaxAmount: result['pendingTaxAmount'] ?? 0,
         pendingFinalPrice: result['pendingFinalPrice'] ?? 0,
         pendingTotalPrice: result['pendingTotalPrice'] ?? 0,
@@ -1171,25 +1167,55 @@ class _AddItemDialogState extends State<AddItemDialog> {
         purchasesubcategoryName: selectedPurchaseItem?.purchasesubcategoryName,
       );
 
+      print("Created new item:");
+      print(newItem);
+
       if (widget.editingIndex != null) {
+        print("Editing existing item at index: ${widget.editingIndex}");
         notifier.poItems[widget.editingIndex!] = newItem;
       } else {
-        notifier.poItems.add(newItem);
+        final existingIndex = notifier.poItems.indexWhere(
+          (item) => item.itemId == newItem.itemId,
+        );
+
+        if (existingIndex != -1) {
+          print("Item already exists → merging quantities");
+
+          final existingItem = notifier.poItems[existingIndex];
+
+          existingItem.count = (existingItem.count ?? 0) + (newItem.count ?? 0);
+
+          existingItem.pendingTotalQuantity =
+              (existingItem.pendingTotalQuantity ?? 0) +
+              (newItem.pendingTotalQuantity ?? 0);
+
+          notifier.poItems[existingIndex] = existingItem;
+        } else {
+          print("Adding new item to PO list");
+          notifier.poItems.add(newItem);
+        }
       }
 
       notifier.notifyListeners();
 
+      print("Recalculating PO totals from backend...");
+
       await _calculatePOTotalsFromBackend(notifier);
+
+      print("=========== ITEM ADDED SUCCESSFULLY ===========");
 
       if (mounted) {
         widget.onItemAdded();
         Navigator.of(context).pop();
+
         notifier.itemController.clear();
         notifier.uomController.clear();
 
         _clearItemDetails();
       }
     } catch (e) {
+      print("ERROR in addOrUpdateItem: $e");
+
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1197,6 +1223,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       }
     } finally {
       _loadingNotifier.value = false;
+      print("=========== ADD / UPDATE ITEM END ===========");
     }
   }
 }

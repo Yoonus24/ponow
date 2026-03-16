@@ -151,8 +151,6 @@ class _POModalState extends State<POModal> {
         _leftVerticalController.jumpTo(_rightVerticalController.offset);
       }
     });
-
-   
   }
 
   @override
@@ -494,12 +492,13 @@ class _POModalState extends State<POModal> {
     int index,
     BuildContext context,
   ) {
+    final provider = context.watch<POModalProvider>();
+
     switch (column) {
       case 'Item Name':
         return Text(
           item.itemName ?? '',
           textAlign: TextAlign.left,
-
           maxLines: 4,
           softWrap: true,
           style: const TextStyle(fontSize: 12),
@@ -513,29 +512,38 @@ class _POModalState extends State<POModal> {
           maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'Count':
-        return TextField(
+        return TextFormField(
           controller: countControllers[index],
           readOnly: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Count',
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 4.0,
-              vertical: 8.0,
-            ),
+            errorText: provider.countErrors[index],
+            errorStyle: const TextStyle(height: 0, fontSize: 0),
             isDense: true,
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue),
+            ),
+            errorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
+            focusedErrorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
           ),
-          style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis),
+          style: const TextStyle(fontSize: 12),
+          textAlign: TextAlign.center,
           onTap: () {
             showNumericCalculator(
               context: context,
               controller: countControllers[index],
               varianceName: 'Enter Count',
               onValueSelected: () async {
-                final provider = Provider.of<POModalProvider>(
-                  context,
-                  listen: false,
-                );
+                final provider = context.read<POModalProvider>();
 
                 provider.updateItemRaw(
                   index,
@@ -546,31 +554,39 @@ class _POModalState extends State<POModal> {
               },
             );
           },
-          textAlign: TextAlign.center,
         );
+
       case 'Each Qty':
-        return TextField(
+        return TextFormField(
           controller: eachQuantityControllers[index],
           readOnly: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Qty',
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 4.0,
-              vertical: 8.0,
-            ),
+            errorText: provider.quantityErrors[index],
+            errorStyle: const TextStyle(height: 0, fontSize: 0),
             isDense: true,
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue),
+            ),
+            errorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
+            focusedErrorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
           ),
-          style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis),
+          style: const TextStyle(fontSize: 12),
+          textAlign: TextAlign.center,
           onTap: () {
             showNumericCalculator(
               context: context,
               controller: eachQuantityControllers[index],
               varianceName: 'Enter Quantity',
               onValueSelected: () async {
-                final provider = Provider.of<POModalProvider>(
-                  context,
-                  listen: false,
-                );
+                final provider = context.read<POModalProvider>();
 
                 final value =
                     double.tryParse(eachQuantityControllers[index].text) ?? 0;
@@ -581,40 +597,46 @@ class _POModalState extends State<POModal> {
               },
             );
           },
-
-          textAlign: TextAlign.center,
         );
+
       case 'Total Qty':
         return Text(
           item.pendingTotalQuantity?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'New Price':
-        return TextField(
+        return TextFormField(
           controller: newPriceControllers[index],
           readOnly: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Price',
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 4.0,
-              vertical: 8.0,
-            ),
+            errorText: provider.priceErrors[index],
+            errorStyle: const TextStyle(height: 0, fontSize: 0),
             isDense: true,
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.blue),
+            ),
+            errorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
+            focusedErrorBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red, width: 1.5),
+            ),
           ),
-          style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis),
+          style: const TextStyle(fontSize: 12),
+          textAlign: TextAlign.center,
           onTap: () {
             showNumericCalculator(
               context: context,
               controller: newPriceControllers[index],
               varianceName: 'Enter Price',
               onValueSelected: () async {
-                final provider = Provider.of<POModalProvider>(
-                  context,
-                  listen: false,
-                );
+                final provider = context.read<POModalProvider>();
 
                 final value =
                     double.tryParse(newPriceControllers[index].text) ?? 0;
@@ -625,7 +647,6 @@ class _POModalState extends State<POModal> {
               },
             );
           },
-          textAlign: TextAlign.center,
         );
 
       case 'BeforeTaxDiscount':
@@ -634,126 +655,75 @@ class _POModalState extends State<POModal> {
           readOnly: true,
           decoration: const InputDecoration(
             hintText: 'Before Tax %',
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 4.0,
-              vertical: 8.0,
-            ),
             isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           ),
-          style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis),
-          onTap: () {
-            showNumericCalculator(
-              context: context,
-              controller: befTaxDiscountControllers[index],
-              varianceName: 'Enter Before Tax Discount %',
-              onValueSelected: () async {
-                final provider = Provider.of<POModalProvider>(
-                  context,
-                  listen: false,
-                );
-
-                provider.updateItemRaw(
-                  index,
-                  count: double.tryParse(countControllers[index].text),
-                );
-
-                await provider.calculateAndUpdateItem(index);
-              },
-            );
-          },
+          style: const TextStyle(fontSize: 12),
           textAlign: TextAlign.center,
         );
+
       case 'AfterTaxDiscount':
         return TextField(
           controller: afTaxDiscountControllers[index],
           readOnly: true,
           decoration: const InputDecoration(
             hintText: 'After Tax %',
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 4.0,
-              vertical: 8.0,
-            ),
             isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           ),
-          style: const TextStyle(fontSize: 12, overflow: TextOverflow.ellipsis),
-          onTap: () {
-            showNumericCalculator(
-              context: context,
-              controller: afTaxDiscountControllers[index],
-              varianceName: 'Enter After Tax Discount %',
-              onValueSelected: () async {
-                final provider = Provider.of<POModalProvider>(
-                  context,
-                  listen: false,
-                );
-
-                provider.updateItemRaw(
-                  index,
-                  count: double.tryParse(countControllers[index].text),
-                );
-
-                await provider.calculateAndUpdateItem(index);
-              },
-            );
-          },
+          style: const TextStyle(fontSize: 12),
           textAlign: TextAlign.center,
         );
+
       case 'Tax %':
         return Text(
           item.taxPercentage?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'Tax Amount':
         return Text(
           item.pendingTaxAmount?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'Total Price':
         return Text(
           item.pendingTotalPrice?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'Final Price':
         return Text(
           item.pendingFinalPrice?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'sgst':
         return Text(
           item.pendingSgst?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'cgst':
         return Text(
           item.pendingCgst?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       case 'igst':
         return Text(
           item.pendingIgst?.toStringAsFixed(2) ?? '0.00',
           textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
           style: const TextStyle(fontSize: 12),
         );
+
       default:
         return const Text('');
     }
@@ -761,326 +731,272 @@ class _POModalState extends State<POModal> {
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.po.items;
+    final items = widget.po.items
+        .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
+        .toList();
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      child: ValueListenableBuilder<List<String>>(
-        valueListenable: columnsNotifier,
-        builder: (context, columns, _) {
-          return ValueListenableBuilder<Map<String, bool>>(
-            valueListenable: columnVisibilityNotifier,
-            builder: (context, columnVisibility, _) {
-              final visibleColumns = columns
-                  .where((column) => columnVisibility[column] ?? false)
-                  .toList();
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: ValueListenableBuilder<List<String>>(
+          valueListenable: columnsNotifier,
+          builder: (context, columns, _) {
+            return ValueListenableBuilder<Map<String, bool>>(
+              valueListenable: columnVisibilityNotifier,
+              builder: (context, columnVisibility, _) {
+                final visibleColumns = columns
+                    .where((column) => columnVisibility[column] ?? false)
+                    .toList();
 
-              final rightColumns = visibleColumns
-                  .where((column) => column != 'Item Name')
-                  .toList();
+                final rightColumns = visibleColumns
+                    .where((column) => column != 'Item Name')
+                    .toList();
 
-              return ChangeNotifierProvider(
-                create: (_) => POModalProvider(widget.po),
-                child: Consumer<POModalProvider>(
-                  builder: (context, poModalProvider, _) {
-                    final po = poModalProvider.po;
+                return ChangeNotifierProvider(
+                  create: (_) => POModalProvider(widget.po),
+                  child: Consumer<POModalProvider>(
+                    builder: (context, poModalProvider, _) {
+                      final po = poModalProvider.po;
 
-                    return Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'PO No: ${po.randomId}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4.0),
-                                    Text(
-                                      'Vendor: ${po.vendorName}',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.filter_list, size: 20),
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (context) => ColumnFilterDialog(
-                                      columns: columns,
-                                      columnVisibility: columnVisibility,
-                                      onApply: _applyColumnFilter,
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                      return Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(12.0),
                             child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                SizedBox(
-                                  width: 130,
+                                Expanded(
                                   child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        height: 33,
-                                        alignment: Alignment.centerLeft,
-                                        padding: const EdgeInsets.only(left: 6),
-                                        color: Colors.grey[200],
-                                        child: const Text(
-                                          "Item Name",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      Text(
+                                        'PO No: ${po.randomId}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
                                         ),
                                       ),
-                                      Expanded(
-                                        child: ListView.builder(
-                                          controller: _leftVerticalController,
-                                          itemCount: po.items.length,
-                                          itemBuilder: (context, index) {
-                                            final item = po.items[index];
-                                            return SizedBox(
-                                              height: 55,
-                                              child: Container(
-                                                alignment: Alignment.centerLeft,
-                                                padding: const EdgeInsets.only(
-                                                  left: 6,
-                                                ),
-                                                decoration: const BoxDecoration(
-                                                  border: Border(
-                                                    bottom: BorderSide(
-                                                      color: Colors.grey,
-                                                      width: 0.5,
-                                                    ),
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  item.itemName ?? '',
-
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                      const SizedBox(height: 4.0),
+                                      Text(
+                                        'Vendor: ${po.vendorName}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
+                                IconButton(
+                                  icon: const Icon(Icons.filter_list, size: 20),
+                                  onPressed: () {
+                                    showDialog(
+                                      context: context,
+                                      builder: (context) => ColumnFilterDialog(
+                                        columns: columns,
+                                        columnVisibility: columnVisibility,
+                                        onApply: _applyColumnFilter,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
 
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    controller: _rightHorizontalController,
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: (rightColumns.length * 110.0)
-                                          .clamp(300.0, 1500),
-                                      child: Column(
-                                        children: [
-                                          _buildHeaderRow(rightColumns),
-                                          Expanded(
-                                            child: ListView.builder(
-                                              controller:
-                                                  _rightVerticalController,
-                                              itemCount: po.items.length,
-                                              itemBuilder: (context, index) {
-                                                return _buildItemRow(
-                                                  po.items[index],
-                                                  index,
-                                                  rightColumns,
-                                                  context,
-                                                );
-                                              },
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 130,
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          height: 33,
+                                          alignment: Alignment.centerLeft,
+                                          padding: const EdgeInsets.only(
+                                            left: 6,
+                                          ),
+                                          color: Colors.grey[200],
+                                          child: const Text(
+                                            "Item Name",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
                                             ),
                                           ),
-                                        ],
+                                        ),
+                                        Expanded(
+                                          child: ListView.builder(
+                                            controller: _leftVerticalController,
+                                            itemCount: items.length,
+                                            itemBuilder: (context, index) {
+                                              final item = items[index];
+                                              return SizedBox(
+                                                height: 55,
+                                                child: Container(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 6,
+                                                      ),
+                                                  decoration:
+                                                      const BoxDecoration(
+                                                        border: Border(
+                                                          bottom: BorderSide(
+                                                            color: Colors.grey,
+                                                            width: 0.5,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  child: Text(
+                                                    item.itemName ?? '',
+
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      controller: _rightHorizontalController,
+                                      scrollDirection: Axis.horizontal,
+                                      child: SizedBox(
+                                        width: (rightColumns.length * 110.0)
+                                            .clamp(300.0, 1500),
+                                        child: Column(
+                                          children: [
+                                            _buildHeaderRow(rightColumns),
+                                            Expanded(
+                                              child: ListView.builder(
+                                                controller:
+                                                    _rightVerticalController,
+                                                itemCount: items.length,
+                                                itemBuilder: (context, index) {
+                                                  return _buildItemRow(
+                                                    items[index],
+                                                    index,
+                                                    rightColumns,
+                                                    context,
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8.0,
+                              horizontal: 12,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Divider(),
+
+                                Text(
+                                  "Discount Amount: ${po.items.fold(0.0, (s, i) => s + (i.pendingDiscountAmount ?? 0)).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "SGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingSgst ?? 0)).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "Freight Amount: ${(po.totalFreightAmount ?? 0.0).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "Freight Tax: ${(po.totalFreightTaxAmount ?? 0.0).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "Round Off: ${(po.roundOffAdjustment ?? 0.0).toStringAsFixed(2)}",
+                                ),
+
+                                Text(
+                                  "Total Order Amount: ${getFinalTotalWithRoundOff().toStringAsFixed(2)}",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
 
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 8.0,
-                            horizontal: 12,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Divider(),
-
-                              Text(
-                                "Discount Amount: ${po.items.fold(0.0, (s, i) => s + (i.pendingDiscountAmount ?? 0)).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "SGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingSgst ?? 0)).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "Freight Amount: ${(po.totalFreightAmount ?? 0.0).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "Freight Tax: ${(po.totalFreightTaxAmount ?? 0.0).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "Round Off: ${(po.roundOffAdjustment ?? 0.0).toStringAsFixed(2)}",
-                              ),
-
-                              Text(
-                                "Total Order Amount: ${getFinalTotalWithRoundOff().toStringAsFixed(2)}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: const Text('Close'),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              ElevatedButton(
-                                onPressed: isSaving.value
-                                    ? null
-                                    : () async {
-                                        try {
-                                          isSaving.value = true;
-
-                                          await poModalProvider.saveChanges(
-                                            context,
-                                          );
-
-                                          final poProvider = context
-                                              .read<POProvider>();
-
-                                          await poProvider
-                                              .fetchPendingPOsFromBackend(
-                                                clearExisting: true,
-                                              );
-
-                                          if (context.mounted) {
-                                            Navigator.of(context).pop();
-                                          }
-                                        } catch (e) {
-                                          debugPrint("Save failed: $e");
-                                        } finally {
-                                          isSaving.value = false;
-                                        }
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blueAccent,
-                                  foregroundColor: Colors.white,
-                                ),
-                                child: ValueListenableBuilder<bool>(
-                                  valueListenable: isSaving,
-                                  builder: (_, saving, __) {
-                                    return saving
-                                        ? const SizedBox(
-                                            height: 18,
-                                            width: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: Colors.white,
-                                            ),
-                                          )
-                                        : const Text(
-                                            'Save',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          );
-                                  },
-                                ),
-                              ),
-
-                              if (widget.showApproveButton) ...[
-                                const SizedBox(width: 12),
+                          Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
                                 ElevatedButton(
-                                  onPressed: isApproving.value
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blueAccent,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text('Close'),
+                                ),
+
+                                const SizedBox(width: 12),
+
+                                ElevatedButton(
+                                  onPressed: isSaving.value
                                       ? null
                                       : () async {
-                                          final confirm = await showConfirmDialog(
-                                            context: context,
-                                            title: "Approve PO?",
-                                            message:
-                                                "Are you sure you want to approve this purchase order?",
-                                            isApprove: true,
-                                          );
-
-                                          if (confirm != true) return;
-
                                           try {
-                                            isApproving.value = true;
+                                            isSaving.value = true;
 
-                                            final poProvider =
-                                                Provider.of<POProvider>(
-                                                  context,
-                                                  listen: false,
-                                                );
-
-                                            await poProvider.approvePo(
-                                              widget.po.purchaseOrderId,
-                                              'Approved',
-                                              widget.po,
+                                            await poModalProvider.saveChanges(
+                                              context,
                                             );
 
-                                            // poProvider.fetchPOs();
+                                            final poProvider = context
+                                                .read<POProvider>();
 
-                                            if (context.mounted)
+                                            await poProvider
+                                                .fetchPendingPOsFromBackend(
+                                                  clearExisting: true,
+                                                );
+
+                                            if (context.mounted) {
                                               Navigator.of(context).pop();
+                                            }
+                                          } catch (e) {
+                                            debugPrint("Save failed: $e");
                                           } finally {
-                                            isApproving.value = false;
+                                            isSaving.value = false;
                                           }
                                         },
                                   style: ElevatedButton.styleFrom(
@@ -1088,7 +1004,7 @@ class _POModalState extends State<POModal> {
                                     foregroundColor: Colors.white,
                                   ),
                                   child: ValueListenableBuilder<bool>(
-                                    valueListenable: isApproving,
+                                    valueListenable: isSaving,
                                     builder: (_, saving, __) {
                                       return saving
                                           ? const SizedBox(
@@ -1100,7 +1016,7 @@ class _POModalState extends State<POModal> {
                                               ),
                                             )
                                           : const Text(
-                                              'Approve',
+                                              'Save',
                                               style: TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w600,
@@ -1109,85 +1025,186 @@ class _POModalState extends State<POModal> {
                                     },
                                   ),
                                 ),
-                              ],
 
-                              if (widget.showRejectButton) ...[
-                                const SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: isRejecting.value
-                                      ? null
-                                      : () async {
-                                          final confirm = await showConfirmDialog(
-                                            context: context,
-                                            title: "Reject PO?",
-                                            message:
-                                                "Are you sure you want to reject this purchase order?",
-                                            isApprove: false,
-                                          );
+                                if (widget.showApproveButton) ...[
+                                  const SizedBox(width: 12),
+                                  ElevatedButton(
+                                    onPressed: isApproving.value
+                                        ? null
+                                        : () async {
+                                            final errorMessage = context
+                                                .read<POModalProvider>()
+                                                .validateItems();
 
-                                          if (confirm != true) return;
+                                            if (errorMessage != null) {
+                                              final messenger =
+                                                  ScaffoldMessenger.of(context);
 
-                                          try {
-                                            isRejecting.value = true;
+                                              messenger.clearSnackBars();
 
-                                            final poProvider =
-                                                Provider.of<POProvider>(
-                                                  context,
-                                                  listen: false,
-                                                );
+                                              messenger.showSnackBar(
+                                                SnackBar(
+                                                  behavior:
+                                                      SnackBarBehavior.floating,
+                                                  margin:
+                                                      const EdgeInsets.fromLTRB(
+                                                        20,
+                                                        0,
+                                                        20,
+                                                        70,
+                                                      ),
+                                                  backgroundColor: Colors.red,
+                                                  content: Text(errorMessage),
+                                                ),
+                                              );
 
-                                            await poProvider.approvePo(
-                                              widget.po.purchaseOrderId,
-                                              'Rejected',
-                                              widget.po,
+                                              return;
+                                            }
+
+                                            final confirm = await showConfirmDialog(
+                                              context: context,
+                                              title: "Approve PO?",
+                                              message:
+                                                  "Are you sure you want to approve this purchase order?",
+                                              isApprove: true,
                                             );
 
-                                            // poProvider.fetchPOs();
+                                            if (confirm != true) return;
 
-                                            if (context.mounted)
-                                              Navigator.of(context).pop();
-                                          } finally {
-                                            isRejecting.value = false;
-                                          }
-                                        },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.redAccent,
-                                    foregroundColor: Colors.white,
+                                            try {
+                                              isApproving.value = true;
+
+                                              final poProvider =
+                                                  Provider.of<POProvider>(
+                                                    context,
+                                                    listen: false,
+                                                  );
+
+                                              if (poModalProvider.hasChanges) {
+                                                await poModalProvider
+                                                    .saveChangesDirect();
+                                              }
+
+                                              await poProvider.approvePo(
+                                                widget.po.purchaseOrderId,
+                                              );
+
+                                              poProvider.removeApprovedPO(
+                                                widget.po.purchaseOrderId,
+                                              );
+
+                                              if (context.mounted) {
+                                                Navigator.of(context).pop();
+                                              }
+                                            } finally {
+                                              isApproving.value = false;
+                                            }
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: ValueListenableBuilder<bool>(
+                                      valueListenable: isApproving,
+                                      builder: (_, saving, __) {
+                                        return saving
+                                            ? const SizedBox(
+                                                height: 18,
+                                                width: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Text(
+                                                'Approve',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              );
+                                      },
+                                    ),
                                   ),
-                                  child: ValueListenableBuilder<bool>(
-                                    valueListenable: isRejecting,
-                                    builder: (_, saving, __) {
-                                      return saving
-                                          ? const SizedBox(
-                                              height: 18,
-                                              width: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : const Text(
-                                              'Reject',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                ],
+
+                                if (widget.showRejectButton) ...[
+                                  const SizedBox(width: 12),
+                                  ElevatedButton(
+                                    onPressed: isRejecting.value
+                                        ? null
+                                        : () async {
+                                            final confirm = await showConfirmDialog(
+                                              context: context,
+                                              title: "Reject PO?",
+                                              message:
+                                                  "Are you sure you want to reject this purchase order?",
+                                              isApprove: false,
                                             );
-                                    },
+
+                                            if (confirm != true) return;
+
+                                            try {
+                                              isRejecting.value = true;
+
+                                              final poProvider =
+                                                  Provider.of<POProvider>(
+                                                    context,
+                                                    listen: false,
+                                                  );
+
+                                              await poProvider.rejectPo(
+                                                widget.po.purchaseOrderId,
+                                              );
+                                              // poProvider.fetchPOs();
+
+                                              if (context.mounted)
+                                                Navigator.of(context).pop();
+                                            } finally {
+                                              isRejecting.value = false;
+                                            }
+                                          },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: ValueListenableBuilder<bool>(
+                                      valueListenable: isRejecting,
+                                      builder: (_, saving, __) {
+                                        return saving
+                                            ? const SizedBox(
+                                                height: 18,
+                                                width: 18,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Text(
+                                                'Reject',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              );
+                                      },
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            },
-          );
-        },
+                        ],
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

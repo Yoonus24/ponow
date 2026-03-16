@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -785,28 +786,56 @@ class PurchaseOrderLogic {
   }
 
   void _initializeDiscountSectionWithPOData(PO po) {
+    if (isDisposed()) return;
+
+    // 🔹 Reset everything first
     notifier.isOverallDiscountActive = false;
+    notifier.isOverallDisabledFromItem = false;
+
     notifier.discountMode.value = DiscountMode.none;
     overallDiscountMode.value = DiscountMode.none;
 
     notifier.overallDiscountController.text = '0';
     notifier.overallDiscountAmount = 0.0;
-    notifier.itemWiseDiscount = 0.0;
 
-    final hasOverall =
-        po.items.isNotEmpty &&
-        po.items.every(
-          (i) =>
-              (i.befTaxDiscountAmount ?? 0.0) == 0.0 &&
-              (i.afTaxDiscount ?? 0.0) > 0,
-        );
+    // 🔹 Always use backend truth for total discount
+    notifier.itemWiseDiscount = po.items.fold(
+      0.0,
+      (sum, item) => sum + (item.pendingDiscountAmount ?? 0.0),
+    );
 
-    if (hasOverall) {
+    // 🔹 Calculate individual discount types
+    double totalBef = po.items.fold(
+      0.0,
+      (s, i) => s + (i.befTaxDiscountAmount ?? 0.0),
+    );
+
+    double totalAf = po.items.fold(
+      0.0,
+      (s, i) => s + (i.afTaxDiscountAmount ?? 0.0),
+    );
+
+    // 🔥 RULE: MUTUAL EXCLUSIVITY
+    if (totalBef > 0) {
+      // ✅ ITEM-WISE DISCOUNT EXISTS → DISABLE OVERALL
+      notifier.isOverallDiscountActive = false;
+      notifier.isOverallDisabledFromItem = true;
+
+      notifier.discountMode.value = DiscountMode.none;
+      overallDiscountMode.value = DiscountMode.none;
+
+      notifier.overallDiscountController.text = '0';
+    } else if (totalAf > 0) {
+      // ✅ OVERALL DISCOUNT EXISTS → ENABLE OVERALL
+      notifier.isOverallDiscountActive = true;
+      notifier.isOverallDisabledFromItem = false;
+
+      // Detect type (percentage / amount)
       final first = po.items.first;
 
-      notifier.isOverallDiscountActive = true;
+      final type = first.afTaxDiscountType ?? 'percentage';
 
-      notifier.discountMode.value = (first.afTaxDiscountType == 'percentage')
+      notifier.discountMode.value = type == 'percentage'
           ? DiscountMode.percentage
           : DiscountMode.fixedAmount;
 
@@ -815,24 +844,20 @@ class PurchaseOrderLogic {
       notifier.overallDiscountController.text = (first.afTaxDiscount ?? 0.0)
           .toStringAsFixed(2);
 
+      // Optional: calculate total overall discount
       notifier.overallDiscountAmount = po.items.fold(
         0.0,
-        (s, i) => s + (i.pendingDiscountAmount ?? 0.0),
+        (sum, i) => sum + (i.afTaxDiscountAmount ?? 0.0),
       );
-
-      notifier.itemWiseDiscount = 0.0;
     } else {
+      // ✅ NO DISCOUNT
       notifier.isOverallDiscountActive = false;
+      notifier.isOverallDisabledFromItem = false;
 
-      notifier.itemWiseDiscount = po.items.fold(
-        0.0,
-        (s, i) =>
-            s +
-            (i.befTaxDiscountAmount ?? 0.0) +
-            (i.pendingDiscountAmount ?? 0.0),
-      );
+      notifier.discountMode.value = DiscountMode.none;
+      overallDiscountMode.value = DiscountMode.none;
 
-      notifier.overallDiscountAmount = 0.0;
+      notifier.overallDiscountController.text = '0';
     }
 
     notifier.notifyListeners();
@@ -883,6 +908,7 @@ class PurchaseOrderLogic {
     if (editingPO != null) return;
 
     notifier.poItems.clear();
+    notifier.clearFreights();
 
     notifier.isOverallDiscountActive = false;
     notifier.discountMode.value = DiscountMode.none;
@@ -915,8 +941,30 @@ class PurchaseOrderLogic {
     notifier.billingController.text = t.billingAddress;
     notifier.shippingController.text = t.shippingAddress;
 
+    /// LOAD ITEMS
     notifier.poItems.addAll(t.items.map((i) => i.copyWith()).toList());
 
+    /// LOAD FREIGHT
+    if (t.freights.isNotEmpty) {
+      notifier.freights.addAll(
+        t.freights.map(
+          (f) => FreightData(
+            id: f.id,
+            name: f.name,
+            amount: f.amount,
+            taxCode: f.taxCode,
+            taxType: f.taxType,
+            sgst: f.sgst,
+            cgst: f.cgst,
+            igst: f.igst,
+            taxAmount: f.taxAmount,
+            total: f.total,
+          ),
+        ),
+      );
+    }
+
+    /// RECALCULATE ITEMS
     for (final item in notifier.poItems) {
       final qty = item.quantity ?? 0.0;
       final price = item.newPrice ?? 0.0;
@@ -995,10 +1043,32 @@ class PurchaseOrderLogic {
       notifier.overallDiscountAmount = 0.0;
     }
 
-    notifier.totalOrderAmount = notifier.poItems.fold(
+    /// CALCULATE FREIGHT VALUES
+    double freightAmount = notifier.freights.fold(
+      0.0,
+      (sum, f) => sum + f.amount,
+    );
+
+    double freightTax = notifier.freights.fold(
+      0.0,
+      (sum, f) => sum + f.taxAmount,
+    );
+
+    double freightTotal = notifier.freights.fold(
+      0.0,
+      (sum, f) => sum + f.total,
+    );
+
+    notifier.totalFreightAmount = freightAmount;
+    notifier.totalFreightTaxAmount = freightTax;
+
+    /// TOTAL ORDER AMOUNT
+    double itemTotal = notifier.poItems.fold(
       0.0,
       (sum, i) => sum + (i.finalPrice ?? 0.0),
     );
+
+    notifier.totalOrderAmount = itemTotal + freightTotal;
 
     notifier.calculatedFinalAmount = notifier.totalOrderAmount;
     notifier.pendingOrderAmount = notifier.totalOrderAmount;

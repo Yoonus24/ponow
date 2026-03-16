@@ -30,6 +30,14 @@ class _FreightDialogState extends State<FreightDialog> {
     null,
   );
 
+  // List to store temporary freights
+  final List<FreightData> _temporaryFreights = [];
+
+  // Scroll controllers for the table
+  final ScrollController _leftVertical = ScrollController();
+  final ScrollController _rightVertical = ScrollController();
+  final ScrollController _horizontal = ScrollController();
+
   InputDecoration _buildFieldDecoration(
     String label, {
     bool isReadOnly = false,
@@ -72,6 +80,19 @@ class _FreightDialogState extends State<FreightDialog> {
   void initState() {
     super.initState();
 
+    // Sync vertical scrolling
+    _leftVertical.addListener(() {
+      if (_rightVertical.offset != _leftVertical.offset) {
+        _rightVertical.jumpTo(_leftVertical.offset);
+      }
+    });
+
+    _rightVertical.addListener(() {
+      if (_leftVertical.offset != _rightVertical.offset) {
+        _leftVertical.jumpTo(_rightVertical.offset);
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
@@ -108,6 +129,23 @@ class _FreightDialogState extends State<FreightDialog> {
         debugPrint("❌ Failed to load freight data: $e");
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _taxCode.dispose();
+    _taxType.dispose();
+    _sgst.dispose();
+    _cgst.dispose();
+    _igst.dispose();
+    _taxAmount.dispose();
+    _total.dispose();
+    _selectedFreightId.dispose();
+    _leftVertical.dispose();
+    _rightVertical.dispose();
+    _horizontal.dispose();
+    super.dispose();
   }
 
   void _openNumericCalculator({
@@ -154,7 +192,7 @@ class _FreightDialogState extends State<FreightDialog> {
     }
   }
 
-  Future<void> _submit() async {
+  void _addToTemporaryList() {
     if (!_formKey.currentState!.validate()) return;
 
     final provider = context.read<POProvider>();
@@ -177,22 +215,330 @@ class _FreightDialogState extends State<FreightDialog> {
       total: _total.value,
     );
 
-    widget.onAdd(freight);
+    setState(() {
+      if (widget.editingFreight != null) {
+        final index = _temporaryFreights.indexWhere(
+          (f) =>
+              f.id == widget.editingFreight!.id &&
+              f.name == widget.editingFreight!.name,
+        );
+        if (index != -1) {
+          _temporaryFreights[index] = freight;
+        } else {
+          _temporaryFreights.add(freight);
+        }
+      } else {
+        _temporaryFreights.add(freight);
+      }
+    });
+
+    _clearForm();
+  }
+
+  void _clearForm() {
+    _amountController.clear();
+    _taxCode.value = null;
+    _taxType.value = null;
+    _selectedFreightId.value = null;
+    _sgst.value = 0;
+    _cgst.value = 0;
+    _igst.value = 0;
+    _taxAmount.value = 0;
+    _total.value = 0;
+  }
+
+  void _removeTemporaryFreight(int index) {
+    setState(() {
+      _temporaryFreights.removeAt(index);
+    });
+  }
+
+  void _editTemporaryFreight(FreightData freight) {
+    final index = _temporaryFreights.indexWhere(
+      (f) =>
+          f.id == freight.id &&
+          f.name == freight.name &&
+          f.amount == freight.amount,
+    );
+
+    if (index != -1) {
+      _amountController.text = freight.amount.toStringAsFixed(2);
+      _taxCode.value = freight.taxCode;
+      _taxType.value = freight.taxType;
+      _sgst.value = freight.sgst;
+      _cgst.value = freight.cgst;
+      _igst.value = freight.igst;
+      _taxAmount.value = freight.taxAmount;
+      _total.value = freight.total;
+      _selectedFreightId.value = freight.id;
+
+      setState(() {
+        _temporaryFreights.removeAt(index);
+      });
+    }
+  }
+
+  void _submitAll() {
+    for (var freight in _temporaryFreights) {
+      widget.onAdd(freight);
+    }
     Navigator.of(context).pop();
   }
 
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _taxCode.dispose();
-    _taxType.dispose();
-    _sgst.dispose();
-    _cgst.dispose();
-    _igst.dispose();
-    _taxAmount.dispose();
-    _total.dispose();
-    _selectedFreightId.dispose();
-    super.dispose();
+  Widget _buildFreightTable() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final double rowHeight = 48;
+    final int itemCount = _temporaryFreights.length;
+
+    if (itemCount == 0) {
+      return Container(
+        height: 100,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            "No freight items added yet",
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+              fontSize: isMobile ? 13 : 14,
+            ),
+          ),
+        ),
+      );
+    }
+
+    double tableHeight;
+    if (itemCount <= 3) {
+      tableHeight = rowHeight * (itemCount + 1);
+    } else {
+      tableHeight = rowHeight * 4;
+    }
+
+    final double nameWidth = isMobile ? 100 : 130;
+    final double amountWidth = isMobile ? 70 : 80;
+    final double taxWidth = isMobile ? 70 : 80;
+    final double totalWidth = isMobile ? 70 : 80;
+    final double actionsWidth = isMobile ? 100 : 120;
+
+    return Container(
+      height: tableHeight,
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          // Left fixed column (Name)
+          Column(
+            children: [
+              Container(
+                height: rowHeight,
+                width: nameWidth,
+                color: Colors.grey[200],
+                child: Center(
+                  child: Text(
+                    "Name",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 12 : 13,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _leftVertical,
+                  physics: itemCount <= 3
+                      ? const NeverScrollableScrollPhysics()
+                      : const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: _temporaryFreights.map((f) {
+                      return Container(
+                        height: rowHeight,
+                        width: nameWidth,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(color: Colors.grey.shade300),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Center(
+                          child: Text(
+                            f.name,
+                            style: TextStyle(fontSize: isMobile ? 11 : 12),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Right scrollable columns
+          Expanded(
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              child: Column(
+                children: [
+                  // Header row
+                  Container(
+                    height: rowHeight,
+                    color: Colors.grey[200],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildTableHeader("Amount", amountWidth, isMobile),
+                        _buildTableHeader("Tax", taxWidth, isMobile),
+                        _buildTableHeader("Total", totalWidth, isMobile),
+                        Container(
+                          width: actionsWidth,
+                          alignment: Alignment.center,
+                          child: Text(
+                            "Actions",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 12 : 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Table body
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _rightVertical,
+                      physics: itemCount <= 3
+                          ? const NeverScrollableScrollPhysics()
+                          : const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                        children: _temporaryFreights.asMap().entries.map((
+                          entry,
+                        ) {
+                          final index = entry.key;
+                          final f = entry.value;
+
+                          return Container(
+                            height: rowHeight,
+                            decoration: BoxDecoration(
+                              border: Border(
+                                bottom: BorderSide(color: Colors.grey.shade300),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildTableCell(
+                                  "₹${f.amount.toStringAsFixed(2)}",
+                                  amountWidth,
+                                  isMobile,
+                                ),
+                                _buildTableCell(
+                                  "₹${f.taxAmount.toStringAsFixed(2)}",
+                                  taxWidth,
+                                  isMobile,
+                                ),
+                                _buildTableCell(
+                                  "₹${f.total.toStringAsFixed(2)}",
+                                  totalWidth,
+                                  isMobile,
+                                ),
+
+                                Container(
+                                  width: actionsWidth,
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildActionButton(
+                                        icon: Icons.edit,
+                                        color: Colors.blueAccent,
+                                        onPressed: () =>
+                                            _editTemporaryFreight(f),
+                                        isMobile: isMobile,
+                                      ),
+                                      SizedBox(width: isMobile ? 2 : 4),
+                                      _buildActionButton(
+                                        icon: Icons.delete,
+                                        color: Colors.red,
+                                        onPressed: () =>
+                                            _removeTemporaryFreight(index),
+                                        isMobile: isMobile,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required bool isMobile,
+  }) {
+    return SizedBox(
+      width: isMobile ? 32 : 40,
+      height: isMobile ? 32 : 40,
+      child: IconButton(
+        icon: Icon(icon, size: isMobile ? 16 : 20, color: color),
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        visualDensity: VisualDensity.compact,
+        splashRadius: isMobile ? 20 : 24,
+        constraints: const BoxConstraints(),
+      ),
+    );
+  }
+
+  Widget _buildTableHeader(String text, double width, bool isMobile) {
+    return Container(
+      width: width,
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: isMobile ? 12 : 13,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTableCell(String text, double width, bool isMobile) {
+    return Container(
+      width: width,
+      alignment: Alignment.center,
+      child: Text(
+        text,
+        style: TextStyle(fontSize: isMobile ? 11 : 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 
   @override
@@ -221,7 +567,11 @@ class _FreightDialogState extends State<FreightDialog> {
             borderRadius: BorderRadius.circular(isMobile ? 15 : 25),
           ),
           child: Container(
-            width: isMobile ? MediaQuery.of(context).size.width * 0.95 : 850,
+            width: isMobile ? MediaQuery.of(context).size.width * 0.95 : 900,
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.9,
+              minHeight: 100,
+            ),
             padding: EdgeInsets.all(isMobile ? 12 : 16),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -229,7 +579,9 @@ class _FreightDialogState extends State<FreightDialog> {
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header (Fixed at top)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -246,543 +598,593 @@ class _FreightDialogState extends State<FreightDialog> {
                     IconButton(
                       icon: Icon(Icons.close, size: isMobile ? 20 : 22),
                       onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
+
+                SizedBox(height: isMobile ? 8 : 12),
+
+                // Scrollable Content
                 Flexible(
                   child: SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(height: isMobile ? 8 : 12),
-                          twoCol(
-                            Consumer<POProvider>(
-                              builder: (context, provider, _) {
-                                if (provider.freightNames.isEmpty) {
-                                  return InputDecorator(
-                                    decoration: _buildFieldDecoration(
-                                      "Freight Name *",
-                                    ),
-                                    child: const SizedBox(
-                                      height: 20,
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 1. FIELDS SECTION
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              twoCol(
+                                Consumer<POProvider>(
+                                  builder: (context, provider, _) {
+                                    if (provider.freightNames.isEmpty) {
+                                      return InputDecorator(
+                                        decoration: _buildFieldDecoration(
+                                          "Freight Name *",
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                }
-
-                                return ValueListenableBuilder<String?>(
-                                  valueListenable: _selectedFreightId,
-                                  builder: (context, selectedValue, _) {
-                                    return DropdownButtonFormField<String>(
-                                      isExpanded: true,
-
-                                      value:
-                                          provider.freightNames.any(
-                                            (f) => f.id == selectedValue,
-                                          )
-                                          ? selectedValue
-                                          : null,
-
-                                      decoration: _buildFieldDecoration(
-                                        "Freight Name *",
-                                      ),
-
-                                      hint: const Text("Select Freight"),
-
-                                      items: provider.freightNames.map((
-                                        freight,
-                                      ) {
-                                        return DropdownMenuItem<String>(
-                                          value: freight.id,
-                                          child: Text(
-                                            freight.name,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        );
-                                      }).toList(),
-
-                                      onChanged: (value) {
-                                        _selectedFreightId.value = value;
-                                      },
-
-                                      validator: (v) =>
-                                          v == null ? "Select freight" : null,
-
-                                      icon: selectedValue == null
-                                          ? Icon(
-                                              Icons.arrow_drop_down,
-                                              color: Colors.grey.shade700,
-                                            )
-                                          : GestureDetector(
-                                              onTap: () {
-                                                _selectedFreightId.value = null;
-                                              },
-                                              child: Icon(
-                                                Icons.close,
-                                                size: 18,
-                                                color: Colors.grey.shade600,
+                                        child: const SizedBox(
+                                          height: 20,
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
                                               ),
                                             ),
+                                          ),
+                                        ),
+                                      );
+                                    }
 
-                                      dropdownColor: Colors.white,
-                                      menuMaxHeight: 250,
+                                    return ValueListenableBuilder<String?>(
+                                      valueListenable: _selectedFreightId,
+                                      builder: (context, selectedValue, _) {
+                                        return DropdownButtonFormField<String>(
+                                          isExpanded: true,
+                                          value:
+                                              provider.freightNames.any(
+                                                (f) => f.id == selectedValue,
+                                              )
+                                              ? selectedValue
+                                              : null,
+                                          decoration: _buildFieldDecoration(
+                                            "Freight Name *",
+                                          ),
+                                          hint: const Text("Select Freight"),
+                                          items: provider.freightNames.map((
+                                            freight,
+                                          ) {
+                                            return DropdownMenuItem<String>(
+                                              value: freight.id,
+                                              child: Text(
+                                                freight.name,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (value) {
+                                            _selectedFreightId.value = value;
+                                          },
+                                          validator: (v) => v == null
+                                              ? "Select freight"
+                                              : null,
+                                          icon: selectedValue == null
+                                              ? Icon(
+                                                  Icons.arrow_drop_down,
+                                                  color: Colors.grey.shade700,
+                                                )
+                                              : GestureDetector(
+                                                  onTap: () {
+                                                    _selectedFreightId.value =
+                                                        null;
+                                                  },
+                                                  child: Icon(
+                                                    Icons.close,
+                                                    size: 18,
+                                                    color: Colors.grey.shade600,
+                                                  ),
+                                                ),
+                                          dropdownColor: Colors.white,
+                                          menuMaxHeight: 250,
+                                        );
+                                      },
                                     );
                                   },
-                                );
-                              },
-                            ),
-
-                            TextFormField(
-                              controller: _amountController,
-                              readOnly: true,
-                              decoration: _buildFieldDecoration(
-                                "Amount *",
-                                hint: "Enter amount",
-                              ),
-                              style: TextStyle(fontSize: isMobile ? 14 : 14),
-                              onTap: () {
-                                _openNumericCalculator(
-                                  title: "Freight Amount",
+                                ),
+                                TextFormField(
                                   controller: _amountController,
-                                );
-                              },
-                              validator: (v) => v == null || v.isEmpty
-                                  ? "Enter amount"
-                                  : null,
-                              onChanged: (_) => _calculate(),
-                            ),
-                          ),
-                          SizedBox(height: isMobile ? 12 : 16),
-                          twoCol(
-                            Consumer<POProvider>(
-                              builder: (context, provider, _) {
-                                if (provider.purchaseTaxes.isEmpty) {
-                                  return InputDecorator(
-                                    decoration: _buildFieldDecoration("Tax %"),
-                                    child: const SizedBox(
-                                      height: 20,
-                                      child: Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
+                                  readOnly: true,
+                                  decoration: _buildFieldDecoration(
+                                    "Amount *",
+                                    hint: "Enter amount",
+                                  ),
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 14 : 14,
+                                  ),
+                                  onTap: () {
+                                    _openNumericCalculator(
+                                      title: "Freight Amount",
+                                      controller: _amountController,
+                                    );
+                                  },
+                                  validator: (v) => v == null || v.isEmpty
+                                      ? "Enter amount"
+                                      : null,
+                                  onChanged: (_) => _calculate(),
+                                ),
+                              ),
+
+                              SizedBox(height: isMobile ? 12 : 16),
+
+                              twoCol(
+                                Consumer<POProvider>(
+                                  builder: (context, provider, _) {
+                                    if (provider.purchaseTaxes.isEmpty) {
+                                      return InputDecorator(
+                                        decoration: _buildFieldDecoration(
+                                          "Tax %",
                                         ),
-                                      ),
-                                    ),
-                                  );
-                                }
-
-                                return ValueListenableBuilder<String?>(
-                                  valueListenable: _taxCode,
-                                  builder: (context, taxCodeValue, child) {
-                                    return DropdownButtonFormField<double>(
-                                      isExpanded: true,
-
-                                      initialValue: taxCodeValue == null
-                                          ? null
-                                          : double.tryParse(taxCodeValue),
-
-                                      decoration: _buildFieldDecoration(
-                                        "Tax %",
-                                      ),
-
-                                      items: provider.purchaseTaxes.map((tax) {
-                                        return DropdownMenuItem<double>(
-                                          value: tax.purchasetaxPercentage,
-                                          child: Text(
-                                            "${tax.purchasetaxName} (${tax.purchasetaxPercentage}%)",
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                        );
-                                      }).toList(),
-
-                                      onChanged: (value) {
-                                        if (value != null) {
-                                          _taxCode.value = value.toString();
-                                          _calculate();
-                                        }
-                                      },
-
-                                      icon: taxCodeValue == null
-                                          ? const Icon(Icons.arrow_drop_down)
-                                          : GestureDetector(
-                                              onTap: () {
-                                                _taxCode.value = null;
-                                                _calculate();
-                                              },
-                                              child: const Icon(
-                                                Icons.close,
-                                                size: 18,
+                                        child: const SizedBox(
+                                          height: 20,
+                                          child: Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
                                               ),
                                             ),
+                                          ),
+                                        ),
+                                      );
+                                    }
 
+                                    return ValueListenableBuilder<String?>(
+                                      valueListenable: _taxCode,
+                                      builder: (context, taxCodeValue, child) {
+                                        return DropdownButtonFormField<double>(
+                                          isExpanded: true,
+                                          initialValue: taxCodeValue == null
+                                              ? null
+                                              : double.tryParse(taxCodeValue),
+                                          decoration: _buildFieldDecoration(
+                                            "Tax %",
+                                          ),
+                                          items: provider.purchaseTaxes.map((
+                                            tax,
+                                          ) {
+                                            return DropdownMenuItem<double>(
+                                              value: tax.purchasetaxPercentage,
+                                              child: Text(
+                                                "${tax.purchasetaxName} (${tax.purchasetaxPercentage}%)",
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                ),
+                                              ),
+                                            );
+                                          }).toList(),
+                                          onChanged: (value) {
+                                            if (value != null) {
+                                              _taxCode.value = value.toString();
+                                              _calculate();
+                                            }
+                                          },
+                                          icon: taxCodeValue == null
+                                              ? const Icon(
+                                                  Icons.arrow_drop_down,
+                                                )
+                                              : GestureDetector(
+                                                  onTap: () {
+                                                    _taxCode.value = null;
+                                                    _calculate();
+                                                  },
+                                                  child: const Icon(
+                                                    Icons.close,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                          dropdownColor: Colors.white,
+                                          menuMaxHeight: 200,
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
+                                ValueListenableBuilder<String?>(
+                                  valueListenable: _taxType,
+                                  builder: (context, taxTypeValue, child) {
+                                    return DropdownButtonFormField<String>(
+                                      value: taxTypeValue,
+                                      decoration: _buildFieldDecoration(
+                                        "Tax Type",
+                                      ),
+                                      hint: Text(
+                                        "Select",
+                                        style: GoogleFonts.poppins(
+                                          fontSize: isMobile ? 14 : 14,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      ),
+                                      items: [
+                                        DropdownMenuItem(
+                                          value: "cgst_sgst",
+                                          child: Text(
+                                            "CGST + SGST",
+                                            style: GoogleFonts.poppins(
+                                              fontSize: isMobile ? 14 : 14,
+                                            ),
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: "igst",
+                                          child: Text(
+                                            "IGST",
+                                            style: GoogleFonts.poppins(
+                                              fontSize: isMobile ? 14 : 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (v) {
+                                        _taxType.value = v;
+                                        _calculate();
+                                      },
+                                      style: GoogleFonts.poppins(
+                                        fontSize: isMobile ? 14 : 14,
+                                        color: Colors.black,
+                                      ),
                                       dropdownColor: Colors.white,
+                                      icon: Icon(
+                                        Icons.arrow_drop_down,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      elevation: 4,
                                       menuMaxHeight: 200,
                                     );
                                   },
-                                );
-                              },
-                            ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
-                            ValueListenableBuilder<String?>(
+                        // 2. SUMMARY SECTION - COMPACT VERSION
+                        SizedBox(height: isMobile ? 16 : 20),
+
+                        // 3. TABLE SECTION
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Added Freights",
+                              style: TextStyle(
+                                fontSize: isMobile ? 14 : 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            SizedBox(height: isMobile ? 6 : 8),
+                            _buildFreightTable(),
+                          ],
+                        ),
+
+                        SizedBox(height: isMobile ? 16 : 20),
+
+                        ValueListenableBuilder<String?>(
+                          valueListenable: _taxCode,
+                          builder: (context, taxCodeValue, child) {
+                            return ValueListenableBuilder<String?>(
                               valueListenable: _taxType,
                               builder: (context, taxTypeValue, child) {
-                                return DropdownButtonFormField<String>(
-                                  value: taxTypeValue,
+                                final hasTaxSelected =
+                                    taxCodeValue != null &&
+                                    taxCodeValue.isNotEmpty &&
+                                    taxTypeValue != null &&
+                                    taxTypeValue.isNotEmpty;
 
-                                  decoration: _buildFieldDecoration("Tax Type"),
-
-                                  hint: Text(
-                                    "Select",
-                                    style: GoogleFonts.poppins(
-                                      fontSize: isMobile ? 14 : 14,
-                                      color: Colors.grey.shade600,
-                                    ),
-                                  ),
-
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: "cgst_sgst",
-                                      child: Text(
-                                        "CGST + SGST",
-                                        style: GoogleFonts.poppins(
-                                          fontSize: isMobile ? 14 : 14,
-                                        ),
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "Tax Breakdown",
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 13 : 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey.shade700,
                                       ),
                                     ),
-                                    DropdownMenuItem(
-                                      value: "igst",
-                                      child: Text(
-                                        "IGST",
-                                        style: GoogleFonts.poppins(
-                                          fontSize: isMobile ? 14 : 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                    SizedBox(height: isMobile ? 6 : 8),
 
-                                  onChanged: (v) {
-                                    _taxType.value = v;
-                                    _calculate();
-                                  },
-
-                                  style: GoogleFonts.poppins(
-                                    fontSize: isMobile ? 14 : 14,
-                                    color: Colors.black,
-                                  ),
-
-                                  dropdownColor: Colors.white,
-                                  icon: Icon(
-                                    Icons.arrow_drop_down,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                  elevation: 4,
-                                  menuMaxHeight: 200,
-                                );
-                              },
-                            ),
-                          ),
-
-                          SizedBox(height: isMobile ? 16 : 20),
-                          ValueListenableBuilder<String?>(
-                            valueListenable: _taxCode,
-                            builder: (context, taxCodeValue, child) {
-                              return ValueListenableBuilder<String?>(
-                                valueListenable: _taxType,
-                                builder: (context, taxTypeValue, child) {
-                                  final hasTaxSelected =
-                                      taxCodeValue != null &&
-                                      taxCodeValue.isNotEmpty &&
-                                      taxTypeValue != null &&
-                                      taxTypeValue.isNotEmpty;
-
-                                  return Container(
-                                    padding: EdgeInsets.all(isMobile ? 12 : 16),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade50,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          "Tax Breakdown",
-                                          style: TextStyle(
-                                            fontSize: isMobile ? 13 : 14,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey.shade700,
-                                          ),
-                                        ),
-                                        SizedBox(height: isMobile ? 8 : 12),
-
-                                        if (hasTaxSelected) ...[
-                                          if (taxTypeValue == "cgst_sgst") ...[
-                                            ValueListenableBuilder<double>(
-                                              valueListenable: _cgst,
-                                              builder: (context, cgstValue, child) {
-                                                return twoCol(
-                                                  Text(
-                                                    "CGST:",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    "₹${cgstValue.toStringAsFixed(2)}",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                    textAlign: TextAlign.right,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                            SizedBox(height: isMobile ? 6 : 8),
-                                            ValueListenableBuilder<double>(
-                                              valueListenable: _sgst,
-                                              builder: (context, sgstValue, child) {
-                                                return twoCol(
-                                                  Text(
-                                                    "SGST:",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    "₹${sgstValue.toStringAsFixed(2)}",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                    textAlign: TextAlign.right,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ] else if (taxTypeValue ==
-                                              "igst") ...[
-                                            ValueListenableBuilder<double>(
-                                              valueListenable: _igst,
-                                              builder: (context, igstValue, child) {
-                                                return twoCol(
-                                                  Text(
-                                                    "IGST:",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    "₹${igstValue.toStringAsFixed(2)}",
-                                                    style: TextStyle(
-                                                      fontSize: isMobile
-                                                          ? 13
-                                                          : 14,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      color:
-                                                          Colors.grey.shade700,
-                                                    ),
-                                                    textAlign: TextAlign.right,
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ],
-                                          SizedBox(height: isMobile ? 8 : 12),
-                                          Divider(color: Colors.grey.shade400),
-                                          SizedBox(height: isMobile ? 8 : 12),
-
-                                          ValueListenableBuilder<double>(
-                                            valueListenable: _taxAmount,
-                                            builder:
-                                                (
-                                                  context,
-                                                  taxAmountValue,
-                                                  child,
-                                                ) {
-                                                  return twoCol(
-                                                    Text(
-                                                      "Tax Amount:",
-                                                      style: TextStyle(
-                                                        fontSize: isMobile
-                                                            ? 13
-                                                            : 14,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade700,
-                                                      ),
-                                                    ),
-                                                    Text(
-                                                      "₹${taxAmountValue.toStringAsFixed(2)}",
-                                                      style: TextStyle(
-                                                        fontSize: isMobile
-                                                            ? 14
-                                                            : 15,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: Colors
-                                                            .grey
-                                                            .shade700,
-                                                      ),
-                                                      textAlign:
-                                                          TextAlign.right,
-                                                    ),
-                                                  );
-                                                },
-                                          ),
-                                        ] else ...[
-                                          twoCol(
-                                            Text(
-                                              "Tax Details",
-                                              style: TextStyle(
-                                                fontSize: isMobile ? 13 : 14,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            ),
-                                            Text(
-                                              "No tax selected",
-                                              style: TextStyle(
-                                                fontSize: isMobile ? 13 : 14,
-                                                fontStyle: FontStyle.italic,
-                                                color: Colors.grey.shade600,
-                                              ),
-                                              textAlign: TextAlign.right,
-                                            ),
-                                          ),
-                                          SizedBox(height: isMobile ? 8 : 12),
-                                          Divider(color: Colors.grey.shade400),
-                                          SizedBox(height: isMobile ? 8 : 12),
-                                        ],
-
-                                        SizedBox(height: isMobile ? 6 : 8),
+                                    if (hasTaxSelected) ...[
+                                      if (taxTypeValue == "cgst_sgst") ...[
                                         ValueListenableBuilder<double>(
-                                          valueListenable: _total,
-                                          builder: (context, totalValue, child) {
-                                            return twoCol(
-                                              Text(
-                                                "Total Amount:",
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 14 : 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey.shade700,
+                                          valueListenable: _cgst,
+                                          builder: (context, cgstValue, child) {
+                                            return Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: isMobile ? 2 : 4,
+                                              ),
+                                              child: twoCol(
+                                                Text(
+                                                  "CGST:",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "₹${cgstValue.toStringAsFixed(2)}",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                  textAlign: TextAlign.right,
                                                 ),
                                               ),
-                                              Text(
-                                                "₹${totalValue.toStringAsFixed(2)}",
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 15 : 16,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.grey.shade700,
+                                            );
+                                          },
+                                        ),
+
+                                        ValueListenableBuilder<double>(
+                                          valueListenable: _sgst,
+                                          builder: (context, sgstValue, child) {
+                                            return Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: isMobile ? 2 : 4,
+                                              ),
+                                              child: twoCol(
+                                                Text(
+                                                  "SGST:",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    color: Colors.grey.shade700,
+                                                  ),
                                                 ),
-                                                textAlign: TextAlign.right,
+                                                Text(
+                                                  "₹${sgstValue.toStringAsFixed(2)}",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                  textAlign: TextAlign.right,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ] else if (taxTypeValue == "igst") ...[
+                                        ValueListenableBuilder<double>(
+                                          valueListenable: _igst,
+                                          builder: (context, igstValue, child) {
+                                            return Padding(
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: isMobile ? 2 : 4,
+                                              ),
+                                              child: twoCol(
+                                                Text(
+                                                  "IGST:",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  "₹${igstValue.toStringAsFixed(2)}",
+                                                  style: TextStyle(
+                                                    fontSize: isMobile
+                                                        ? 13
+                                                        : 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.grey.shade700,
+                                                  ),
+                                                  textAlign: TextAlign.right,
+                                                ),
                                               ),
                                             );
                                           },
                                         ),
                                       ],
+
+                                      Divider(
+                                        height: isMobile ? 16 : 20,
+                                        color: Colors.grey.shade300,
+                                      ),
+
+                                      ValueListenableBuilder<double>(
+                                        valueListenable: _taxAmount,
+                                        builder: (context, taxAmountValue, child) {
+                                          return Padding(
+                                            padding: EdgeInsets.symmetric(
+                                              vertical: isMobile ? 4 : 6,
+                                            ),
+                                            child: twoCol(
+                                              Text(
+                                                "Tax Amount:",
+                                                style: TextStyle(
+                                                  fontSize: isMobile ? 13 : 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.grey.shade700,
+                                                ),
+                                              ),
+                                              Text(
+                                                "₹${taxAmountValue.toStringAsFixed(2)}",
+                                                style: TextStyle(
+                                                  fontSize: isMobile ? 14 : 15,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey.shade700,
+                                                ),
+                                                textAlign: TextAlign.right,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ] else ...[
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: isMobile ? 4 : 6,
+                                        ),
+                                        child: twoCol(
+                                          Text(
+                                            "Tax Details",
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 13 : 14,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.grey.shade700,
+                                            ),
+                                          ),
+                                          Text(
+                                            "No tax selected",
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 13 : 14,
+                                              fontStyle: FontStyle.italic,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                        ),
+                                      ),
+
+                                      Divider(
+                                        height: isMobile ? 16 : 20,
+                                        color: Colors.grey.shade300,
+                                      ),
+                                    ],
+
+                                    ValueListenableBuilder<double>(
+                                      valueListenable: _total,
+                                      builder: (context, totalValue, child) {
+                                        return Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: isMobile ? 6 : 8,
+                                          ),
+                                          child: twoCol(
+                                            Text(
+                                              "Total Amount:",
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 14 : 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey.shade700,
+                                              ),
+                                            ),
+                                            Text(
+                                              "₹${totalValue.toStringAsFixed(2)}",
+                                              style: TextStyle(
+                                                fontSize: isMobile ? 15 : 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.grey.shade700,
+                                              ),
+                                              textAlign: TextAlign.right,
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                          SizedBox(height: isMobile ? 20 : 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color.fromARGB(
-                                    255,
-                                    74,
-                                    122,
-                                    227,
-                                  ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        ),
+
+                        SizedBox(height: isMobile ? 16 : 20),
+
+                        // 4. BUTTONS SECTION
+                        // 4. BUTTONS SECTION - All buttons in same row
+                        Row(
+                          children: [
+                            // Clear button
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _clearForm,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey.shade700,
                                   padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 16 : 20,
-                                    vertical: isMobile ? 8 : 12,
+                                    vertical: isMobile ? 10 : 14,
                                   ),
                                 ),
                                 child: Text(
-                                  "Cancel",
+                                  "Clear",
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 14,
                                   ),
                                 ),
                               ),
-                              SizedBox(width: isMobile ? 8 : 12),
-                              ElevatedButton(
-                                onPressed: _submit,
+                            ),
+                            SizedBox(width: isMobile ? 8 : 12),
+
+                            // Add/Update button
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _addToTemporaryList,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blueAccent,
                                   foregroundColor: Colors.white,
                                   padding: EdgeInsets.symmetric(
-                                    horizontal: isMobile ? 20 : 24,
                                     vertical: isMobile ? 10 : 14,
                                   ),
                                 ),
                                 child: Text(
                                   widget.editingFreight != null
-                                      ? "Update Freight"
-                                      : "Add Freight",
+                                      ? "Update"
+                                      : "Add",
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                            SizedBox(width: isMobile ? 8 : 12),
+
+                            // Save All button
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _temporaryFreights.isEmpty
+                                    ? null
+                                    : _submitAll,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isMobile ? 10 : 14,
+                                  ),
+                                  disabledBackgroundColor: Colors.grey.shade300,
+                                ),
+                                child: Text(
+                                  "Save (${_temporaryFreights.length})",
+                                  style: TextStyle(
+                                    fontSize: isMobile ? 13 : 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),

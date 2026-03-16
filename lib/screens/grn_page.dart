@@ -20,21 +20,23 @@ class GRNPage extends StatefulWidget {
 
 class _GRNPageState extends State<GRNPage> {
   final ValueNotifier<String> _selectedButton = ValueNotifier<String>('active');
-  final TextEditingController _vendorSearchController = TextEditingController();
+  // final TextEditingController _vendorSearchController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   TextEditingController? _autoController;
   final TextEditingController _vendorController = TextEditingController();
 
   final ValueNotifier<String> _vendorNotifier = ValueNotifier('');
-  final ValueNotifier<DateTime?> _selectedDateNotifier = ValueNotifier(null);
-
+  final ValueNotifier<DateTimeRange?> _selectedDateRangeNotifier =
+      ValueNotifier(null);
   final GlobalKey _autocompleteKey = GlobalKey();
-  DateTime? _selectedDate;
+  DateTimeRange? _selectedDateRange;
   bool _isInitialized = false;
 
   Timer? _debounceTimer;
   final int _skip = 0;
   final int _limit = 50;
+  List<String> _allVendors = [];
+  // List<String> _displayedVendors = [];
 
   @override
   void initState() {
@@ -43,28 +45,48 @@ class _GRNPageState extends State<GRNPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
-      final poProvider = Provider.of<POProvider>(context, listen: false);
+      final poProvider = context.read<POProvider>();
+      final grnProvider = context.read<GRNProvider>();
 
-      // ✅ trigger initial load through same flow
-      _selectedButton.value = 'active';
-      _applyFilters();
-
-      if (poProvider.filteredVendorNames.isEmpty) {
-        await poProvider.fetchingVendors(
-          vendorName: '',
-          skip: _skip,
-          limit: _limit,
-        );
+      if (grnProvider.grns.isEmpty) {
+        _selectedButton.value = 'active';
+        _applyFilters();
       }
 
+      final vendors = await poProvider.fetchingAllVendors(
+        vendorName: '',
+        skip: 0,
+        limit: 5000,
+      );
+
+      _allVendors = vendors.map((e) => e.vendorName).toList();
+      // _displayedVendors = List.from(_allVendors);
+
       if (!mounted) return;
-      _isInitialized = true; // no setState needed
+      _isInitialized = true;
     });
 
-    _vendorNotifier.addListener(_onVendorFilterChanged);
-    _selectedDateNotifier.addListener(_onDateFilterChanged);
+    // _vendorNotifier.addListener(_onVendorFilterChanged);
+    _selectedDateRangeNotifier.addListener(_onDateFilterChanged);
     _selectedButton.addListener(_onStatusFilterChanged);
   }
+
+  // void _searchVendor(String query) {
+  //   final q = query.toLowerCase().trim();
+
+  //   if (q.isEmpty) {
+  //     setState(() {
+  //       _displayedVendors = List.from(_allVendors);
+  //     });
+  //     return;
+  //   }
+
+  //   setState(() {
+  //     _displayedVendors = _allVendors
+  //         .where((v) => v.toLowerCase().contains(q))
+  //         .toList();
+  //   });
+  // }
 
   void _onVendorFilterChanged() {
     _debounceTimer?.cancel();
@@ -94,11 +116,11 @@ class _GRNPageState extends State<GRNPage> {
   void dispose() {
     _debounceTimer?.cancel();
     _selectedButton.dispose();
-    _vendorSearchController.dispose();
+    // _vendorSearchController.dispose();
     _dateController.dispose();
     _vendorController.dispose();
     _vendorNotifier.dispose();
-    _selectedDateNotifier.dispose();
+    _selectedDateRangeNotifier.dispose();
     super.dispose();
   }
 
@@ -112,7 +134,24 @@ class _GRNPageState extends State<GRNPage> {
     if (_selectedButton.value == 'active') {
       backendStatus = 'active';
     } else if (_selectedButton.value == 'returned') {
-      backendStatus = 'returned'; // used only to switch API
+      backendStatus = 'returned';
+    }
+
+    DateTime? fromDate;
+    DateTime? toDate;
+
+    if (_selectedDateRange != null) {
+      fromDate = DateTime(
+        _selectedDateRange!.start.year,
+        _selectedDateRange!.start.month,
+        _selectedDateRange!.start.day,
+      );
+
+      toDate = DateTime(
+        _selectedDateRange!.end.year,
+        _selectedDateRange!.end.month,
+        _selectedDateRange!.end.day,
+      );
     }
 
     grnProvider.fetchFilteredGRNs(
@@ -120,7 +159,8 @@ class _GRNPageState extends State<GRNPage> {
       vendorName: _vendorNotifier.value.isNotEmpty
           ? _vendorNotifier.value
           : null,
-      date: _selectedDate,
+      fromDate: fromDate,
+      toDate: toDate,
       skip: 0,
       limit: _limit,
     );
@@ -133,21 +173,24 @@ class _GRNPageState extends State<GRNPage> {
           height: 52,
           child: Autocomplete<String>(
             key: _autocompleteKey,
-            optionsBuilder: (value) async {
-              if (value.text.isEmpty) return const Iterable<String>.empty();
+            optionsBuilder: (value) {
+              final query = value.text.toLowerCase().trim();
 
-              await poProvider.fetchingVendors(
-                vendorName: value.text.trim(),
-                skip: _skip,
-                limit: _limit,
+              if (query.isEmpty) {
+                return _allVendors;
+              }
+
+              return _allVendors.where(
+                (vendor) => vendor.toLowerCase().contains(query),
               );
-              return poProvider.filteredVendorNames;
             },
             onSelected: (v) {
               _vendorController.text = v;
               _vendorNotifier.value = v;
 
               FocusScope.of(context).unfocus();
+
+              _applyFilters();
             },
             fieldViewBuilder: (context, controller, focusNode, _) {
               _autoController = controller;
@@ -196,6 +239,8 @@ class _GRNPageState extends State<GRNPage> {
               );
             },
             optionsViewBuilder: (context, onSelected, options) {
+              final optionList = options.toList();
+
               return Align(
                 alignment: Alignment.topLeft,
                 child: Material(
@@ -203,19 +248,28 @@ class _GRNPageState extends State<GRNPage> {
                   elevation: 4,
                   borderRadius: BorderRadius.circular(12),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 240),
+                    constraints: BoxConstraints(
+                      maxHeight: optionList.length * 48.0 > 240
+                          ? 240
+                          : optionList.length * 48.0,
+                    ),
                     child: ListView.builder(
+                      shrinkWrap: true,
                       padding: const EdgeInsets.symmetric(vertical: 6),
-                      itemCount: options.length,
+                      itemCount: optionList.length,
                       itemBuilder: (context, index) {
-                        final option = options.elementAt(index);
+                        final option = optionList[index];
+
                         return ListTile(
                           dense: true,
                           title: Text(
                             option,
                             style: const TextStyle(fontSize: 14.5),
                           ),
-                          onTap: () => onSelected(option),
+                          onTap: () {
+                            onSelected(option);
+                            FocusScope.of(context).unfocus();
+                          },
                         );
                       },
                     ),
@@ -235,6 +289,7 @@ class _GRNPageState extends State<GRNPage> {
       child: TextField(
         controller: _dateController,
         readOnly: true,
+        onTap: _selectDateRange,
         decoration: InputDecoration(
           labelText: "Date",
           labelStyle: TextStyle(color: Colors.grey[700]),
@@ -260,21 +315,24 @@ class _GRNPageState extends State<GRNPage> {
             minWidth: 40,
             minHeight: 40,
           ),
-          suffixIcon: ValueListenableBuilder<DateTime?>(
-            valueListenable: _selectedDateNotifier,
-            builder: (_, date, __) {
+          suffixIcon: ValueListenableBuilder<DateTimeRange?>(
+            valueListenable: _selectedDateRangeNotifier,
+            builder: (_, dateRange, __) {
               return IconButton(
                 icon: Icon(
-                  date != null ? Icons.clear : Icons.calendar_today,
-                  color: date != null ? Colors.redAccent : Colors.grey[700],
+                  dateRange != null ? Icons.clear : Icons.calendar_today,
+                  color: dateRange != null
+                      ? Colors.redAccent
+                      : Colors.grey[700],
                   size: 20,
                 ),
-                onPressed: date != null ? _clearDateFilter : _selectDate,
+                onPressed: dateRange != null
+                    ? _clearDateFilter
+                    : _selectDateRange,
               );
             },
           ),
         ),
-        onTap: _selectDate,
       ),
     );
   }
@@ -422,7 +480,8 @@ class _GRNPageState extends State<GRNPage> {
                       vendorName: _vendorNotifier.value.isNotEmpty
                           ? _vendorNotifier.value
                           : null,
-                      date: _selectedDate,
+                      fromDate: _selectedDateRange?.start,
+                      toDate: _selectedDateRange?.end,
                       skip: provider.grns.length,
                       limit: provider.limit,
                       loadMore: true,
@@ -452,25 +511,31 @@ class _GRNPageState extends State<GRNPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const CommonAppBar(title: "Goods Receipt Notes"),
-      body: Column(
-        children: [
-          _buildFilterRow(),
-          _buildStatusButtons(),
-          Expanded(
-            child: RefreshIndicator(
-              color: Colors.blueAccent,
-              backgroundColor: Colors.white,
-              displacement: 40,
-              strokeWidth: 3,
-              onRefresh: () async {
-                await Future.sync(() => _applyFilters());
-              },
-              child: _buildContent(),
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () {
+        FocusScope.of(context).unfocus();
+      },
+      child: Scaffold(
+        appBar: const CommonAppBar(title: "Goods Receipt Notes"),
+        body: Column(
+          children: [
+            _buildFilterRow(),
+            _buildStatusButtons(),
+            Expanded(
+              child: RefreshIndicator(
+                color: Colors.blueAccent,
+                backgroundColor: Colors.white,
+                displacement: 40,
+                strokeWidth: 3,
+                onRefresh: () async {
+                  await Future.sync(() => _applyFilters());
+                },
+                child: _buildContent(),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -479,41 +544,32 @@ class _GRNPageState extends State<GRNPage> {
     _debounceTimer?.cancel();
     _autoController?.clear();
     _vendorController.clear();
-    _vendorSearchController.clear();
     _vendorNotifier.value = '';
+    _applyFilters();
   }
 
   void _clearDateFilter() {
     _debounceTimer?.cancel();
-    _selectedDate = null;
-    _selectedDateNotifier.value = null;
+    _selectedDateRange = null;
+    _selectedDateRangeNotifier.value = null;
     _dateController.clear();
+    _applyFilters();
   }
 
-  Future<void> _selectDate() async {
-    DateTime? serverNow;
+  Future<void> _selectDateRange() async {
+    DateTime serverNow;
 
     try {
       serverNow = ServerTimeService.now;
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    if (serverNow == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Unable to fetch server date. Please try again."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
+    } catch (_) {
+      serverNow = DateTime.now();
     }
 
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDateRangePicker(
       context: context,
-      initialDate: _selectedDate ?? serverNow,
       firstDate: DateTime(2000),
       lastDate: serverNow,
+      initialDateRange: _selectedDateRange,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -532,12 +588,14 @@ class _GRNPageState extends State<GRNPage> {
       },
     );
 
-    if (!mounted) return;
-
     if (picked != null) {
-      _selectedDate = picked;
-      _selectedDateNotifier.value = picked;
-      _dateController.text = _formatDate(picked);
+      _selectedDateRange = picked;
+      _selectedDateRangeNotifier.value = picked;
+
+      _dateController.text =
+          "${_formatDate(picked.start)} → ${_formatDate(picked.end)}";
+
+      _applyFilters();
     }
   }
 

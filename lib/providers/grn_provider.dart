@@ -115,7 +115,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        'https://yenerp.com/purchaseapi/grns/getgrn/return-reasons',
+        'http://192.168.29.184:8000/nextjstestapi/grns/getgrn/return-reasons',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -137,10 +137,35 @@ class GRNProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> cancelGRN(String grnId) async {
+    setLoading(true);
+    setError(null);
+
+    try {
+      final response = await _dio.patch(
+        '$_grnBase/$grnId/revert',
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
+
+      if (response.statusCode == 200) {
+        await fetchFilteredGRNs(status: _filterStatus, skip: 0, limit: _limit);
+        return true;
+      } else {
+        throw Exception(response.data);
+      }
+    } catch (e) {
+      setError(e.toString());
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   Future<void> fetchFilteredGRNs({
     String? status,
     String? vendorName,
-    DateTime? date,
+    DateTime? fromDate,
+    DateTime? toDate,
     int skip = 0,
     int limit = 50,
     bool loadMore = false,
@@ -158,7 +183,6 @@ class GRNProvider with ChangeNotifier {
 
       String endpoint = _grnListEndpoint;
 
-      // 🔥 SWITCH API
       if (status?.toLowerCase() == "returned") {
         endpoint = '$_grnBase/returnprocess/Grnwise';
       }
@@ -166,12 +190,17 @@ class GRNProvider with ChangeNotifier {
       final queryParams = {
         "skip": skip,
         "limit": limit,
-        if (status != null && status != "returned")
-          "status": status == "active" ? null : status,
+
+        if (status != null && status != "returned" && status != "active")
+          "status": status,
+
         if (vendorName != null && vendorName.isNotEmpty)
           "vendorName": vendorName,
-        if (date != null) "fromDate": date.toIso8601String(),
-        if (date != null) "toDate": date.toIso8601String(),
+
+        if (fromDate != null)
+          "fromDate": fromDate.toIso8601String().split('T').first,
+
+        if (toDate != null) "toDate": toDate.toIso8601String().split('T').first,
       };
 
       final response = await _dio.get(endpoint, queryParameters: queryParams);
@@ -180,12 +209,14 @@ class GRNProvider with ChangeNotifier {
 
       List<GRN> newGrns = data.map((e) => GRN.fromJson(e)).toList();
 
+      // 🔥 FILTER FULLY RETURNED FROM ACTIVE
       if (status == "active") {
         newGrns = newGrns.where((g) {
           final s = (g.status ?? "").toLowerCase().replaceAll(" ", "");
           return s != "fullyreturned";
         }).toList();
       }
+
       if (loadMore) {
         _grns.addAll(newGrns);
       } else {
@@ -199,37 +230,6 @@ class GRNProvider with ChangeNotifier {
       _isLoading = false;
       _isLoadMore = false;
       notifyListeners();
-    }
-  }
-
-  String _getReadableError(DioException e) {
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.sendTimeout:
-      case DioExceptionType.receiveTimeout:
-        return "Request timed out.";
-
-      case DioExceptionType.connectionError:
-        return "No internet connection.";
-
-      case DioExceptionType.badResponse:
-        final statusCode = e.response?.statusCode ?? 0;
-
-        if (statusCode >= 500) {
-          return "Server error.";
-        } else if (statusCode == 404) {
-          return "Data not found.";
-        } else if (statusCode == 400) {
-          return "Invalid request.";
-        } else {
-          return "Something went wrong.";
-        }
-
-      case DioExceptionType.cancel:
-        return "Request cancelled.";
-
-      default:
-        return "Unexpected error.";
     }
   }
 
@@ -417,9 +417,6 @@ class GRNProvider with ChangeNotifier {
             )
             .toList(),
       };
-
-      // 🔍 DEBUG (optional but useful)
-      print("RETURN PAYLOAD: $requestBody");
 
       final response = await _dio.patch(
         '$_grnBase/$grnId/return',

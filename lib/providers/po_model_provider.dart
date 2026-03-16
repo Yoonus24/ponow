@@ -6,6 +6,7 @@ import '../models/po.dart';
 
 class POModalProvider with ChangeNotifier {
   final PO _po;
+  bool hasChanges = false;
 
   POModalProvider(this._po);
 
@@ -14,6 +15,10 @@ class POModalProvider with ChangeNotifier {
   double get totalOrderAmount {
     return _po.items.fold(0.0, (sum, item) => sum + (item.finalPrice ?? 0.0));
   }
+
+  Map<int, String?> countErrors = {};
+  Map<int, String?> quantityErrors = {};
+  Map<int, String?> priceErrors = {};
 
   void updateItemRaw(
     int index, {
@@ -25,33 +30,86 @@ class POModalProvider with ChangeNotifier {
     double? taxPercentage,
     String? taxType,
   }) {
+    hasChanges = true;
     if (index < 0 || index >= _po.items.length) return;
 
     final item = _po.items[index];
 
     if (count != null) {
       item.pendingCount = count;
+
+      if (count > 0) {
+        countErrors.remove(index);
+      }
     }
+
     if (eachQty != null) {
       item.pendingQuantity = eachQty;
+
+      if (eachQty > 0) {
+        quantityErrors.remove(index);
+      }
     }
+
     if (newPrice != null) {
       item.newPrice = newPrice;
+
+      if (newPrice > 0) {
+        priceErrors.remove(index);
+      }
     }
+
     if (befTaxDiscount != null) {
       item.befTaxDiscount = befTaxDiscount;
     }
+
     if (afTaxDiscount != null) {
       item.afTaxDiscount = afTaxDiscount;
     }
+
     if (taxPercentage != null) {
       item.taxPercentage = taxPercentage;
     }
+
     if (taxType != null) {
       item.taxType = taxType;
     }
 
     notifyListeners();
+  }
+
+  String? validateItems() {
+    countErrors.clear();
+    quantityErrors.clear();
+    priceErrors.clear();
+
+    String? firstError;
+
+    for (int i = 0; i < po.items.length; i++) {
+      final item = po.items[i];
+
+      if ((item.pendingCount ?? 0) <= 0) {
+        countErrors[i] = "";
+        firstError ??= "Count must be greater than 0";
+      }
+
+      if ((item.pendingQuantity ?? 0) <= 0) {
+        quantityErrors[i] = "";
+        firstError ??= "Quantity must be greater than 0";
+      }
+
+      if ((item.newPrice ?? 0) <= 0) {
+        priceErrors[i] = "";
+        firstError ??= "Price must be greater than 0";
+      }
+
+      if ((item.pendingFinalPrice ?? 0) <= 0) {
+        firstError ??= "Final price cannot be 0";
+      }
+    }
+
+    notifyListeners();
+    return firstError;
   }
 
   Future<void> calculateAndUpdateItem(int index) async {
@@ -111,6 +169,23 @@ class POModalProvider with ChangeNotifier {
     } catch (e) {
       debugPrint("Calculation error: $e");
     }
+  }
+
+  Future<bool> saveChangesDirect() async {
+    List<Map<String, dynamic>> payloadItems = _po.items.map((item) {
+      return {
+        "itemId": item.itemId,
+        "pendingCount": item.pendingCount ?? item.count ?? 0,
+        "pendingQuantity": item.pendingQuantity ?? item.eachQuantity ?? 0,
+        "newPrice": item.newPrice ?? 0,
+        "befTaxDiscount": item.befTaxDiscount ?? 0,
+        "afTaxDiscount": item.afTaxDiscount ?? 0,
+        "taxPercentage": item.taxPercentage ?? 0,
+        "taxType": item.taxType ?? "cgst_sgst",
+      };
+    }).toList();
+
+    return await _sendToBackend(_po.purchaseOrderId, payloadItems);
   }
 
   Future<void> saveChanges(BuildContext context) async {
