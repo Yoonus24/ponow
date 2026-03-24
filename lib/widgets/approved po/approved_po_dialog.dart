@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:purchaseorders2/models/po.dart';
@@ -104,7 +106,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 print("✅ User pressed CONFIRM");
                 Navigator.of(ctx).pop(true);
                 // print("⚙️ Calling convertPoToGRN()");
-                // _logic.convertPoToGRN(context);
+                _logic.convertPoToGRN(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
@@ -150,37 +152,42 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   void _openFreightDialog() {
-    final existingFreight =
-        (_logic.po.freights != null && _logic.po.freights!.isNotEmpty)
-        ? _logic.po.freights!.first
-        : null;
-
     showDialog(
       context: context,
       useRootNavigator: false,
       builder: (dialogContext) {
         return FreightDialog(
-          editingFreight: existingFreight,
-          onAdd: (freight) async {
+          initialFreights: _logic.po.freights ?? [],
+          onAdd: (freightList) async {
             try {
-              _logic.po.freights = [freight];
-              _logic.po.totalFreightAmount = freight.amount;
-              _logic.po.totalFreightTaxAmount = freight.taxAmount;
+              final updatedFreights = freightList;
+
+              final totalAmount = updatedFreights.fold<double>(
+                0.0,
+                (sum, f) => sum + f.amount,
+              );
+
+              final totalTax = updatedFreights.fold<double>(
+                0.0,
+                (sum, f) => sum + f.taxAmount,
+              );
 
               await _logic.poProvider.updatePO(
                 _logic.po.copyWith(
-                  freights: [freight],
-                  totalFreightAmount: freight.amount,
-                  totalFreightTaxAmount: freight.taxAmount,
+                  freights: updatedFreights,
+                  totalFreightAmount: totalAmount,
+                  totalFreightTaxAmount: totalTax,
                 ),
               );
 
+              _logic.po.freights = updatedFreights;
+              _logic.po.totalFreightAmount = totalAmount;
+              _logic.po.totalFreightTaxAmount = totalTax;
               _logic.recalculateFinalAmountAfterDiscount();
               _logic.refreshUI();
 
-              if (Navigator.canPop(dialogContext)) {
-                Navigator.pop(dialogContext);
-              }
+              // ❌ REMOVE THIS BLOCK
+              // Navigator.pop(dialogContext);
             } catch (e) {
               debugPrint("Freight update error: $e");
             }
@@ -651,23 +658,59 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     return ValueListenableBuilder<int>(
       valueListenable: _logic.uiRefresh,
       builder: (_, __, ___) {
-        final po = widget.po;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            _summaryRow("Sub Total", _logic.receivedSubTotal),
-
+            /// 🔹 SUB TOTAL
             _summaryRow(
-              isOrdered ? "Pending Discount" : "Received Discount",
-              _logic.pendingDiscountFromItems,
+              "Sub Total",
+              isOrdered
+                  ? _logic.po.items.fold<double>(
+                      0.0,
+                      (sum, i) =>
+                          sum + ((i.poQuantitypendingTotalPrice ?? 0.0)),
+                    )
+                  : _logic.receivedSubTotal,
             ),
+
+            /// 🔹 DISCOUNT
+            _summaryRow(
+              isOrdered ? "Order Discount" : "Received Discount",
+              isOrdered
+                  ? _logic.po.items.fold<double>(
+                      0.0,
+                      (sum, i) => sum + ((i.poQuantityDiscountAmount ?? 0.0)),
+                    )
+                  : _logic.pendingDiscountFromItems,
+            ),
+
+            /// 🔹 FREIGHT
             _summaryRow("Freight", _logic.totalFreightAmount),
-            _summaryRow("Tax", _logic.itemTaxAmount),
+
+            /// 🔹 TAX
+            _summaryRow(
+              "Tax",
+              isOrdered
+                  ? _logic.po.items.fold<double>(
+                      0.0,
+                      (sum, i) => sum + ((i.poQuantityTaxAmount ?? 0.0)),
+                    )
+                  : _logic.itemTaxAmount,
+            ),
+
+            /// 🔹 ROUND OFF
             _summaryRow("Round Off", _logic.roundOffAmount.value),
+
+            /// 🔹 FINAL AMOUNT
             _summaryRow(
               "Final Amount",
-              _logic.receivedFinalAmount,
+              isOrdered
+                  ? _logic.po.items.fold<double>(
+                      0.0,
+                      (sum, i) =>
+                          sum + ((i.poQuantitypendingFinalPrice ?? 0.0)),
+                    )
+                  : _logic.receivedFinalAmount,
               highlight: true,
             ),
           ],
@@ -955,7 +998,12 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         children: [
           Expanded(
             child: ElevatedButton(
-              onPressed: () => _logic.revertPO(context),
+              onPressed: () {
+                print(
+                  "🔁 Revert PO button clicked for PO: ${widget.po.randomId}",
+                );
+                _logic.revertPO(context);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,

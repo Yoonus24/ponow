@@ -22,6 +22,8 @@ class ApprovedPOWidget extends StatefulWidget {
 }
 
 class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
+  bool _isLoadingPdf = false;
+
   void _showItemDetails(BuildContext context) {
     showDialog(
       context: context,
@@ -39,122 +41,193 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
     );
   }
 
+  Future<void> _handlePdfClick() async {
+    setState(() {
+      _isLoadingPdf = true;
+    });
+
+    try {
+      final poService = PurchaseOrderService();
+
+      final pdfFile = await poService.generatePurchaseOrderPdf(
+        widget.po.purchaseOrderId,
+      );
+
+      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } finally {
+      setState(() {
+        _isLoadingPdf = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(4.0),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Colors.blueAccent, Colors.blueAccent],
-          ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: const [
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+        ],
+      ),
+
+      // ✅ ONLY BLUE HEADER (NO EMPTY SPACE)
+      child: _buildHeader(),
+    );
+  }
+
+  // ================= HEADER =================
+
+  Widget _buildHeader() {
+    final po = widget.po;
+    final statusText = _formatStatus(po.poStatus);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blueAccent,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ===== ROW 1: PO NO + STATUS =====
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // ===== HEADER =====
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      'PO No: ${widget.po.randomId}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.white,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+              Expanded(
+                child: Text(
+                  "PO No: ${po.randomId ?? "N/A"}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.remove_red_eye,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: () => _showItemDetails(context),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.picture_as_pdf,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        onPressed: () async {
-                          try {
-                            final poService = PurchaseOrderService();
-                            final pdfFile = await poService
-                                .generatePurchaseOrderPdf(
-                                  widget.po.purchaseOrderId,
-                                );
-
-                            await Printing.layoutPdf(
-                              onLayout: (_) => pdfFile.readAsBytesSync(),
-                            );
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('PDF failed: $e')),
-                            );
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              // ===== VENDOR =====
-              Text(
-                'Vendor: ${widget.po.vendorName ?? 'N/A'}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.white,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              const SizedBox(height: 6),
-
-              // ===== AMOUNT =====
-              Text(
-                'Total Order Amount: '
-                '${widget.po.pendingOrderAmount?.toStringAsFixed(2) ?? '0.00'}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.white,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
 
-              const SizedBox(height: 6),
-
-              // ===== DATE =====
-              Text(
-                'Order Date: '
-                '${widget.po.orderDate != null ? DateFormat('dd-MM-yyyy').format(DateTime.parse(widget.po.orderDate!)) : 'N/A'}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.white,
+              // ✅ STATUS BADGE
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blueAccent.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: Text(
+                  statusText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
           ),
-        ),
+
+          const SizedBox(height: 6),
+
+          // ===== ROW 2: VENDOR + ACTIONS =====
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  "Vendor: ${po.vendorName ?? "N/A"}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove_red_eye, color: Colors.white),
+                    onPressed: () => _showItemDetails(context),
+                  ),
+                  _isLoadingPdf
+                      ? const SizedBox(
+                          height: 25,
+                          width: 25,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.white,
+                          ),
+                          onPressed: _handlePdfClick,
+                        ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 6),
+
+          // ===== ROW 3: AMOUNT + DATE =====
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Amount: ${(po.pendingOrderAmount ?? 0).toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  "Date: ${po.orderDate != null ? DateFormat('dd-MM-yyyy').format(DateTime.parse(po.orderDate!)) : "N/A"}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
+  }
+
+  // ================= STATUS FORMAT =================
+
+  String _formatStatus(String? status) {
+    if (status == null) return "Unknown";
+
+    switch (status) {
+      case "Approved":
+        return "Approved";
+      case "PartiallyReceived":
+        return "Partially Received";
+
+      default:
+        return status;
+    }
   }
 }

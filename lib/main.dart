@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/providers/import_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:purchaseorders2/AppInitializer.dart';
@@ -67,6 +68,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider(create: (_) => TemplateProvider()),
+        ChangeNotifierProvider(create: (_) =>  ImportProvider()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

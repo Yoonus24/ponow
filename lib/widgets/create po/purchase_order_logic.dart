@@ -643,6 +643,7 @@ class PurchaseOrderLogic {
 
     notifier.setEditingPO(po);
 
+    /// 🔹 SET VENDOR DETAILS
     VendorAll vendor;
     try {
       vendor = notifier.vendorAllList.firstWhere(
@@ -672,6 +673,7 @@ class PurchaseOrderLogic {
     notifier.paymentTermsController.text = vendor.paymentTerms;
     notifier.creditLimitController.text = vendor.creditLimit.toString();
 
+    /// 🔹 LOCATION
     if (po.location != null && po.location!.isNotEmpty) {
       notifier.setLocation(
         location: po.location!,
@@ -679,27 +681,37 @@ class PurchaseOrderLogic {
       );
     }
 
+    /// 🔹 DATES
     notifier.orderedDateController.text = formatDate(po.orderDate ?? '');
 
-    debugPrint("EXPECTED DATE RAW: ${po.expectedDeliveryDate}");
-
     final expectedDate = po.expectedDeliveryDate;
-
     notifier.expectedDeliveryDateController.text =
         (expectedDate != null && expectedDate.isNotEmpty)
         ? formatDate(expectedDate)
-        : ""; // fallback empty
+        : "";
 
+    /// 🔹 ADDRESSES
     notifier.billingController.text = po.billingAddress ?? '';
     notifier.shippingController.text = po.shippingAddress ?? '';
 
+    /// 🔹 ROUND OFF
     notifier.roundOffController.text = (po.roundOffAdjustment ?? 0.0)
         .toStringAsFixed(2);
 
+    /// 🔥🔥🔥 IMPORTANT FIX: FILTER ONLY PENDING ITEMS
+    final validItems = po.items
+        .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
+        .toList();
+
     notifier.poItems.clear();
 
-    for (final item in po.items) {
-      final qty = (item.quantity ?? 0.0).toDouble();
+    for (final item in validItems) {
+      /// 🔥 USE CORRECT QUANTITY
+      final qty = (item.pendingTotalQuantity ?? item.quantity ?? 0.0)
+          .toDouble();
+
+      /// 🔥 SAFETY: skip invalid
+      if (qty <= 0) continue;
 
       final existing = (item.existingPrice ?? item.newPrice ?? 0.0).toDouble();
       final newP = (item.newPrice ?? existing).toDouble();
@@ -724,13 +736,12 @@ class PurchaseOrderLogic {
           itemName: item.itemName,
           uom: item.uom,
 
+          /// ✅ CORRECT QTY
           quantity: qty,
 
-          count: (item.count == null || item.count == 0) ? 1.0 : item.count,
-
-          eachQuantity: (item.eachQuantity == null || item.eachQuantity == 0)
-              ? qty
-              : item.eachQuantity,
+          /// ✅ USE PENDING VALUES
+          count: item.pendingCount ?? item.count ?? 1.0,
+          eachQuantity: item.pendingQuantity ?? item.eachQuantity ?? qty,
 
           existingPrice: existing,
           newPrice: newP,
@@ -768,17 +779,14 @@ class PurchaseOrderLogic {
       );
     }
 
+    /// 🔹 DISCOUNT INIT
     _initializeDiscountSectionWithPOData(po);
 
+    /// 🔹 FINAL RECALCULATION
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (isDisposed()) return;
 
       notifier.recalculateFromLoadedPO(notify: true);
-
-      debugPrint("TOTAL ORDER AMOUNT: ${notifier.totalOrderAmount}");
-      debugPrint(
-        "EXPECTED DELIVERY DATE UI: ${notifier.expectedDeliveryDateController.text}",
-      );
 
       updateTotalOrderAmount();
       triggerUIRefresh();

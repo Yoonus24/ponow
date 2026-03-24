@@ -1,12 +1,14 @@
 // ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use, unused_element, library_private_types_in_public_api, curly_braces_in_flow_control_structures, avoid_print, prefer_final_fields
 
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/models/po_template.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
+import 'package:purchaseorders2/widgets/create%20po/import_csv_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/save_template_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/template_list_dialog.dart';
@@ -74,7 +76,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   static const Color borderColor = Color(0xFFE0E0E0);
 
   @override
-  @override
   void initState() {
     super.initState();
 
@@ -126,6 +127,52 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
       logic.initializeData();
     });
+  }
+
+  void _handleImportedItems(List items) {
+    for (var item in items) {
+      final existingIndex = notifier.poItems.indexWhere(
+        (i) => i.randomId == item['randomId'],
+      );
+
+      final newItem = Item(
+        itemId: item['itemId'],
+        itemName: item['itemName'],
+        uom: item['uom'] ?? '',
+        quantity: (item['pendingTotalQuantity'] ?? 0.0).toDouble(),
+        count: (item['pendingCount'] ?? 1.0).toDouble(),
+        eachQuantity:
+            ((item['pendingTotalQuantity'] ?? 0.0) /
+                    ((item['pendingCount'] ?? 1.0) == 0
+                        ? 1
+                        : item['pendingCount']))
+                .toDouble(),
+        existingPrice: item['existingPrice'] ?? 0.0,
+        newPrice: item['newPrice'] ?? 0.0,
+        taxPercentage: item['taxPercentage'] ?? 0.0,
+        finalPrice: item['pendingFinalPrice'] ?? 0.0,
+        pendingFinalPrice: item['pendingFinalPrice'] ?? 0.0,
+        totalPrice: item['pendingTotalPrice'] ?? 0.0,
+        pendingTotalPrice: item['pendingTotalPrice'] ?? 0.0,
+        taxAmount: item['pendingTaxAmount'] ?? 0.0,
+        pendingTaxAmount: item['pendingTaxAmount'] ?? 0.0,
+        randomId:
+            item['randomId'] ??
+            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}",
+        expiryDate: '',
+      );
+
+      if (existingIndex != -1) {
+        // 🔁 REPLACE existing item
+        notifier.poItems[existingIndex] = newItem;
+      } else {
+        // ➕ ADD new item
+        notifier.poItems.add(newItem);
+      }
+    }
+
+    notifier.calculateTotals();
+    _triggerUIRefresh();
   }
 
   void _clearOnlyDataNotControllers() {
@@ -447,6 +494,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
   void _saveCurrentAsTemplate() {
     FocusManager.instance.primaryFocus?.unfocus();
+
     if (notifier.poItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -465,7 +513,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
           ),
         ),
       );
-
       return;
     }
 
@@ -487,18 +534,32 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
           final currentPO = _createPOFromCurrentData(notifier);
 
-          final success = await templateProvider.createTemplate(
-            currentPO,
-            templateName,
-          );
+          try {
+            await templateProvider.createTemplate(currentPO, templateName);
 
-          if (!mounted || _isDisposed) return;
+            if (!mounted || _isDisposed) return;
 
-          if (success) {
             ScaffoldMessenger.of(_safeScaffoldContext).showSnackBar(
               SnackBar(
                 content: Text('Template "$templateName" saved successfully'),
                 backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 160),
+              ),
+            );
+          } catch (e) {
+            if (!mounted || _isDisposed) return;
+
+            String message = "Something went wrong";
+
+            if (e.toString().toLowerCase().contains("already exists")) {
+              message = "Template already exists";
+            }
+
+            ScaffoldMessenger.of(_safeScaffoldContext).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.red,
                 behavior: SnackBarBehavior.floating,
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 160),
               ),
@@ -1006,9 +1067,15 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                         ),
                                       ),
 
-                                      SizedBox(
-                                        width: 120,
-                                        child: _buildTemplateButton(),
+                                      Row(
+                                        children: [
+                                          const SizedBox(width: 8),
+
+                                          SizedBox(
+                                            width: 120,
+                                            child: _buildTemplateButton(),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -1050,6 +1117,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
                                     itemWiseDiscountMode:
                                         notifier.itemWiseDiscountMode,
+                                    onImport: (items) {
+                                      _handleImportedItems(items);
+                                    },
                                   ),
                                 ),
                                 const FreightTable(),

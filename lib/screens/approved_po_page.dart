@@ -543,7 +543,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                 po: list[i],
                                 poProvider: provider,
                               ),
-                              fixedHeight: 220,
+                              fixedHeight: 180,
                             ),
                           );
                         },

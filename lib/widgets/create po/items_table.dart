@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/widgets/create%20po/import_csv_dialog.dart';
 import 'table_components.dart';
 import '../../models/discount_model.dart';
 import 'freight_dialog.dart';
@@ -13,7 +14,7 @@ class ItemsTable extends StatefulWidget {
   final Function(Item) onRemoveItem;
   final double Function(dynamic, String) getItemProperty;
   final DiscountMode itemWiseDiscountMode;
-
+  final Function(List items)? onImport;
   const ItemsTable({
     super.key,
     this.notifier,
@@ -22,6 +23,7 @@ class ItemsTable extends StatefulWidget {
     required this.onRemoveItem,
     required this.getItemProperty,
     required this.itemWiseDiscountMode,
+    this.onImport,
   });
 
   @override
@@ -99,67 +101,91 @@ class _ItemsTableState extends State<ItemsTable> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              const Text(
-                "Items",
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              // ✅ IMPORT
+              SizedBox(
+                height: 35,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => ImportCSVDialog(
+                        onSuccess: (items) {
+                          if (widget.onImport != null) {
+                            widget.onImport!(items);
+                          }
+                        },
+                      ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.upload_file,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    "Import",
+                    style: TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                ),
               ),
 
-              Row(
-                children: [
-                  SizedBox(
-                    height: 35,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => FreightDialog(
-                            onAdd: (freight) {
-                              purchaseNotifier.addFreight(freight);
-                            },
-                          ),
-                        );
-                      },
+              const SizedBox(width: 8),
 
-                      icon: const Icon(
-                        Icons.local_shipping,
-                        size: 16,
-                        color: Colors.white,
+              // ✅ ADD FREIGHT
+              SizedBox(
+                height: 35,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => FreightDialog(
+                        onAdd: (freight) {
+                          for (var f in freight) {
+                            purchaseNotifier.addFreight(f);
+                          }
+                        },
                       ),
-                      label: const Text(
-                        "Add Freight",
-                        style: TextStyle(fontSize: 13, color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        backgroundColor: Colors.blueAccent,
-                      ),
-                    ),
+                    );
+                  },
+                  icon: const Icon(
+                    Icons.local_shipping,
+                    size: 16,
+                    color: Colors.white,
                   ),
-
-                  const SizedBox(width: 8),
-
-                  SizedBox(
-                    height: 35,
-                    child: ElevatedButton.icon(
-                      onPressed: widget.onAddItem,
-                      icon: const Icon(
-                        Icons.add,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                      label: const Text(
-                        "Add item",
-                        style: TextStyle(fontSize: 13, color: Colors.white),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        backgroundColor: Colors.blueAccent,
-                      ),
-                    ),
+                  label: const Text(
+                    "Add Freight",
+                    style: TextStyle(fontSize: 13, color: Colors.white),
                   ),
-                ],
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // ✅ ADD ITEM
+              SizedBox(
+                height: 35,
+                child: ElevatedButton.icon(
+                  onPressed: widget.onAddItem,
+                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                  label: const Text(
+                    "Add Item",
+                    style: TextStyle(fontSize: 13, color: Colors.white),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                ),
               ),
             ],
           ),
@@ -197,20 +223,28 @@ class _ItemsTableState extends State<ItemsTable> {
                       children: [
                         Column(
                           children: [
+                            // 🔹 HEADER
                             Container(
                               height: rowHeight,
-                              width: 130,
+                              width: 160, // 50 + 110
                               color: Colors.grey[200],
-                              child: const TableHeaderCell(
-                                "Item Name",
-                                flex: 130,
+                              child: Row(
+                                children: const [
+                                  TableHeaderCell("No", flex: 50),
+                                  TableHeaderCell("Item Name", flex: 110),
+                                ],
                               ),
                             ),
+
+                            // 🔹 BODY
                             Expanded(
                               child: SingleChildScrollView(
                                 controller: leftVertical,
                                 child: Column(
-                                  children: items.map((item) {
+                                  children: items.asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final item = entry.value;
+
                                     return Container(
                                       height: rowHeight,
                                       decoration: BoxDecoration(
@@ -220,9 +254,20 @@ class _ItemsTableState extends State<ItemsTable> {
                                           ),
                                         ),
                                       ),
-                                      child: MultiLineTableCell(
-                                        text: item.itemName ?? "",
-                                        flex: 130,
+                                      child: Row(
+                                        children: [
+                                          // 🔸 SERIAL NUMBER
+                                          CustomTableCell(
+                                            text: (index + 1).toString(),
+                                            flex: 50,
+                                          ),
+
+                                          // 🔸 ITEM NAME
+                                          MultiLineTableCell(
+                                            text: item.itemName ?? "",
+                                            flex: 110,
+                                          ),
+                                        ],
                                       ),
                                     );
                                   }).toList(),

@@ -285,8 +285,9 @@ class _GRNModalState extends State<GRNModal> {
     for (final item in grn.itemDetails ?? []) {
       final double base = item.totalPrice ?? 0.0;
 
-      double discount = item.discountAmount ?? 0.0;
-
+      double discount =
+          (item.befTaxDiscountAmount ?? 0.0) +
+          (item.afTaxDiscountAmount ?? 0.0);
       // apply overall discount if item discount not present
       if (discount == 0 && overallDiscount > 0) {
         discount = discountPerItem;
@@ -452,36 +453,76 @@ class _GRNModalState extends State<GRNModal> {
   }
 
   Future<void> _convertGrnToPo(BuildContext context) async {
+    print("🔁 Revert to PO clicked");
+    print("GRN ID: ${grn.grnId}");
+    print("GRN No: ${grn.randomId}");
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Convert GRN to PO"),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          "Convert GRN to PO",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
         content: const Text(
           "Are you sure you want to cancel this GRN and move it back to PO?",
+          style: TextStyle(fontSize: 14, color: Colors.black87),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blueAccent, // text color
+            ),
+            child: const Text(
+              "Cancel",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
+
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Confirm"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent, // button bg
+              foregroundColor: Colors.white, // text color
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              elevation: 2,
+            ),
+            child: const Text(
+              "Confirm",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
     );
 
-    if (confirm != true) return;
+    print("🟡 User confirmation: $confirm");
+
+    if (confirm != true) {
+      print("❌ Revert cancelled by user");
+      return;
+    }
 
     try {
+      print("🚀 Calling cancelGRN API...");
+
       final success = await context.read<GRNProvider>().cancelGRN(
         grn.grnId ?? '',
       );
 
+      print("📦 API response: $success");
+
       if (!context.mounted) return;
 
       if (success) {
+        print("✅ GRN reverted successfully");
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("GRN moved back to PO successfully"),
@@ -491,9 +532,12 @@ class _GRNModalState extends State<GRNModal> {
 
         Navigator.of(context).pop();
       } else {
+        print("❌ API returned false");
         throw Exception("Failed");
       }
     } catch (e) {
+      print("🔥 ERROR during revert: $e");
+
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1473,50 +1517,10 @@ class _GRNModalState extends State<GRNModal> {
         );
 
       case 'Expiry Date':
-        return GestureDetector(
-          onTap: () async {
-            final backendDate = ServerTimeService.now;
-
-            DateTime initialDate = backendDate;
-
-            try {
-              if (item.expiryDate != null && item.expiryDate!.isNotEmpty) {
-                initialDate = DateTime.parse(item.expiryDate!);
-              }
-            } catch (_) {}
-
-            final picked = await showDatePicker(
-              context: context,
-              initialDate: initialDate.isBefore(backendDate)
-                  ? backendDate
-                  : initialDate,
-              firstDate: backendDate,
-              lastDate: DateTime(2101),
-            );
-
-            if (picked != null) {
-              item.expiryDate = DateFormat("yyyy-MM-dd").format(picked);
-
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                expiryDateControllers[itemId]!.text = DateFormat(
-                  "dd-MM-yyyy",
-                ).format(picked);
-              });
-            }
-          },
-
-          child: AbsorbPointer(
-            child: TextFormField(
-              controller: expiryDateControllers[itemId],
-              readOnly: true,
-              decoration: const InputDecoration(
-                hintText: 'Select date',
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: 6),
-                border: UnderlineInputBorder(),
-              ),
-            ),
-          ),
+        return Text(
+          expiryDateControllers[itemId]?.text ?? '',
+          style: const TextStyle(fontSize: 13),
+          textAlign: TextAlign.center,
         );
 
       case 'Total Price':

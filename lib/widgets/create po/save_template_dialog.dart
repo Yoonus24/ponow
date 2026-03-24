@@ -27,11 +27,11 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Dialog(
-      backgroundColor: Colors.white, 
+      backgroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         padding: const EdgeInsets.all(20),
-        width: isMobile ? double.infinity : 420, 
+        width: isMobile ? double.infinity : 420,
         child: Form(
           key: _formKey,
           child: Column(
@@ -73,18 +73,18 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
                   labelText: 'Template Name *',
 
                   labelStyle: TextStyle(
-                    color: Colors.grey.shade400, 
+                    color: Colors.grey.shade400,
                     fontWeight: FontWeight.w500,
                   ),
 
                   floatingLabelStyle: const TextStyle(
-                    color: Colors.orange, 
+                    color: Colors.orange,
                     fontWeight: FontWeight.w600,
                   ),
 
                   hintText: 'e.g. Monthly Order',
                   hintStyle: TextStyle(
-                    color: Colors.grey.shade400, 
+                    color: Colors.grey.shade400,
                     fontSize: 13,
                   ),
 
@@ -172,10 +172,25 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
     );
   }
 
-  void _saveTemplate() {
+  void _saveTemplate() async {
     if (_formKey.currentState!.validate()) {
-      widget.onSave(_templateNameController.text.trim());
-      Navigator.of(context).pop();
+      try {
+        await widget.onSave(_templateNameController.text.trim());
+
+        // ✅ success → close dialog
+        Navigator.of(context).pop();
+      } catch (e) {
+        // ❌ show backend error
+        String message = "Something went wrong";
+
+        if (e.toString().contains("already exists")) {
+          message = "Template already exists";
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 

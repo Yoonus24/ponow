@@ -167,13 +167,18 @@ class _FreightTableState extends State<FreightTable> {
                                               await showDialog(
                                                 context: context,
                                                 builder: (_) => FreightDialog(
-                                                  editingFreight: f,
-                                                  onAdd: (updated) async {
-                                                    await notifier
-                                                        .updateFreightAt(
-                                                          index,
-                                                          updated,
-                                                        );
+                                                  initialFreights: [
+                                                    f,
+                                                  ], // ✅ pass as list
+                                                  onAdd: (updatedList) async {
+                                                    if (updatedList
+                                                        .isNotEmpty) {
+                                                      await notifier
+                                                          .updateFreightAt(
+                                                            index,
+                                                            updatedList.first,
+                                                          );
+                                                    }
                                                   },
                                                 ),
                                               );

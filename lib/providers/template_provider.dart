@@ -17,14 +17,31 @@ class TemplateProvider extends ChangeNotifier {
   List<POTemplate> get templates => _templates;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  int _skip = 0;
+  final int _limit = 20;
+  bool _hasMore = true;
+  bool _isFetchingMore = false;
+  bool get isFetchingMore => _isFetchingMore;
 
-  Future<void> fetchTemplates({String search = ""}) async {
-    _isLoading = true;
+  Future<void> fetchTemplates({
+    String search = "",
+    bool isRefresh = false,
+  }) async {
+    if (isRefresh) {
+      _skip = 0;
+      _hasMore = true;
+      _templates.clear();
+    }
+
+    if (!_hasMore) return;
+
+    _isLoading = _skip == 0;
     _error = null;
     notifyListeners();
 
     try {
-      final Map<String, dynamic> queryParams = {};
+      final Map<String, dynamic> queryParams = {"skip": _skip, "limit": _limit};
+
       if (search.trim().isNotEmpty) {
         queryParams['search'] = search.trim();
       }
@@ -32,22 +49,44 @@ class TemplateProvider extends ChangeNotifier {
       final response = await _dio.get(
         '$baseUrl/purchaseorders/templates',
         queryParameters: queryParams,
-        options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
-        _templates = data.map((json) => POTemplate.fromJson(json)).toList();
-        _error = null;
+
+        final newTemplates = data
+            .map((json) => POTemplate.fromJson(json))
+            .toList();
+
+        if (_skip == 0) {
+          _templates = newTemplates;
+        } else {
+          _templates.addAll(newTemplates);
+        }
+
+        // 🔥 pagination control
+        if (newTemplates.length < _limit) {
+          _hasMore = false;
+        } else {
+          _skip += _limit;
+        }
       } else {
-        _error = 'Failed to load templates: ${response.statusCode}';
+        _error = 'Failed to load templates';
       }
     } catch (e) {
-      _error = 'Failed to load templates: $e';
+      _error = 'Error: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  Future<void> loadMoreTemplates({String search = ""}) async {
+    if (_isFetchingMore || !_hasMore) return;
+
+    _isFetchingMore = true;
+    await fetchTemplates(search: search);
+    _isFetchingMore = false;
   }
 
   Future<bool> createTemplate(PO po, String templateName) async {
@@ -67,12 +106,17 @@ class TemplateProvider extends ChangeNotifier {
         await fetchTemplates();
         return true;
       } else {
-        _error = 'Failed to create template: ${response.statusCode}';
-        return false;
+        throw Exception('Failed to create template');
       }
     } catch (e) {
-      _error = 'Failed to create template: $e';
-      return false;
+      if (e is DioException) {
+        final backendMessage = e.response?.data?['detail'];
+
+        // ✅ THIS is what your dialog needs
+        throw Exception(backendMessage ?? "Failed to create template");
+      }
+
+      throw Exception("Something went wrong");
     } finally {
       _isLoading = false;
       notifyListeners();

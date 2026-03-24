@@ -229,14 +229,11 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
       totalFreightTaxAmount: notifier.totalFreightTaxAmount,
     );
 
-    final success = await templateProvider.createTemplate(
-      poSnapshot,
-      templateName,
-    );
+    try {
+      await templateProvider.createTemplate(poSnapshot, templateName);
 
-    if (!mounted || _isDisposed) return;
+      if (!mounted || _isDisposed) return;
 
-    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Template "$templateName" saved successfully'),
@@ -245,11 +242,20 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
           margin: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
         ),
       );
+
       Navigator.of(context).pop(true);
-    } else {
+    } catch (e) {
+      if (!mounted || _isDisposed) return;
+
+      String message = "Failed to save template";
+
+      if (e.toString().toLowerCase().contains("already exists")) {
+        message = "Template already exists";
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save template: ${templateProvider.error}'),
+          content: Text(message),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.only(left: 16, right: 16, bottom: 80),

@@ -21,7 +21,7 @@ class GRNWidget extends StatefulWidget {
 class _GRNWidgetState extends State<GRNWidget> {
   bool _isHeaderScrolling = false;
   bool _isBodyScrolling = false;
-
+  bool _isLoadingPdf = false;
   late ScrollController _headerHorizontal;
   late ScrollController _bodyHorizontal;
 
@@ -56,6 +56,27 @@ class _GRNWidgetState extends State<GRNWidget> {
     _headerHorizontal.dispose();
     _bodyHorizontal.dispose();
     super.dispose();
+  }
+
+  Future<void> _handlePdfClick(GRN grn) async {
+    setState(() {
+      _isLoadingPdf = true;
+    });
+
+    try {
+      final service = GRNPDF();
+      final pdfFile = await service.generateGRNPdf(grn.grnId ?? '');
+
+      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } finally {
+      setState(() {
+        _isLoadingPdf = false;
+      });
+    }
   }
 
   @override
@@ -195,29 +216,23 @@ class _GRNWidgetState extends State<GRNWidget> {
 
                     Column(
                       children: [
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 30,
-                            minHeight: 30,
-                          ),
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.white,
-                            size: 25,
-                          ),
-                          onPressed: () async {
-                            try {
-                              final service = GRNPDF();
-                              final pdfFile = await service.generateGRNPdf(
-                                grn.grnId ?? '',
-                              );
-                              await Printing.layoutPdf(
-                                onLayout: (_) => pdfFile.readAsBytesSync(),
-                              );
-                            } catch (e) {}
-                          },
-                        ),
+                        _isLoadingPdf
+                            ? const SizedBox(
+                                height: 25,
+                                width: 25,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(
+                                  Icons.picture_as_pdf,
+                                  color: Colors.white,
+                                  size: 25,
+                                ),
+                                onPressed: () => _handlePdfClick(grn),
+                              ),
                         const Text(
                           'PDF',
                           style: TextStyle(color: Colors.white, fontSize: 11),
@@ -429,6 +444,4 @@ class _GRNWidgetState extends State<GRNWidget> {
         return "";
     }
   }
-
-
 }

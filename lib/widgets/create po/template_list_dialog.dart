@@ -21,21 +21,38 @@ class TemplateListDialog extends StatefulWidget {
 class _TemplateListDialogState extends State<TemplateListDialog> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
-
+  final ScrollController _scrollController = ScrollController();
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<TemplateProvider>(context, listen: false).fetchTemplates();
-      _searchController.addListener(_onSearchChanged);
+      Provider.of<TemplateProvider>(
+        context,
+        listen: false,
+      ).fetchTemplates(isRefresh: true);
     });
+
+    _scrollController.addListener(_onScroll);
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final provider = Provider.of<TemplateProvider>(context, listen: false);
+
+      provider.loadMoreTemplates(search: _searchController.text);
+    }
   }
 
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
+
     _debounce = Timer(const Duration(milliseconds: 300), () {
       final provider = Provider.of<TemplateProvider>(context, listen: false);
-      provider.fetchTemplates(search: _searchController.text);
+
+      provider.fetchTemplates(search: _searchController.text, isRefresh: true);
     });
   }
 
@@ -48,9 +65,7 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.zero,
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: SizedBox(
         width: size.width,
         height: size.height,
@@ -99,6 +114,22 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
       decoration: InputDecoration(
         hintText: 'Search templates...',
         prefixIcon: const Icon(Icons.search),
+
+        // ✅ ADD THIS
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  _searchController.clear();
+
+                  Provider.of<TemplateProvider>(
+                    context,
+                    listen: false,
+                  ).fetchTemplates(isRefresh: true); // 🔥 reload all
+                },
+              )
+            : null,
+
         filled: true,
         fillColor: Colors.grey.shade100,
         border: OutlineInputBorder(
@@ -120,44 +151,100 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
   Widget _buildTemplateList(bool isMobile, bool isTablet) {
     return Consumer<TemplateProvider>(
       builder: (context, provider, child) {
-        if (provider.isLoading) {
+        if (provider.isLoading && provider.templates.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (provider.error != null) {
+        if (provider.error != null && provider.templates.isEmpty) {
           return Center(child: Text(provider.error!));
         }
 
         final templates = provider.templates;
 
         if (templates.isEmpty) {
-          return const Center(
-            child: Text(
-              'No templates found',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
+          return RefreshIndicator(
+            color: Colors.blue,
+            onRefresh: () async {
+              await Provider.of<TemplateProvider>(
+                context,
+                listen: false,
+              ).fetchTemplates(search: _searchController.text, isRefresh: true);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                SizedBox(height: 200),
+                Center(
+                  child: Text(
+                    'No templates found',
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ),
+              ],
             ),
           );
         }
 
         if (isMobile) {
-          return ListView.builder(
-            itemCount: templates.length,
-            itemBuilder: (context, index) {
-              return _buildTemplateCard(templates[index]);
+          return RefreshIndicator(
+            color: Colors.blue,
+            onRefresh: () async {
+              await Provider.of<TemplateProvider>(
+                context,
+                listen: false,
+              ).fetchTemplates(search: _searchController.text, isRefresh: true);
             },
+            child: ListView.builder(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: templates.length + 1,
+              itemBuilder: (context, index) {
+                if (index < templates.length) {
+                  return _buildTemplateCard(templates[index]);
+                } else {
+                  if (provider.isFetchingMore) {
+                    return const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  } else {
+                    return const SizedBox();
+                  }
+                }
+              },
+            ),
           );
         } else {
-          return GridView.builder(
-            itemCount: templates.length,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: isTablet ? 2 : 3,
-              mainAxisExtent: 260,
-              crossAxisSpacing: 20,
-              mainAxisSpacing: 20,
-            ),
-            itemBuilder: (context, index) {
-              return _buildTemplateCard(templates[index]);
+          return RefreshIndicator(
+            color: Colors.blue,
+            onRefresh: () async {
+              await Provider.of<TemplateProvider>(
+                context,
+                listen: false,
+              ).fetchTemplates(search: _searchController.text, isRefresh: true);
             },
+            child: GridView.builder(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              itemCount: templates.length + 1,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: isTablet ? 2 : 3,
+                mainAxisExtent: 260,
+                crossAxisSpacing: 20,
+                mainAxisSpacing: 20,
+              ),
+              itemBuilder: (context, index) {
+                if (index < templates.length) {
+                  return _buildTemplateCard(templates[index]);
+                } else {
+                  if (provider.isFetchingMore) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else {
+                    return const SizedBox();
+                  }
+                }
+              },
+            ),
           );
         }
       },
@@ -174,14 +261,18 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
         if (direction == DismissDirection.startToEnd) {
           if (!t.isActive) {
             await provider.activateTemplate(t.templateId);
-          }
+          } else {}
         } else {
           if (t.isActive) {
             await provider.deactivateTemplate(t.templateId);
-          }
+          } else {}
         }
-        provider.fetchTemplates(search: _searchController.text);
-        return false; 
+        await provider.fetchTemplates(
+          search: _searchController.text,
+          isRefresh: true,
+        );
+
+        return false;
       },
       background: _buildSwipeBg(
         color: Colors.green.shade600,
@@ -560,6 +651,7 @@ class _TemplateListDialogState extends State<TemplateListDialog> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debounce?.cancel();

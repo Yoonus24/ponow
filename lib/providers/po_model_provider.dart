@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_conditional_assignment
+// ignore_for_file: avoid_print, prefer_conditional_assignment
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
@@ -88,23 +88,32 @@ class POModalProvider with ChangeNotifier {
     for (int i = 0; i < po.items.length; i++) {
       final item = po.items[i];
 
-      if ((item.pendingCount ?? 0) <= 0) {
+      if ((item.pendingTotalQuantity ?? 0) <= 0) {
+        print("⏭ Skipping hidden item: ${item.itemName}");
+        continue;
+      }
+
+      final count = item.pendingCount ?? item.count ?? 0;
+      final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
+      final price = item.newPrice ?? 0;
+
+      print(
+        "🔍 Checking ${item.itemName} → Count:$count Qty:$qty Price:$price",
+      );
+
+      if (count <= 0) {
         countErrors[i] = "";
         firstError ??= "Count must be greater than 0";
       }
 
-      if ((item.pendingQuantity ?? 0) <= 0) {
+      if (qty <= 0) {
         quantityErrors[i] = "";
         firstError ??= "Quantity must be greater than 0";
       }
 
-      if ((item.newPrice ?? 0) <= 0) {
+      if (price <= 0) {
         priceErrors[i] = "";
         firstError ??= "Price must be greater than 0";
-      }
-
-      if ((item.pendingFinalPrice ?? 0) <= 0) {
-        firstError ??= "Final price cannot be 0";
       }
     }
 

@@ -29,7 +29,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   final int _limit = 50;
   final ValueNotifier<bool> _loadingMoreNotifier = ValueNotifier(false);
   final ScrollController _verticalScrollController = ScrollController();
-
+  Map<int, bool> _loadingPdfMap = {};
   bool _isLoading = false;
 
   @override
@@ -170,11 +170,17 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       ? NumberFormat.currency(symbol: '', decimalDigits: 2).format(amount)
       : '0.00';
 
-  Future<void> _generateAndViewPdf(Outgoing payment) async {
+  Future<void> _generateAndViewPdf(int index, Outgoing payment) async {
+    setState(() {
+      _loadingPdfMap[index] = true;
+    });
+
     try {
       final poService = OutgoingPdf();
       final pdfFile = await poService.generateOutgoingPdf(payment.outgoingId);
+
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PDF generated successfully')),
@@ -186,6 +192,10 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
       }
+    } finally {
+      setState(() {
+        _loadingPdfMap[index] = false;
+      });
     }
   }
 
@@ -420,14 +430,42 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                                                     width: 70,
                                                   ),
 
-                                                  _buildIconCell(
-                                                    Icons.picture_as_pdf,
-                                                    color: Colors.redAccent,
-                                                    onPressed: () =>
-                                                        _generateAndViewPdf(
-                                                          payment,
-                                                        ),
+                                                  Container(
                                                     width: 70,
+                                                    alignment: Alignment.center,
+                                                    child:
+                                                        _loadingPdfMap[index] ==
+                                                            true
+                                                        ? const SizedBox(
+                                                            height: 18,
+                                                            width: 18,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                ),
+                                                          )
+                                                        : IconButton(
+                                                            icon: const Icon(
+                                                              Icons
+                                                                  .picture_as_pdf,
+                                                              color: Colors
+                                                                  .redAccent,
+                                                              size: 20,
+                                                            ),
+                                                            onPressed: () =>
+                                                                _generateAndViewPdf(
+                                                                  index,
+                                                                  payment,
+                                                                ),
+                                                            padding:
+                                                                EdgeInsets.zero,
+                                                            constraints:
+                                                                const BoxConstraints(
+                                                                  minWidth: 32,
+                                                                  minHeight: 32,
+                                                                ),
+                                                          ),
                                                   ),
 
                                                   _buildCell(

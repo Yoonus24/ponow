@@ -5,6 +5,7 @@ class Item {
   final String? itemName;
   final String? purchasecategoryName;
   final String? purchasesubcategoryName;
+  String? randomId;
   double? count;
   double? pendingCount;
   double? pendingQuantity;
@@ -69,6 +70,7 @@ class Item {
     this.itemCode,
     this.barcode,
     this.itemName,
+    this.randomId,
     this.purchasecategoryName,
     this.purchasesubcategoryName,
     this.count,
@@ -138,6 +140,7 @@ class Item {
     String? itemName,
     String? purchasecategoryName,
     String? purchasesubcategoryName,
+    String? randomId,
     double? count,
     double? pendingCount,
     double? pendingQuantity,
@@ -203,6 +206,7 @@ class Item {
       itemCode: itemCode ?? this.itemCode,
       barcode: barcode ?? this.barcode,
       itemName: itemName ?? this.itemName,
+      randomId: randomId ?? this.randomId,
       purchasecategoryName: purchasecategoryName ?? this.purchasecategoryName,
       purchasesubcategoryName:
           purchasesubcategoryName ?? this.purchasesubcategoryName,
@@ -272,7 +276,6 @@ class Item {
     );
   }
 
-  
   void validateForSubmission() {
     if (befTaxDiscountType.isEmpty) befTaxDiscountType = 'percentage';
     if (afTaxDiscountType.isEmpty) afTaxDiscountType = 'percentage';
@@ -296,6 +299,7 @@ class Item {
       itemCode: json['itemCode'] as String? ?? '',
       barcode: json['barcode'] as String? ?? '',
       itemName: json['itemName'] as String? ?? '',
+      randomId: json['randomId'] as String?,
       purchasecategoryName: json['purchasecategoryName'] as String? ?? '',
       purchasesubcategoryName: json['purchasesubcategoryName'] as String? ?? '',
       count: (json['count'] as num?)?.toDouble() ?? 0.0,
@@ -306,7 +310,7 @@ class Item {
       hsnCode: json['hsnCode'] as String? ?? '',
       poPhoto: json['poPhoto'] as String? ?? '',
       status: json['status'] as String? ?? '',
-      uom: json['uom'] as String? ?? '',
+      uom: json['uom']?.toString() ?? '',
       befTaxDiscountType: json['befTaxDiscountType'] as String? ?? 'percentage',
       afTaxDiscountType: json['afTaxDiscountType'] as String? ?? 'percentage',
       taxAmount: (json['taxAmount'] as num?)?.toDouble() ?? 0.0,
@@ -387,6 +391,7 @@ class Item {
       'itemCode': itemCode ?? '',
       'barcode': barcode ?? '',
       'itemName': itemName ?? '',
+      'randomId': randomId ?? '',
       'purchasecategoryName': purchasecategoryName ?? '',
       'purchasesubcategoryName': purchasesubcategoryName ?? '',
       'count': count ?? 0,
@@ -446,7 +451,7 @@ class Item {
       'poQuantityigst': poQuantityigst ?? 0.0,
     };
   }
-  
+
   double get totalItemDiscount {
     return (befTaxDiscountAmount ?? 0.0) + (afTaxDiscountAmount ?? 0.0);
   }

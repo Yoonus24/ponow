@@ -566,12 +566,35 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
   Future<void> _fetchDataForStatus(String status) async {
     final provider = context.read<OutgoingPaymentProvider>();
 
-    if (status == 'pending') return;
+    final fromDate = _fromDateNotifier.value;
+    final toDate = _toDateNotifier.value;
+
+    if (status == 'pending') {
+      await provider.fetchFilteredOutgoings(
+        status: 'Pending',
+        filterBy: 'invoiceDate',
+        fromDate: fromDate,
+        toDate: toDate,
+        limit: 100,
+      );
+    }
 
     if (status == 'payment_done') {
       await provider.fetchFilteredOutgoings(
         status: 'Fully Paid',
         filterBy: 'invoiceDate',
+        fromDate: fromDate,
+        toDate: toDate,
+        limit: 100,
+      );
+    }
+
+    if (status == 'partial_payment') {
+      await provider.fetchFilteredOutgoings(
+        status: 'Partially Paid',
+        filterBy: 'invoiceDate',
+        fromDate: fromDate,
+        toDate: toDate,
         limit: 100,
       );
     }

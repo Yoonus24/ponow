@@ -66,8 +66,8 @@ class PaymentDialog extends StatelessWidget {
                         _buildPaymentModeDropdown(provider),
 
                         if (provider.selectedPaymentMode == 'Cash') ...[
-                          const SizedBox(height: 16),
-                          _buildCashTypeDropdown(provider),
+                          // const SizedBox(height: 16),
+                          // _buildCashTypeDropdown(provider),
                         ],
 
                         if (provider.selectedPaymentMode == 'Bank') ...[
@@ -137,8 +137,7 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
     BuildContext context,
   ) {
-    final bool isFullPayment =
-        provider.selectedPaymentType == 'full' && lockFullPayment;
+    final bool isFullPayment = provider.selectedPaymentType == 'full';
     return GestureDetector(
       onTap: isFullPayment
           ? null
@@ -248,37 +247,6 @@ class PaymentDialog extends StatelessWidget {
       },
       validator: (value) =>
           value == null ? 'Please select a payment mode' : null,
-    );
-  }
-
-  Widget _buildCashTypeDropdown(PaymentDialogProvider provider) {
-    return DropdownButtonFormField<String>(
-      initialValue: provider.selectedCashType,
-      decoration: InputDecoration(
-        labelText: 'Cash Type',
-        border: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey[400]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.black54),
-        ),
-        focusedBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.blueAccent, width: 2.0),
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        labelStyle: const TextStyle(color: Colors.black87),
-        floatingLabelStyle: const TextStyle(color: Colors.blueAccent),
-      ),
-      dropdownColor: Colors.white,
-      items: const [
-        DropdownMenuItem(value: 'petty_cash', child: Text('Petty Cash')),
-        DropdownMenuItem(value: 'ho_cash', child: Text('HO Cash')),
-      ],
-      onChanged: (value) {
-        provider.setCashType(value!);
-      },
-      validator: (value) => value == null ? 'Please select a cash type' : null,
     );
   }
 

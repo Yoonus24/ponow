@@ -182,6 +182,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     if (po != null) {
       poItems = List<Item>.from(po.items);
+      for (var item in poItems) {
+        item.randomId ??=
+            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
+      }
 
       freights = List<FreightData>.from(po.freights ?? []);
       totalFreightAmount = po.totalFreightAmount ?? 0.0;
@@ -1001,13 +1005,23 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
       final formattedOrderDate = formatDate(snapshot["orderedDate"]);
       final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
+
+      for (var item in poItems) {
+        item.randomId ??=
+            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
+      }
+
       final List<Item> finalItems = poItems.map((e) => e.copyWith()).toList();
+
       double roundOffValue = double.tryParse(snapshot["roundOff"] ?? '') ?? 0.0;
+
       final bool hasOverallDiscount = discountMode.value != DiscountMode.none;
+
       final double overallDiscountValue = hasOverallDiscount
           ? double.tryParse(snapshot["overallDiscount"] ?? '') ?? 0.0
           : 0.0;
 
+      // ================= EDIT CASE =================
       if (editingPO != null) {
         final updatedPO = editingPO!.copyWith(
           vendorName: selectedVendor,
@@ -1051,6 +1065,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return true;
       }
 
+      // ================= CREATE CASE =================
       final newPO = PO(
         purchaseOrderId: '',
         vendorName: selectedVendor ?? '',
@@ -1080,7 +1095,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         totalFreightAmount: totalFreightAmount,
         totalFreightTaxAmount: totalFreightTaxAmount,
 
-        // ✅ ADD THIS LINE
         isHoldOrder: calculatedFinalAmount > vendorDetails.creditLimit,
 
         overallDiscount: hasOverallDiscount
@@ -1097,7 +1111,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
       await poProvider.postPO(newPO, vendorDetails);
       return true;
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

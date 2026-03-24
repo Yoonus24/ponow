@@ -1165,19 +1165,24 @@ class _AddItemDialogState extends State<AddItemDialog> {
         hsnCode: selectedPurchaseItem?.hsnCode,
         purchasecategoryName: selectedPurchaseItem?.purchasecategoryName,
         purchasesubcategoryName: selectedPurchaseItem?.purchasesubcategoryName,
+        randomId:
+            widget.editingItem?.randomId ??
+            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}",
       );
 
       print("Created new item:");
       print(newItem);
 
       if (widget.editingIndex != null) {
-        print("Editing existing item at index: ${widget.editingIndex}");
+        final oldItem = notifier.poItems[widget.editingIndex!];
+
+        newItem.randomId = oldItem.randomId; // 🔥 KEEP SAME ID
+
         notifier.poItems[widget.editingIndex!] = newItem;
       } else {
         final existingIndex = notifier.poItems.indexWhere(
-          (item) => item.itemId == newItem.itemId,
+          (item) => item.randomId == newItem.randomId,
         );
-
         if (existingIndex != -1) {
           print("Item already exists → merging quantities");
 

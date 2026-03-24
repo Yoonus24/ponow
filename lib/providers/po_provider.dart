@@ -12,8 +12,8 @@ import 'package:purchaseorders2/models/purchase_tax_model.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/vendorpurchasemodel.dart';
-import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/models/branchlocation.dart';
+import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class POProvider extends ChangeNotifier {
@@ -33,14 +33,6 @@ class POProvider extends ChangeNotifier {
       },
     ),
   );
-  // ..interceptors.add(
-  //   LogInterceptor(
-  //     request: true,
-  //     requestBody: true,
-  //     responseBody: true,
-  //     error: true,
-  //   ),
-  // );
 
   List<PO> _pos = [];
   List<PO> _pendingPOs = [];
@@ -60,13 +52,13 @@ class POProvider extends ChangeNotifier {
   String? _error;
   bool _isVendorLoading = false;
   bool get isVendorLoading => _isVendorLoading;
-  bool _isRevertingPO = false;
+  final bool _isRevertingPO = false;
   Timer? _vendorSearchTimer;
 
   Map<String, dynamic>? _taxData;
-  List<Item> _items = [];
+  final List<Item> _items = [];
   List<Item> approvedItems = [];
-  bool _branchesLoaded = false;
+  final bool _branchesLoaded = false;
   bool approvedPOLoaded = false;
 
   int _skip = 0;
@@ -75,7 +67,7 @@ class POProvider extends ChangeNotifier {
 
   List<String> _filteredVendorNames = [];
   List<String> _filteredPurchaseItems = [];
-  List<String> _filteredPurchaseOrder = [];
+  final List<String> _filteredPurchaseOrder = [];
 
   final List<PO> _poList = [];
 
@@ -454,35 +446,52 @@ class POProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final List data = response.data;
 
-        /// 🔥 Parse PO + remove fully received items
-        final List<PO> fetchedPOs = data.map((e) {
-          final po = _mergeWithExistingPO(PO.fromJson(e));
+        /// ✅ STEP 1: Parse + clean items
+        final List<PO> fetchedPOs = data
+            .map((e) {
+              final po = PO.fromJson(e);
 
-          /// Remove items which are fully received
-          po.items.removeWhere((item) => (item.pendingTotalQuantity ?? 0) <= 0);
+              /// remove fully received items
+              po.items.removeWhere(
+                (item) => (item.pendingTotalQuantity ?? 0) <= 0,
+              );
 
-          return po;
-        }).toList();
+              /// ❗ remove empty PO (IMPORTANT FIX)
+              // if (po.items.isEmpty) return null;
 
-        final List<PO> filteredPOs = fetchedPOs;
+              return po;
+            })
+            .whereType<PO>()
+            .toList();
 
+        /// ✅ STEP 2: HANDLE STATE SAFELY (NO REPLACE BUG)
         if (clearExisting && !append) {
-          _pos = filteredPOs;
+          /// 🔥 Always replace full list (NO merging)
+          _pos = List.from(fetchedPOs);
+
           _poList
             ..clear()
             ..addAll(_pos);
         } else if (append) {
-          _pos.addAll(filteredPOs);
-          _poList.addAll(filteredPOs);
+          /// 🔥 avoid duplicates while appending
+          final existingIds = _pos.map((p) => p.purchaseOrderId).toSet();
+
+          final newPOs = fetchedPOs.where(
+            (po) => !existingIds.contains(po.purchaseOrderId),
+          );
+
+          _pos.addAll(newPOs);
+          _poList.addAll(newPOs);
         } else {
-          _pos = filteredPOs;
+          _pos = List.from(fetchedPOs);
+
           _poList
             ..clear()
             ..addAll(_pos);
         }
 
-        _hasMore = filteredPOs.length >= limit;
-        _skip = skip + filteredPOs.length;
+        _hasMore = fetchedPOs.length >= limit;
+        _skip = skip + fetchedPOs.length;
 
         notifyListeners();
       } else {
@@ -1654,6 +1663,9 @@ class POProvider extends ChangeNotifier {
     DateTime invoiceDate,
     double discount, {
     double? roundOffAdjustment,
+    List<FreightData>? freights,
+    double? totalFreightAmount,
+    double? totalFreightTaxAmount,
   }) async {
     try {
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
@@ -1695,8 +1707,7 @@ class POProvider extends ChangeNotifier {
         /// overall discount already distributed to items
         "discountPrice": 0,
 
-        "roundOffAdjustment": roundOffAdjustment ?? 0.0,
-        "poId": poId,
+        "grnRoundOffAmount": roundOffAdjustment ?? 0.0, "poId": poId,
         "freights": po.freights?.map((f) => f.toJson()).toList() ?? [],
         "totalFreightAmount": po.totalFreightAmount ?? 0.0,
         "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,

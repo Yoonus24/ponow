@@ -27,7 +27,7 @@ class _LedgerState extends State<Ledger> {
   final FocusNode _vendorFocusNode = FocusNode();
   final LayerLink _vendorLayerLink = LayerLink();
   OverlayEntry? _vendorOverlay;
-
+  Map<int, bool> _loadingPdfMap = {};
   @override
   void initState() {
     super.initState();
@@ -88,24 +88,28 @@ class _LedgerState extends State<Ledger> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.grey.shade300),
               ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                padding: EdgeInsets.zero,
-                itemCount: filtered.length,
-                itemBuilder: (_, index) {
-                  final vendor = filtered[index];
-                  return ListTile(
-                    dense: true,
-                    title: Text(vendor),
-                    onTap: () {
-                      _selectedVendorNotifier.value = vendor;
-                      _vendorSearchController.text = vendor;
-                      _vendorOverlay?.remove();
-                      _vendorOverlay = null;
-                      _vendorFocusNode.requestFocus();
-                    },
-                  );
-                },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  itemBuilder: (_, index) {
+                    final vendor = filtered[index];
+                    return ListTile(
+                      dense: true,
+                      visualDensity: const VisualDensity(vertical: -3),
+                      title: Text(vendor, style: const TextStyle(fontSize: 12)),
+                      onTap: () {
+                        _selectedVendorNotifier.value = vendor;
+                        _vendorSearchController.text = vendor;
+                        _vendorOverlay?.remove();
+                        _vendorOverlay = null;
+                        _vendorFocusNode.requestFocus();
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -148,7 +152,11 @@ class _LedgerState extends State<Ledger> {
     return payment.totalPaidAmount ?? payment.paidAmount ?? 0.0;
   }
 
-  Future<void> _generatePdf(Outgoing payment) async {
+  Future<void> _generatePdf(int index, Outgoing payment) async {
+    setState(() {
+      _loadingPdfMap[index] = true;
+    });
+
     try {
       final pdfService = OutgoingPdf();
       final pdfFile = await pdfService.generateOutgoingPdf(payment.outgoingId);
@@ -166,6 +174,10 @@ class _LedgerState extends State<Ledger> {
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
       }
+    } finally {
+      setState(() {
+        _loadingPdfMap[index] = false;
+      });
     }
   }
 
@@ -262,7 +274,7 @@ class _LedgerState extends State<Ledger> {
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: SizedBox(
-                            width: 1100, 
+                            width: 1100,
                             child: Column(
                               children: [
                                 Container(
@@ -314,14 +326,29 @@ class _LedgerState extends State<Ledger> {
                                           children: [
                                             SizedBox(
                                               width: 60,
-                                              child: IconButton(
-                                                icon: const Icon(
-                                                  Icons.picture_as_pdf,
-                                                  color: Colors.redAccent,
-                                                ),
-                                                onPressed: () =>
-                                                    _generatePdf(payment),
-                                              ),
+                                              child:
+                                                  _loadingPdfMap[index] == true
+                                                  ? const SizedBox(
+                                                      height: 20,
+                                                      width: 20,
+                                                      child: Center(
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                            ),
+                                                      ),
+                                                    )
+                                                  : IconButton(
+                                                      icon: const Icon(
+                                                        Icons.picture_as_pdf,
+                                                        color: Colors.redAccent,
+                                                      ),
+                                                      onPressed: () =>
+                                                          _generatePdf(
+                                                            index,
+                                                            payment,
+                                                          ),
+                                                    ),
                                             ),
 
                                             _tableCell(

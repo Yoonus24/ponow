@@ -261,8 +261,8 @@ class ApprovedPOLogic {
             "itemId": item.itemId,
             "receivedQuantity": item.receivedQuantity ?? item.quantity,
             "grnPrice": item.newPrice,
-            "befTaxDiscount": 0,
-            "afTaxDiscount": 0,
+            "befTaxDiscount": item.befTaxDiscount ?? 0,
+            "afTaxDiscount": item.afTaxDiscount ?? 0,
             "taxPercentage": item.taxPercentage ?? 0.0,
             "taxType": item.taxType ?? "cgst_sgst",
           };
@@ -302,15 +302,28 @@ class ApprovedPOLogic {
   }
 
   double get orderedSubTotal {
-    return po.items.fold(0.0, (sum, i) => sum + (i.totalPrice ?? 0.0));
+    return po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.poQuantitypendingTotalPrice ?? 0.0),
+    );
   }
 
   double get orderedDiscount {
-    return _poBaseDiscount;
+    return po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.poQuantityDiscountAmount ?? 0.0),
+    );
+  }
+
+  double get orderedTaxAmount {
+    return po.items.fold(0.0, (sum, i) => sum + (i.poQuantityTaxAmount ?? 0.0));
   }
 
   double get orderedFinalAmount {
-    return orderedSubTotal - orderedDiscount;
+    return po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.poQuantitypendingFinalPrice ?? 0.0),
+    );
   }
 
   double get receivedSubTotal {
@@ -368,6 +381,7 @@ class ApprovedPOLogic {
           .map((item) {
             return {
               "itemId": item.itemId,
+              "item_rand": item.randomId,
               "receivedQuantity": item.receivedQuantity,
               "grnPrice": item.newPrice,
               "befTaxDiscount": originalBefTaxDiscount[item] ?? 0.0,
@@ -867,7 +881,9 @@ class ApprovedPOLogic {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
               child: const Text(
                 'Cancel',
                 style: TextStyle(color: Color.fromARGB(255, 74, 122, 227)),
@@ -894,11 +910,10 @@ class ApprovedPOLogic {
                   await poProvider.applyCurrentFilters();
 
                   if (context.mounted) {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(); // loader
+                    Navigator.of(context).pop(); // dialog
 
                     onUpdated();
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('PO reverted to Pending successfully'),
@@ -906,7 +921,7 @@ class ApprovedPOLogic {
                       ),
                     );
                   }
-                } catch (e) {
+                } catch (e, stack) {
                   if (context.mounted) {
                     Navigator.of(context).pop();
 
@@ -939,6 +954,14 @@ class ApprovedPOLogic {
       debugPrint("=========== GRN CONVERSION START ===========");
 
       if (!validateForm()) {
+        isSaving.value = false;
+        return;
+      }
+
+      final isExpiryValid = validateExpiryDatesBasedOnReceived(po.items);
+
+      if (!isExpiryValid) {
+        showTopError("Expiry date required for received items");
         isSaving.value = false;
         return;
       }
@@ -981,7 +1004,7 @@ class ApprovedPOLogic {
         now.second,
       );
 
-      /// MAIN API CALL (CREATES GRN)
+      /// 🚀 STEP 1: CREATE GRN
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
@@ -995,15 +1018,26 @@ class ApprovedPOLogic {
         throw Exception("GRN creation failed");
       }
 
-      debugPrint("✅ GRN CREATED: ${response["grnId"]}");
+      final String grnId = response["grnId"];
+      debugPrint("✅ GRN CREATED: $grnId");
 
-      /// CLOSE LOADER + DIALOG IMMEDIATELY
+      // await poProvider.convertPoToGrn(
+      //   context,
+      //   po,
+      //   grnId,
+      //   po.totalOrderAmount ?? 0,
+      //   0,
+      //   roundOffAdjustment: roundOffAmount.value,
+      // );
+
+      debugPrint("✅ GRN UPDATED WITH FREIGHT");
+
+      /// CLOSE LOADER + DIALOG
       if (context.mounted) {
         Navigator.of(context, rootNavigator: true).pop(); // loader
         Navigator.of(context).pop(); // ApprovedPO dialog
       }
 
-      /// REFRESH LISTS IN BACKGROUND (DO NOT WAIT)
       Future.microtask(() {
         poProvider.fetchPOsWithFilters(
           status: "Approved,PartiallyReceived",
@@ -1022,6 +1056,8 @@ class ApprovedPOLogic {
           ),
         );
       }
+
+      debugPrint("=========== GRN CONVERSION END ===========");
     } catch (e, stack) {
       debugPrint("❌ Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
@@ -1121,48 +1157,24 @@ class ApprovedPOLogic {
 
   String getOrderedItemValue(Item item, String column) {
     switch (column) {
-      case 'Count':
-        final count = item.pendingCount ?? item.count ?? 0;
-        return count.toStringAsFixed(2);
-
       case 'Qty':
-        final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
-        return qty.toStringAsFixed(2);
-
-      case 'Total':
-        final totalQty =
-            item.pendingTotalQuantity ??
-            item.poQuantity ??
-            ((item.count ?? 0) * (item.eachQuantity ?? 0));
-        return totalQty.toStringAsFixed(2);
-
-      case 'Price':
-        return (item.newPrice ?? 0).toStringAsFixed(2);
-
-      case 'BefTax':
-        return (item.befTaxDiscount ?? 0).toStringAsFixed(2);
-
-      case 'AfTax':
-        return (item.afTaxDiscount ?? 0).toStringAsFixed(2);
+        return (item.poQuantity ?? 0).toStringAsFixed(2);
 
       case 'Tax%':
-        return (item.taxPercentage ?? 0).toStringAsFixed(2);
+        return ((item.taxPercentage ?? 0)).toStringAsFixed(2);
 
       case 'Total Price':
-        final totalPrice =
-            item.pendingTotalPrice ??
-            item.poQuantitypendingTotalPrice ??
-            ((item.pendingTotalQuantity ?? item.poQuantity ?? 0) *
-                (item.newPrice ?? 0));
-        return totalPrice.toStringAsFixed(2);
+        return (item.poQuantitypendingTotalPrice ?? 0).toStringAsFixed(2);
 
       case 'Final':
-        final finalPrice =
-            item.pendingFinalPrice ??
-            item.poQuantitypendingFinalPrice ??
-            item.finalPrice ??
-            0.0;
-        return finalPrice.toStringAsFixed(2);
+        return (item.poQuantitypendingFinalPrice ?? 0).toStringAsFixed(2);
+
+      case 'BefTax':
+      case 'AfTax':
+        return (item.poQuantityDiscountAmount ?? 0).toStringAsFixed(2);
+
+      case 'Total':
+        return (item.poQuantity ?? 0).toStringAsFixed(2);
 
       default:
         return '';

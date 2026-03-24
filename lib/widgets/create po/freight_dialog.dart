@@ -7,10 +7,10 @@ import 'package:purchaseorders2/providers/po_provider.dart';
 import '../../widgets/numeric_Calculator.dart';
 
 class FreightDialog extends StatefulWidget {
-  final Function(FreightData) onAdd;
-  final FreightData? editingFreight;
+  final Function(List<FreightData>) onAdd;
+  final List<FreightData>? initialFreights;
 
-  const FreightDialog({super.key, required this.onAdd, this.editingFreight});
+  const FreightDialog({super.key, required this.onAdd, this.initialFreights});
 
   @override
   State<FreightDialog> createState() => _FreightDialogState();
@@ -30,10 +30,16 @@ class _FreightDialogState extends State<FreightDialog> {
     null,
   );
 
-  // List to store temporary freights
+  // Store freights with their individual calculations
   final List<FreightData> _temporaryFreights = [];
 
-  // Scroll controllers for the table
+  // Summary calculations
+  final ValueNotifier<double> _totalFreightAmount = ValueNotifier<double>(0);
+  final ValueNotifier<double> _totalTaxAmount = ValueNotifier<double>(0);
+  final ValueNotifier<double> _grandTotal = ValueNotifier<double>(0);
+  final ValueNotifier<bool> _isSaving = ValueNotifier<bool>(false);
+
+  // Scroll controllers
   final ScrollController _leftVertical = ScrollController();
   final ScrollController _rightVertical = ScrollController();
   final ScrollController _horizontal = ScrollController();
@@ -93,6 +99,12 @@ class _FreightDialogState extends State<FreightDialog> {
       }
     });
 
+    // Load initial freights if any
+    if (widget.initialFreights != null && widget.initialFreights!.isNotEmpty) {
+      _temporaryFreights.addAll(widget.initialFreights!);
+      _updateSummaryCalculations();
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
@@ -103,32 +115,26 @@ class _FreightDialogState extends State<FreightDialog> {
           provider.fetchPurchaseTaxes(),
           provider.fetchFreightNames(),
         ]);
-
-        if (widget.editingFreight != null) {
-          final f = widget.editingFreight!;
-
-          _amountController.text = f.amount.toStringAsFixed(2);
-          _taxCode.value = f.taxCode;
-          _taxType.value = f.taxType;
-          _sgst.value = f.sgst;
-          _cgst.value = f.cgst;
-          _igst.value = f.igst;
-          _taxAmount.value = f.taxAmount;
-          _total.value = f.total;
-
-          final match = provider.freightNames.firstWhere(
-            (x) => x.id == f.id,
-            orElse: () => FreightName(id: "", name: ""),
-          );
-
-          if (match.id.isNotEmpty) {
-            _selectedFreightId.value = f.id;
-          }
-        }
       } catch (e) {
         debugPrint("❌ Failed to load freight data: $e");
       }
     });
+  }
+
+  void _updateSummaryCalculations() {
+    double totalAmount = 0;
+    double totalTax = 0;
+    double total = 0;
+
+    for (var freight in _temporaryFreights) {
+      totalAmount += freight.amount;
+      totalTax += freight.taxAmount;
+      total += freight.total;
+    }
+
+    _totalFreightAmount.value = totalAmount;
+    _totalTaxAmount.value = totalTax;
+    _grandTotal.value = total;
   }
 
   @override
@@ -142,6 +148,10 @@ class _FreightDialogState extends State<FreightDialog> {
     _taxAmount.dispose();
     _total.dispose();
     _selectedFreightId.dispose();
+    _totalFreightAmount.dispose();
+    _totalTaxAmount.dispose();
+    _grandTotal.dispose();
+    _isSaving.dispose();
     _leftVertical.dispose();
     _rightVertical.dispose();
     _horizontal.dispose();
@@ -173,7 +183,10 @@ class _FreightDialogState extends State<FreightDialog> {
 
     final amount = double.tryParse(_amountController.text) ?? 0;
 
-    if (amount == 0) return;
+    if (amount == 0) {
+      _resetTaxValues();
+      return;
+    }
 
     try {
       final freight = await provider.calculateFreightTotals(
@@ -189,7 +202,16 @@ class _FreightDialogState extends State<FreightDialog> {
       _total.value = (freight.amount ?? 0) + (freight.taxAmount ?? 0);
     } catch (e) {
       debugPrint("❌ Failed to calculate freight totals: $e");
+      _resetTaxValues();
     }
+  }
+
+  void _resetTaxValues() {
+    _sgst.value = 0;
+    _cgst.value = 0;
+    _igst.value = 0;
+    _taxAmount.value = 0;
+    _total.value = 0;
   }
 
   void _addToTemporaryList() {
@@ -202,10 +224,26 @@ class _FreightDialogState extends State<FreightDialog> {
       orElse: () => FreightName(id: "", name: ""),
     );
 
+    if (selected.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select a freight name")),
+      );
+      return;
+    }
+
+    final amount = double.tryParse(_amountController.text) ?? 0;
+
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter a valid amount")),
+      );
+      return;
+    }
+
     final freight = FreightData(
       id: selected.id,
       name: selected.name,
-      amount: double.tryParse(_amountController.text) ?? 0,
+      amount: amount,
       taxAmount: _taxAmount.value,
       cgst: _cgst.value,
       sgst: _sgst.value,
@@ -216,20 +254,15 @@ class _FreightDialogState extends State<FreightDialog> {
     );
 
     setState(() {
-      if (widget.editingFreight != null) {
-        final index = _temporaryFreights.indexWhere(
-          (f) =>
-              f.id == widget.editingFreight!.id &&
-              f.name == widget.editingFreight!.name,
-        );
-        if (index != -1) {
-          _temporaryFreights[index] = freight;
-        } else {
-          _temporaryFreights.add(freight);
-        }
+      // Check if already exists → update
+      final index = _temporaryFreights.indexWhere((f) => f.id == freight.id);
+
+      if (index != -1) {
+        _temporaryFreights[index] = freight; // update
       } else {
-        _temporaryFreights.add(freight);
+        _temporaryFreights.add(freight); // add new
       }
+      _updateSummaryCalculations();
     });
 
     _clearForm();
@@ -240,28 +273,18 @@ class _FreightDialogState extends State<FreightDialog> {
     _taxCode.value = null;
     _taxType.value = null;
     _selectedFreightId.value = null;
-    _sgst.value = 0;
-    _cgst.value = 0;
-    _igst.value = 0;
-    _taxAmount.value = 0;
-    _total.value = 0;
+    _resetTaxValues();
   }
 
   void _removeTemporaryFreight(int index) {
     setState(() {
       _temporaryFreights.removeAt(index);
+      _updateSummaryCalculations();
     });
   }
 
   void _editTemporaryFreight(FreightData freight) {
-    final index = _temporaryFreights.indexWhere(
-      (f) =>
-          f.id == freight.id &&
-          f.name == freight.name &&
-          f.amount == freight.amount,
-    );
-
-    if (index != -1) {
+    setState(() {
       _amountController.text = freight.amount.toStringAsFixed(2);
       _taxCode.value = freight.taxCode;
       _taxType.value = freight.taxType;
@@ -272,17 +295,41 @@ class _FreightDialogState extends State<FreightDialog> {
       _total.value = freight.total;
       _selectedFreightId.value = freight.id;
 
-      setState(() {
-        _temporaryFreights.removeAt(index);
-      });
-    }
+      _temporaryFreights.removeWhere(
+        (f) => f.id == freight.id && f.amount == freight.amount,
+      );
+      _updateSummaryCalculations();
+    });
   }
 
-  void _submitAll() {
-    for (var freight in _temporaryFreights) {
-      widget.onAdd(freight);
+  Future<void> _submitAll() async {
+    if (_temporaryFreights.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No freights to save")));
+      return;
     }
-    Navigator.of(context).pop();
+
+    _isSaving.value = true;
+
+    try {
+      // Simulate network delay or actual save operation
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      widget.onAdd(_temporaryFreights);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error saving: $e")));
+      }
+    } finally {
+      _isSaving.value = false;
+    }
   }
 
   Widget _buildFreightTable() {
@@ -453,7 +500,6 @@ class _FreightDialogState extends State<FreightDialog> {
                                   totalWidth,
                                   isMobile,
                                 ),
-
                                 Container(
                                   width: actionsWidth,
                                   alignment: Alignment.center,
@@ -541,6 +587,90 @@ class _FreightDialogState extends State<FreightDialog> {
     );
   }
 
+  Widget _buildSummarySection() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Summary",
+          style: TextStyle(
+            fontSize: isMobile ? 14 : 15,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        SizedBox(height: isMobile ? 6 : 8),
+
+        Container(
+          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: [
+              _buildSummaryRow(
+                "Total Freight Amount:",
+                _totalFreightAmount,
+                isMobile: isMobile,
+              ),
+              SizedBox(height: isMobile ? 6 : 8),
+              _buildSummaryRow(
+                "Total Tax Amount:",
+                _totalTaxAmount,
+                isMobile: isMobile,
+              ),
+              Divider(height: isMobile ? 16 : 20, color: Colors.grey.shade300),
+              _buildSummaryRow(
+                "Grand Total:",
+                _grandTotal,
+                isMobile: isMobile,
+                isBold: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(
+    String label,
+    ValueNotifier<double> valueNotifier, {
+    required bool isMobile,
+    bool isBold = false,
+  }) {
+    return ValueListenableBuilder<double>(
+      valueListenable: valueNotifier,
+      builder: (context, value, child) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 14,
+                fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+                color: Colors.grey.shade700,
+              ),
+            ),
+            Text(
+              "₹${value.toStringAsFixed(2)}",
+              style: TextStyle(
+                fontSize: isMobile ? 13 : 14,
+                fontWeight: isBold ? FontWeight.w700 : FontWeight.w600,
+                color: isBold ? Colors.green.shade700 : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
@@ -586,9 +716,7 @@ class _FreightDialogState extends State<FreightDialog> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      widget.editingFreight != null
-                          ? "Update Freight"
-                          : "Add Freight",
+                      "Manage Freight",
                       style: TextStyle(
                         color: Colors.blueAccent,
                         fontSize: isMobile ? 15 : 17,
@@ -752,7 +880,7 @@ class _FreightDialogState extends State<FreightDialog> {
                                       builder: (context, taxCodeValue, child) {
                                         return DropdownButtonFormField<double>(
                                           isExpanded: true,
-                                          initialValue: taxCodeValue == null
+                                          value: taxCodeValue == null
                                               ? null
                                               : double.tryParse(taxCodeValue),
                                           decoration: _buildFieldDecoration(
@@ -857,11 +985,8 @@ class _FreightDialogState extends State<FreightDialog> {
                             ],
                           ),
                         ),
-
-                        // 2. SUMMARY SECTION - COMPACT VERSION
                         SizedBox(height: isMobile ? 16 : 20),
 
-                        // 3. TABLE SECTION
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -877,242 +1002,19 @@ class _FreightDialogState extends State<FreightDialog> {
                             _buildFreightTable(),
                           ],
                         ),
+                        SizedBox(height: isMobile ? 16 : 20),
+
+                        // Tax Breakdown Section
+                        _buildTaxBreakdownSection(isMobile),
 
                         SizedBox(height: isMobile ? 16 : 20),
 
-                        ValueListenableBuilder<String?>(
-                          valueListenable: _taxCode,
-                          builder: (context, taxCodeValue, child) {
-                            return ValueListenableBuilder<String?>(
-                              valueListenable: _taxType,
-                              builder: (context, taxTypeValue, child) {
-                                final hasTaxSelected =
-                                    taxCodeValue != null &&
-                                    taxCodeValue.isNotEmpty &&
-                                    taxTypeValue != null &&
-                                    taxTypeValue.isNotEmpty;
-
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "Tax Breakdown",
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 13 : 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.grey.shade700,
-                                      ),
-                                    ),
-                                    SizedBox(height: isMobile ? 6 : 8),
-
-                                    if (hasTaxSelected) ...[
-                                      if (taxTypeValue == "cgst_sgst") ...[
-                                        ValueListenableBuilder<double>(
-                                          valueListenable: _cgst,
-                                          builder: (context, cgstValue, child) {
-                                            return Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                vertical: isMobile ? 2 : 4,
-                                              ),
-                                              child: twoCol(
-                                                Text(
-                                                  "CGST:",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  "₹${cgstValue.toStringAsFixed(2)}",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                  textAlign: TextAlign.right,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-
-                                        ValueListenableBuilder<double>(
-                                          valueListenable: _sgst,
-                                          builder: (context, sgstValue, child) {
-                                            return Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                vertical: isMobile ? 2 : 4,
-                                              ),
-                                              child: twoCol(
-                                                Text(
-                                                  "SGST:",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  "₹${sgstValue.toStringAsFixed(2)}",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                  textAlign: TextAlign.right,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ] else if (taxTypeValue == "igst") ...[
-                                        ValueListenableBuilder<double>(
-                                          valueListenable: _igst,
-                                          builder: (context, igstValue, child) {
-                                            return Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                vertical: isMobile ? 2 : 4,
-                                              ),
-                                              child: twoCol(
-                                                Text(
-                                                  "IGST:",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  "₹${igstValue.toStringAsFixed(2)}",
-                                                  style: TextStyle(
-                                                    fontSize: isMobile
-                                                        ? 13
-                                                        : 14,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.grey.shade700,
-                                                  ),
-                                                  textAlign: TextAlign.right,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ],
-
-                                      Divider(
-                                        height: isMobile ? 16 : 20,
-                                        color: Colors.grey.shade300,
-                                      ),
-
-                                      ValueListenableBuilder<double>(
-                                        valueListenable: _taxAmount,
-                                        builder: (context, taxAmountValue, child) {
-                                          return Padding(
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: isMobile ? 4 : 6,
-                                            ),
-                                            child: twoCol(
-                                              Text(
-                                                "Tax Amount:",
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 13 : 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Colors.grey.shade700,
-                                                ),
-                                              ),
-                                              Text(
-                                                "₹${taxAmountValue.toStringAsFixed(2)}",
-                                                style: TextStyle(
-                                                  fontSize: isMobile ? 14 : 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.grey.shade700,
-                                                ),
-                                                textAlign: TextAlign.right,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ] else ...[
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: isMobile ? 4 : 6,
-                                        ),
-                                        child: twoCol(
-                                          Text(
-                                            "Tax Details",
-                                            style: TextStyle(
-                                              fontSize: isMobile ? 13 : 14,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.grey.shade700,
-                                            ),
-                                          ),
-                                          Text(
-                                            "No tax selected",
-                                            style: TextStyle(
-                                              fontSize: isMobile ? 13 : 14,
-                                              fontStyle: FontStyle.italic,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                        ),
-                                      ),
-
-                                      Divider(
-                                        height: isMobile ? 16 : 20,
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ],
-
-                                    ValueListenableBuilder<double>(
-                                      valueListenable: _total,
-                                      builder: (context, totalValue, child) {
-                                        return Padding(
-                                          padding: EdgeInsets.symmetric(
-                                            vertical: isMobile ? 6 : 8,
-                                          ),
-                                          child: twoCol(
-                                            Text(
-                                              "Total Amount:",
-                                              style: TextStyle(
-                                                fontSize: isMobile ? 14 : 15,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            ),
-                                            Text(
-                                              "₹${totalValue.toStringAsFixed(2)}",
-                                              style: TextStyle(
-                                                fontSize: isMobile ? 15 : 16,
-                                                fontWeight: FontWeight.w700,
-                                                color: Colors.grey.shade700,
-                                              ),
-                                              textAlign: TextAlign.right,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        ),
+                        // 2. SUMMARY SECTION
+                        _buildSummarySection(),
 
                         SizedBox(height: isMobile ? 16 : 20),
 
                         // 4. BUTTONS SECTION
-                        // 4. BUTTONS SECTION - All buttons in same row
                         Row(
                           children: [
                             // Clear button
@@ -1147,9 +1049,7 @@ class _FreightDialogState extends State<FreightDialog> {
                                   ),
                                 ),
                                 child: Text(
-                                  widget.editingFreight != null
-                                      ? "Update"
-                                      : "Add",
+                                  "Add",
                                   style: TextStyle(
                                     fontSize: isMobile ? 13 : 14,
                                     fontWeight: FontWeight.w600,
@@ -1159,27 +1059,46 @@ class _FreightDialogState extends State<FreightDialog> {
                             ),
                             SizedBox(width: isMobile ? 8 : 12),
 
-                            // Save All button
+                            // Save All button with loading state
                             Expanded(
-                              child: ElevatedButton(
-                                onPressed: _temporaryFreights.isEmpty
-                                    ? null
-                                    : _submitAll,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.green,
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(
-                                    vertical: isMobile ? 10 : 14,
-                                  ),
-                                  disabledBackgroundColor: Colors.grey.shade300,
-                                ),
-                                child: Text(
-                                  "Save (${_temporaryFreights.length})",
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 13 : 14,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _isSaving,
+                                builder: (context, isSaving, child) {
+                                  return ElevatedButton(
+                                    onPressed:
+                                        isSaving || _temporaryFreights.isEmpty
+                                        ? null
+                                        : _submitAll,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                      foregroundColor: Colors.white,
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: isMobile ? 10 : 14,
+                                      ),
+                                      disabledBackgroundColor:
+                                          Colors.grey.shade300,
+                                    ),
+                                    child: isSaving
+                                        ? SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Colors.white,
+                                                  ),
+                                            ),
+                                          )
+                                        : Text(
+                                            "Save (${_temporaryFreights.length})",
+                                            style: TextStyle(
+                                              fontSize: isMobile ? 13 : 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                  );
+                                },
                               ),
                             ),
                           ],
@@ -1192,6 +1111,129 @@ class _FreightDialogState extends State<FreightDialog> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTaxBreakdownSection(bool isMobile) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: _taxCode,
+      builder: (context, taxCodeValue, child) {
+        return ValueListenableBuilder<String?>(
+          valueListenable: _taxType,
+          builder: (context, taxTypeValue, child) {
+            final hasTaxSelected =
+                taxCodeValue != null &&
+                taxCodeValue.isNotEmpty &&
+                taxTypeValue != null &&
+                taxTypeValue.isNotEmpty;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Tax Breakdown",
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                SizedBox(height: isMobile ? 6 : 8),
+
+                if (hasTaxSelected) ...[
+                  if (taxTypeValue == "cgst_sgst") ...[
+                    _buildTaxRow("CGST:", _cgst, isMobile),
+                    _buildTaxRow("SGST:", _sgst, isMobile),
+                  ] else if (taxTypeValue == "igst") ...[
+                    _buildTaxRow("IGST:", _igst, isMobile),
+                  ],
+
+                  Divider(
+                    height: isMobile ? 16 : 20,
+                    color: Colors.grey.shade300,
+                  ),
+
+                  _buildTaxRow(
+                    "Tax Amount:",
+                    _taxAmount,
+                    isMobile,
+                    isBold: true,
+                  ),
+                ] else ...[
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: isMobile ? 4 : 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Tax Details",
+                          style: TextStyle(
+                            fontSize: isMobile ? 13 : 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        Text(
+                          "No tax selected",
+                          style: TextStyle(
+                            fontSize: isMobile ? 13 : 14,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Divider(
+                    height: isMobile ? 16 : 20,
+                    color: Colors.grey.shade300,
+                  ),
+                ],
+
+                _buildTaxRow("Total Amount:", _total, isMobile, isBold: true),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTaxRow(
+    String label,
+    ValueNotifier<double> valueNotifier,
+    bool isMobile, {
+    bool isBold = false,
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: isMobile ? 2 : 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isMobile ? 13 : 14,
+              fontWeight: isBold ? FontWeight.w600 : FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          ValueListenableBuilder<double>(
+            valueListenable: valueNotifier,
+            builder: (context, value, child) {
+              return Text(
+                "₹${value.toStringAsFixed(2)}",
+                style: TextStyle(
+                  fontSize: isMobile ? 13 : 14,
+                  fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+                  color: isBold ? Colors.green.shade700 : Colors.grey.shade700,
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

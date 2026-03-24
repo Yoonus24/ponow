@@ -21,6 +21,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
   late ScrollController _leftController;
   late ScrollController _rightController;
   bool _syncing = false;
+  bool _isLoadingPdf = false;
 
   @override
   void initState() {
@@ -53,6 +54,30 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     _leftController.dispose();
     _rightController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handlePdfClick(ApInvoice apinvoice) async {
+    setState(() {
+      _isLoadingPdf = true;
+    });
+
+    try {
+      final pdfService = APInvoicePDF();
+
+      final pdfFile = await pdfService.generateAPInvoicePdf(
+        apinvoice.invoiceId!,
+      );
+
+      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } finally {
+      setState(() {
+        _isLoadingPdf = false;
+      });
+    }
   }
 
   @override
@@ -168,20 +193,22 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                       }
                     },
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-                    onPressed: () async {
-                      try {
-                        final pdfService = APInvoicePDF();
-                        final pdfFile = await pdfService.generateAPInvoicePdf(
-                          apinvoice.invoiceId!,
-                        );
-                        await Printing.layoutPdf(
-                          onLayout: (_) => pdfFile.readAsBytesSync(),
-                        );
-                      } catch (e) {}
-                    },
-                  ),
+                  _isLoadingPdf
+                      ? const SizedBox(
+                          height: 25,
+                          width: 25,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.picture_as_pdf,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => _handlePdfClick(apinvoice),
+                        ),
                 ],
               ),
             ],

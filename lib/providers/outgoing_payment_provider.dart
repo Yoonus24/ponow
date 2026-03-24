@@ -636,7 +636,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
+import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
@@ -680,6 +680,8 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   bool get isLoadingInvoices => _isLoadingInvoices;
   String get error => _error;
   List<String> get validationWarnings => _validationWarnings;
+  bool _isTableLoading = false;
+  bool get isTableLoading => _isTableLoading;
 
   void clearError() {
     _error = '';
@@ -831,10 +833,14 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     int skip = 0,
     int limit = 50,
     String? invoiceNo,
+    bool isTableRefresh = false,
   }) async {
-    // Show full screen loader only for first load
     if (skip == 0) {
-      _isLoadingOutgoings = true;
+      if (isTableRefresh) {
+        _isTableLoading = true;
+      } else {
+        _isLoadingOutgoings = true;
+      }
       notifyListeners();
     }
 
@@ -864,8 +870,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         'limit': limit,
         if (filterByAmount) 'filterByAmount': true,
         if (backendStatus != null) 'status': backendStatus,
-        if (fromDate != null) 'fromDate': fromDate.toIso8601String(),
-        if (toDate != null) 'toDate': toDate.toIso8601String(),
+        if (fromDate != null)
+          'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
+
+        if (toDate != null) 'toDate': DateFormat('yyyy-MM-dd').format(toDate),
         if (vendorName != null && vendorName.trim().isNotEmpty)
           'vendorName': vendorName.trim(),
         if (invoiceNo != null && invoiceNo.trim().isNotEmpty)
@@ -916,6 +924,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       _error = 'Network error. Please check your connection.';
     } finally {
       _isLoadingOutgoings = false;
+      _isTableLoading = false;
       notifyListeners();
     }
 
@@ -930,8 +939,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       final response = await dio.get(
         '$_baseUrl/outgoingpayments/outgoing/getAll',
         queryParameters: {
-          if (fromDate != null) 'fromDate': fromDate.toIso8601String(),
-          if (toDate != null) 'toDate': toDate.toIso8601String(),
+          if (fromDate != null)
+            'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
+
+          if (toDate != null) 'toDate': DateFormat('yyyy-MM-dd').format(toDate),
         },
       );
 
