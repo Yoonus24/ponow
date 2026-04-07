@@ -156,7 +156,7 @@ class _POWidgetState extends State<POWidget> {
                 ? Border.all(color: const Color(0xFF87CEEB), width: 2)
                 : Border.all(color: Colors.transparent),
           ),
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 400),
+          // constraints: const BoxConstraints(maxWidth: 600, maxHeight: 400),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -246,7 +246,10 @@ class _POWidgetState extends State<POWidget> {
                   ],
                 ),
               ),
-              Expanded(child: _buildPOItemsTable(updatedPO)),
+              SizedBox(
+                height: 200, // or 220 (adjust if needed)
+                child: _buildPOItemsTable(updatedPO),
+              ),
               Padding(
                 padding: const EdgeInsets.all(8),
                 child: Row(

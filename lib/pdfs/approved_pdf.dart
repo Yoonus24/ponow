@@ -10,10 +10,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class PurchaseOrderService {
-  static const String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
-  static const String businessUrl = 'http://yenerp.com/purchaseapi/pobusiness/';
+  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
+  static const String businessUrl =
+      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
   static const String vendorBaseUrl =
-      'http://192.168.29.184:8000/nextjstestapi/vendors/exact-name/';
+      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -136,308 +137,300 @@ class PurchaseOrderService {
     final pdf = pw.Document();
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: pw.EdgeInsets.all(20),
         build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Table(
-                columnWidths: {
-                  0: pw.FlexColumnWidth(1),
-                  1: pw.FlexColumnWidth(3),
-                },
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(right: 10),
-                        child: logoImage != null
-                            ? pw.Container(
-                                width: 60,
-                                height: 60,
-                                child: pw.Image(
-                                  logoImage,
-                                  fit: pw.BoxFit.contain,
-                                ),
-                              )
-                            : pw.SizedBox(),
-                      ),
-
-                      pw.Padding(
-                        padding: pw.EdgeInsets.only(left: 50),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'Purchase Order',
-                              style: pw.TextStyle(
-                                fontSize: 14,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColor(0, 0, 128 / 255),
-                              ),
-                            ),
-                            pw.SizedBox(height: 4),
-                            pw.Text(
-                              businessData['companyName']?.toString() ?? '',
-                              style: pw.TextStyle(
-                                fontSize: 12,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.Text(
-                              _joinNonEmpty([
-                                businessData['address1']?.toString(),
-                                businessData['address2']?.toString(),
-                              ]),
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'Tel.No: ${businessData['phoneNo'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'E-Mail: ${businessData['emailId'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'GSTIN: ${businessData['gstIn'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              pw.SizedBox(height: 12),
-
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.5),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(1.5),
-                  2: pw.FlexColumnWidth(1.5),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(0, 0, 128 / 255),
-                    ),
-                    children: [
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Vendor Details',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Billing Address',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'PO Details',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          _joinNonEmpty([
-                            poData['vendorName']?.toString(),
-                            'GSTIN: ${poData['gstNumber'] ?? 'N/A'}',
-                            poData['address']?.toString(),
-                            poData['city']?.toString(),
-                            poData['state']?.toString(),
-                            poData['country']?.toString(),
-                            'Email: ${poData['contactpersonEmail'] ?? 'Not Provided'}',
-                            'Phone: ${poData['vendorContact'] ?? 'Not Provided'}',
-                          ], separator: '\n'),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          _joinNonEmpty([
-                            poData['billingAddress1']?.toString() ??
-                                'No.40, Kenikarai',
-                            poData['billingAddress2']?.toString() ??
-                                'Ramanathapuram',
-                          ]),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'PO No: ${poData['randomId']?.toString() ?? purchaseOrderId}\n'
-                          'PO Date: $formattedOrderDate\n'
-                          'Due Date: $dueDate\n'
-                          'Payment Terms: ${poData['paymentTerms']?.toString() ?? 'N/A'}\n'
-                          'Currency: ${poData['currency']?.toString() ?? 'INR'}',
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              // pw.SizedBox(height: 12),
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.5),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(0.7),
-                  1: pw.FlexColumnWidth(2),
-                  2: pw.FlexColumnWidth(1.2),
-                  3: pw.FlexColumnWidth(1),
-                  4: pw.FlexColumnWidth(0.8),
-                  5: pw.FlexColumnWidth(1),
-                  6: pw.FlexColumnWidth(1),
-                  7: pw.FlexColumnWidth(0.8),
-                  8: pw.FlexColumnWidth(1.2),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(0, 0, 128 / 255),
-                    ),
-                    children: [
-                      _tableHeaderCell('S.No'),
-                      _tableHeaderCell('Description'),
-                      _tableHeaderCell('HsnCode'),
-                      _tableHeaderCell('Count'),
-                      _tableHeaderCell('Qty'),
-                      _tableHeaderCell('Po Qty'),
-                      _tableHeaderCell('Unit Price'),
-                      _tableHeaderCell('Tax'),
-                      _tableHeaderCell('Amount'),
-                    ],
-                  ),
-                  ..._buildItemRows(itemsRaw),
-                ],
-              ),
-
-              pw.Container(
-                width: double.infinity,
-                child: pw.Table(
-                  border: pw.TableBorder.all(width: 0.5),
-                  columnWidths: {
-                    0: pw.FlexColumnWidth(2),
-                    1: pw.FlexColumnWidth(1),
-                  },
+          return <pw.Widget>[
+            // Header Section
+            pw.Table(
+              columnWidths: {
+                0: pw.FlexColumnWidth(1),
+                1: pw.FlexColumnWidth(3),
+              },
+              children: [
+                pw.TableRow(
                   children: [
-                    _twoCellRow(
-                      'Total Amount',
-                      _safeFixedString(poData['pendingOrderAmount']),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(right: 10),
+                      child: logoImage != null
+                          ? pw.Container(
+                              width: 60,
+                              height: 60,
+                              child: pw.Image(
+                                logoImage,
+                                fit: pw.BoxFit.contain,
+                              ),
+                            )
+                          : pw.SizedBox(),
                     ),
 
-                    _twoCellRow(
-                      'Total Discount',
-                      _safeFixedString(poData['pendingDiscountAmount']),
-                    ),
-
-                    _twoCellRow(
-                      'CGST @ ${_getTaxPercentage(itemsRaw)}%',
-                      _safeFixedString(_calculateCgst(itemsRaw)),
-                    ),
-
-                    _twoCellRow(
-                      'SGST @ ${_getTaxPercentage(itemsRaw)}%',
-                      _safeFixedString(_calculateSgst(itemsRaw)),
-                    ),
-
-                    _twoCellRow(
-                      'Round Off Amount',
-                      _safeFixedString(poData['roundOffValue']),
-                    ),
-
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Amount in Words: $amountInWords',
-                            style: pw.TextStyle(fontSize: 12),
-                            textAlign: pw.TextAlign.right,
-                            // same as others
+                    pw.Padding(
+                      padding: pw.EdgeInsets.only(left: 50),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'Purchase Order',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColor(0, 0, 128 / 255),
+                            ),
                           ),
-                        ),
-                        pw.Padding(
-                          padding: pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Total: ${_safeFixedString(poData['pendingOrderAmount'])}',
-                            style: pw.TextStyle(fontSize: 12), // normal
-                            textAlign: pw.TextAlign.right,
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            businessData['companyName']?.toString() ?? '',
+                            style: pw.TextStyle(
+                              fontSize: 12,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                          pw.Text(
+                            _joinNonEmpty([
+                              businessData['address1']?.toString(),
+                              businessData['address2']?.toString(),
+                            ]),
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'Tel.No: ${businessData['phoneNo'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'E-Mail: ${businessData['emailId'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'GSTIN: ${businessData['gstIn'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
 
-              pw.SizedBox(height: 12),
+            pw.SizedBox(height: 12),
 
-              pw.SizedBox(height: 16),
-
-              // Terms & Conditions
-              pw.Text(
-                'Terms & Conditions',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+            // Vendor Details Table
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5),
+              columnWidths: {
+                0: pw.FlexColumnWidth(2),
+                1: pw.FlexColumnWidth(1.5),
+                2: pw.FlexColumnWidth(1.5),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor(0, 0, 128 / 255),
+                  ),
+                  children: [
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Vendor Details',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Billing Address',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'PO Details',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              pw.SizedBox(height: 8),
-              ..._buildTermsAndConditions(poData['termsAndConditions']),
-
-              pw.SizedBox(height: 16),
-
-              pw.Text(
-                'Declaration:',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+                pw.TableRow(
+                  children: [
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        _joinNonEmpty([
+                          poData['vendorName']?.toString(),
+                          'GSTIN: ${poData['gstNumber'] ?? 'N/A'}',
+                          poData['address']?.toString(),
+                          poData['city']?.toString(),
+                          poData['state']?.toString(),
+                          poData['country']?.toString(),
+                          'Email: ${poData['contactpersonEmail'] ?? 'Not Provided'}',
+                          'Phone: ${poData['vendorContact'] ?? 'Not Provided'}',
+                        ], separator: '\n'),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        _joinNonEmpty([
+                          poData['billingAddress1']?.toString() ??
+                              'No.40, Kenikarai',
+                          poData['billingAddress2']?.toString() ??
+                              'Ramanathapuram',
+                        ]),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'PO No: ${poData['randomId']?.toString() ?? purchaseOrderId}\n'
+                        'PO Date: $formattedOrderDate\n'
+                        'Due Date: $dueDate\n'
+                        'Payment Terms: ${poData['paymentTerms']?.toString() ?? 'N/A'}\n'
+                        'Currency: ${poData['currency']?.toString() ?? 'INR'}',
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Text(
-                poData['declaration']?.toString() ??
-                    'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
-              ),
+              ],
+            ),
 
-              pw.SizedBox(height: 20),
+            // Items Table
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5),
+              columnWidths: {
+                0: pw.FlexColumnWidth(0.7),
+                1: pw.FlexColumnWidth(2),
+                2: pw.FlexColumnWidth(1.2),
+                3: pw.FlexColumnWidth(1),
+                4: pw.FlexColumnWidth(0.8),
+                5: pw.FlexColumnWidth(1),
+                6: pw.FlexColumnWidth(1),
+                7: pw.FlexColumnWidth(0.8),
+                8: pw.FlexColumnWidth(1.2),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor(0, 0, 128 / 255),
+                  ),
+                  children: [
+                    _tableHeaderCell('S.No'),
+                    _tableHeaderCell('Description'),
+                    _tableHeaderCell('HsnCode'),
+                    _tableHeaderCell('Count'),
+                    _tableHeaderCell('Qty'),
+                    _tableHeaderCell('Po Qty'),
+                    _tableHeaderCell('Unit Price'),
+                    _tableHeaderCell('Tax'),
+                    _tableHeaderCell('Amount'),
+                  ],
+                ),
+                ..._buildItemRows(itemsRaw),
+              ],
+            ),
 
-              // Footer row
-              pw.Row(
+            // Totals Section
+            pw.Container(
+              width: double.infinity,
+              child: pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  0: pw.FlexColumnWidth(2),
+                  1: pw.FlexColumnWidth(1),
+                },
                 children: [
-                  pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
-                  pw.Text('Authorized Signatory'),
+                  _twoCellRow(
+                    'Total Amount',
+                    _safeFixedString(poData['pendingOrderAmount']),
+                  ),
+
+                  _twoCellRow(
+                    'Total Discount',
+                    _safeFixedString(poData['pendingDiscountAmount']),
+                  ),
+
+                  _twoCellRow(
+                    'CGST @ ${_getTaxPercentage(itemsRaw)}%',
+                    _safeFixedString(_calculateCgst(itemsRaw)),
+                  ),
+
+                  _twoCellRow(
+                    'SGST @ ${_getTaxPercentage(itemsRaw)}%',
+                    _safeFixedString(_calculateSgst(itemsRaw)),
+                  ),
+
+                  _twoCellRow(
+                    'Round Off Amount',
+                    _safeFixedString(poData['roundOffValue']),
+                  ),
+
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Amount in Words: $amountInWords',
+                          style: pw.TextStyle(fontSize: 12),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Total: ${_safeFixedString(poData['pendingOrderAmount'])}',
+                          style: pw.TextStyle(fontSize: 12),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          );
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // Terms & Conditions
+            pw.Text(
+              'Terms & Conditions',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            ..._buildTermsAndConditions(poData['termsAndConditions']),
+
+            pw.SizedBox(height: 16),
+
+            // Declaration
+            pw.Text(
+              'Declaration:',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              poData['declaration']?.toString() ??
+                  'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
+            ),
+
+            pw.SizedBox(height: 20),
+
+            // Footer row
+            pw.Row(
+              children: [
+                pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
+                pw.Text('Authorized Signatory'),
+              ],
+            ),
+          ];
         },
       ),
     );

@@ -32,23 +32,21 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
       ValueNotifier<List<Outgoing>>([]);
   final ValueNotifier<bool> loadingNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> errorNotifier = ValueNotifier<String>("");
+  final ValueNotifier<bool> loadingMoreNotifier = ValueNotifier(false);
   final ScrollController horizontalController = ScrollController();
+  final ScrollController verticalScrollController = ScrollController();
+  final Map<int, ValueNotifier<bool>> loadingPdfNotifiers = {};
+
   int _skip = 0;
   final int _limit = 50;
-  final ValueNotifier<bool> loadingMoreNotifier = ValueNotifier(false);
-  final ScrollController verticalScrollController = ScrollController();
-  Map<int, bool> _loadingPdfMap = {};
 
   @override
   void initState() {
     super.initState();
-
     searchController.addListener(_filterPayments);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadInitial();
     });
-
     verticalScrollController.addListener(() {
       if (verticalScrollController.position.pixels >
           verticalScrollController.position.maxScrollExtent - 200) {
@@ -60,7 +58,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   @override
   void didUpdateWidget(covariant PaymentDonePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (oldWidget.fromDate != widget.fromDate ||
         oldWidget.toDate != widget.toDate) {
       _loadInitial();
@@ -69,10 +66,10 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
 
   Future<void> _loadInitial() async {
     loadingNotifier.value = true;
+    errorNotifier.value = "";
 
     try {
       final provider = context.read<OutgoingPaymentProvider>();
-
       _skip = 0;
 
       await provider.fetchFilteredOutgoings(
@@ -85,7 +82,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
       _skip += _limit;
 
       _filterPayments();
-
       loadingNotifier.value = false;
     } catch (e) {
       errorNotifier.value = "Failed to load payments: $e";
@@ -95,7 +91,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
 
   Future<void> _handleRefresh() async {
     _skip = 0;
-
     final provider = context.read<OutgoingPaymentProvider>();
 
     await provider.fetchFilteredOutgoings(
@@ -107,7 +102,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
 
     _skip += _limit;
-
     _filterPayments();
   }
 
@@ -128,18 +122,18 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     _skip += _limit;
 
     _filterPayments();
-
     loadingMoreNotifier.value = false;
   }
 
   Future<void> _handlePdfClick(int index, Outgoing payment) async {
-    setState(() {
-      _loadingPdfMap[index] = true;
-    });
+    if (!loadingPdfNotifiers.containsKey(index)) {
+      loadingPdfNotifiers[index] = ValueNotifier(false);
+    }
+
+    loadingPdfNotifiers[index]!.value = true;
 
     try {
       final pdf = await OutgoingPdf().generateOutgoingPdf(payment.outgoingId);
-
       await Printing.layoutPdf(onLayout: (_) => pdf.readAsBytesSync());
 
       if (mounted) {
@@ -154,9 +148,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
         ).showSnackBar(SnackBar(content: Text("PDF error: $e")));
       }
     } finally {
-      setState(() {
-        _loadingPdfMap[index] = false;
-      });
+      loadingPdfNotifiers[index]!.value = false;
     }
   }
 
@@ -184,8 +176,12 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     filteredPaymentsNotifier.dispose();
     loadingNotifier.dispose();
     errorNotifier.dispose();
+    loadingMoreNotifier.dispose();
     horizontalController.dispose();
     verticalScrollController.dispose();
+    for (var notifier in loadingPdfNotifiers.values) {
+      notifier.dispose();
+    }
     super.dispose();
   }
 
@@ -252,7 +248,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header with search bar
             Container(
               color: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -271,7 +266,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                 ],
               ),
             ),
-
             Expanded(
               child: Consumer<OutgoingPaymentProvider>(
                 builder: (_, provider, __) {
@@ -285,22 +279,47 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                       return ValueListenableBuilder<String>(
                         valueListenable: errorNotifier,
                         builder: (_, error, __) {
-                          if (error.isNotEmpty) {
-                            return Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    error,
-                                    style: const TextStyle(color: Colors.red),
+                          final providerError = provider.error;
+
+                          if (error.isNotEmpty || providerError.isNotEmpty) {
+                            final message = error.isNotEmpty
+                                ? error
+                                : providerError;
+                            return ListView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              children: [
+                                const SizedBox(height: 200),
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      const Icon(
+                                        Icons.error_outline,
+                                        color: Colors.redAccent,
+                                        size: 40,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        message,
+                                        style: const TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 14),
+                                      ElevatedButton(
+                                        onPressed: _loadInitial,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blueAccent,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        child: const Text("Retry"),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 20),
-                                  ElevatedButton(
-                                    onPressed: _loadInitial,
-                                    child: const Text("Retry"),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             );
                           }
 
@@ -314,7 +333,7 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                     physics:
                                         const AlwaysScrollableScrollPhysics(),
                                     children: [
-                                      SizedBox(height: 300),
+                                      const SizedBox(height: 300),
                                       Center(
                                         child: Text(
                                           "No payments found",
@@ -354,7 +373,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                                     CrossAxisAlignment.start,
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  // HEADER
                                                   Container(
                                                     height: 48,
                                                     color: const Color.fromARGB(
@@ -412,8 +430,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                                       ],
                                                     ),
                                                   ),
-
-                                                  // ROWS
                                                   ValueListenableBuilder<bool>(
                                                     valueListenable:
                                                         loadingMoreNotifier,
@@ -434,6 +450,16 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                                               final isEven =
                                                                   index % 2 ==
                                                                   0;
+
+                                                              if (!loadingPdfNotifiers
+                                                                  .containsKey(
+                                                                    index,
+                                                                  )) {
+                                                                loadingPdfNotifiers[index] =
+                                                                    ValueNotifier(
+                                                                      false,
+                                                                    );
+                                                              }
 
                                                               return Container(
                                                                 height: 60,
@@ -481,7 +507,6 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
                                                                       columnWidths['view']!,
                                                                     ),
                                                                     _buildPdfCell(
-                                                                      context,
                                                                       payment,
                                                                       columnWidths['pdf']!,
                                                                       index,
@@ -675,32 +700,35 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  Widget _buildPdfCell(
-    BuildContext context,
-    Outgoing payment,
-    double width,
-    int index,
-  ) {
+  Widget _buildPdfCell(Outgoing payment, double width, int index) {
     return Container(
       width: width,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       alignment: Alignment.center,
-      child: _loadingPdfMap[index] == true
-          ? const SizedBox(
-              height: 18,
-              width: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : IconButton(
-              icon: const Icon(
-                Icons.picture_as_pdf,
-                color: Colors.redAccent,
-                size: 22,
-              ),
-              onPressed: () => _handlePdfClick(index, payment),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
+      child: ValueListenableBuilder<bool>(
+        valueListenable: loadingPdfNotifiers[index]!,
+        builder: (_, isLoading, __) {
+          return isLoading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : IconButton(
+                  icon: const Icon(
+                    Icons.picture_as_pdf,
+                    color: Colors.redAccent,
+                    size: 22,
+                  ),
+                  onPressed: () => _handlePdfClick(index, payment),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                );
+        },
+      ),
     );
   }
 
@@ -717,92 +745,110 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   }
 
   Widget _buildSearchBar() {
+    final focusNode = FocusNode();
+
     return Consumer<OutgoingPaymentProvider>(
       builder: (context, provider, __) {
-        return RawAutocomplete<String>(
-          textEditingController: searchController,
-          focusNode: FocusNode(),
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            final suggestions = _vendorSuggestions(provider);
-            if (textEditingValue.text.isEmpty) return suggestions;
-            return suggestions.where(
-              (option) => option.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
+        return GestureDetector(
+          onTap: () {
+            // When tapping outside, unfocus and hide keyboard
+            focusNode.unfocus();
+            FocusScope.of(context).unfocus();
           },
-          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-            return ValueListenableBuilder<TextEditingValue>(
-              valueListenable: controller,
-              builder: (context, value, _) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: InputDecoration(
-                    hintText: 'Search vendor name or invoice',
-                    suffixIcon: value.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 20),
-                            onPressed: () {
-                              controller.clear();
-                              _filterPayments();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: Colors.grey),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    constraints: const BoxConstraints(maxHeight: 40),
-                  ),
-                  style: const TextStyle(fontSize: 13),
-                  onChanged: (_) => _filterPayments(),
-                );
-              },
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                color: Colors.white,
-                elevation: 8,
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxHeight: 200,
-                    maxWidth: 350,
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (context, index) {
-                      final option = options.elementAt(index);
-                      return ListTile(
-                        tileColor: Colors.white,
-                        title: Text(
-                          option,
-                          style: const TextStyle(fontSize: 13),
+          child: RawAutocomplete<String>(
+            textEditingController: searchController,
+            focusNode: focusNode,
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              final suggestions = _vendorSuggestions(provider);
+              if (textEditingValue.text.isEmpty) return suggestions;
+              return suggestions.where(
+                (option) => option.toLowerCase().contains(
+                  textEditingValue.text.toLowerCase(),
+                ),
+              );
+            },
+            onSelected: (String selection) {
+              searchController.text = selection;
+              _filterPayments();
+
+              // Hide keyboard after selection
+              focusNode.unfocus();
+              FocusScope.of(context).unfocus();
+            },
+            fieldViewBuilder:
+                (context, controller, fieldFocusNode, onFieldSubmitted) {
+                  return ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: controller,
+                    builder: (context, value, _) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: fieldFocusNode,
+                        decoration: InputDecoration(
+                          hintText: 'Search vendor name or invoice',
+                          suffixIcon: value.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 20),
+                                  onPressed: () {
+                                    controller.clear();
+                                    _filterPayments();
+                                    // Keep focus on text field after clearing
+                                    fieldFocusNode.requestFocus();
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          constraints: const BoxConstraints(maxHeight: 40),
                         ),
-                        onTap: () {
-                          onSelected(option);
-                          searchController.text = option;
-                          _filterPayments();
-                        },
+                        style: const TextStyle(fontSize: 13),
+                        onChanged: (_) => _filterPayments(),
                       );
                     },
+                  );
+                },
+            optionsViewBuilder: (context, onSelected, options) {
+              return Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  color: Colors.white,
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxHeight: 200,
+                      maxWidth: 350,
+                    ),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: options.length,
+                      itemBuilder: (context, index) {
+                        final option = options.elementAt(index);
+                        return ListTile(
+                          tileColor: Colors.white,
+                          title: Text(
+                            option,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          onTap: () {
+                            onSelected(option);
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

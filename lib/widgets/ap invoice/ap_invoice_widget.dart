@@ -21,7 +21,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
   late ScrollController _leftController;
   late ScrollController _rightController;
   bool _syncing = false;
-  bool _isLoadingPdf = false;
 
   @override
   void initState() {
@@ -56,32 +55,9 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     super.dispose();
   }
 
-  Future<void> _handlePdfClick(ApInvoice apinvoice) async {
-    setState(() {
-      _isLoadingPdf = true;
-    });
-
-    try {
-      final pdfService = APInvoicePDF();
-
-      final pdfFile = await pdfService.generateAPInvoicePdf(
-        apinvoice.invoiceId!,
-      );
-
-      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
-    } finally {
-      setState(() {
-        _isLoadingPdf = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<APInvoiceProvider>();
     final apinvoice = widget.apinvoice;
     globals.apInvoiceRandomId = apinvoice.randomId ?? "";
 
@@ -97,14 +73,14 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
       ),
       child: Column(
         children: [
-          _buildHeader(apinvoice),
+          _buildHeader(apinvoice, provider),
           Expanded(child: _buildTable(apinvoice)),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(ApInvoice apinvoice) {
+  Widget _buildHeader(ApInvoice apinvoice, APInvoiceProvider provider) {
     String statusText = _formatStatus(apinvoice.status);
     final double headerAmount = (apinvoice.invoiceAmount ?? 0.0);
 
@@ -183,8 +159,9 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                         builder: (_) => APInvoiceModal(apinvoice: apinvoice),
                       );
 
-                      // refresh AP list if invoice returned
-                      if (result == true && context.mounted) {
+                      if (!mounted) return;
+
+                      if (result == true) {
                         await context.read<APInvoiceProvider>().fetchAPInvoices(
                           status: "Outgoing Posted",
                           skip: 0,
@@ -193,7 +170,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                       }
                     },
                   ),
-                  _isLoadingPdf
+                  provider.isPdfLoading(apinvoice.invoiceId!)
                       ? const SizedBox(
                           height: 25,
                           width: 25,
@@ -207,7 +184,12 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                             Icons.picture_as_pdf,
                             color: Colors.white,
                           ),
-                          onPressed: () => _handlePdfClick(apinvoice),
+                          onPressed: () {
+                            context.read<APInvoiceProvider>().generatePdf(
+                              apinvoice,
+                              context,
+                            );
+                          },
                         ),
                 ],
               ),

@@ -261,8 +261,8 @@ class ApprovedPOLogic {
             "itemId": item.itemId,
             "receivedQuantity": item.receivedQuantity ?? item.quantity,
             "grnPrice": item.newPrice,
-            "befTaxDiscount": item.befTaxDiscount ?? 0,
-            "afTaxDiscount": item.afTaxDiscount ?? 0,
+            "befTaxDiscount": 0,
+            "afTaxDiscount": 0,
             "taxPercentage": item.taxPercentage ?? 0.0,
             "taxType": item.taxType ?? "cgst_sgst",
           };

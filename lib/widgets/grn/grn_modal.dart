@@ -288,7 +288,7 @@ class _GRNModalState extends State<GRNModal> {
       double discount =
           (item.befTaxDiscountAmount ?? 0.0) +
           (item.afTaxDiscountAmount ?? 0.0);
-      // apply overall discount if item discount not present
+
       if (discount == 0 && overallDiscount > 0) {
         discount = discountPerItem;
       }
@@ -312,11 +312,12 @@ class _GRNModalState extends State<GRNModal> {
 
     final double finalTotal = itemTotal + freight + roundOff;
 
+    totalDiscount = totalDiscount.roundToDouble();
+
     return {
       'totalItemsAmount': itemTotal,
       'freightAmount': freight,
       'roundOff': roundOff,
-      'autoRound': 0.0,
       'totalReceivedAmount': finalTotal,
       'totalDiscount': totalDiscount,
       'totalSGST': totalSGST,
@@ -402,7 +403,7 @@ class _GRNModalState extends State<GRNModal> {
 
                 _buildSummaryRow(
                   "Total Received Amount",
-                  totals['totalReceivedAmount']?.toStringAsFixed(2) ?? '0.00',
+                  (grn.grnAmount ?? 0.0).toStringAsFixed(2),
                 ),
               ],
             ),
@@ -565,26 +566,11 @@ class _GRNModalState extends State<GRNModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text(
-              "Convert",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: const Text("Convert"),
           ),
         ],
       ),
@@ -596,13 +582,60 @@ class _GRNModalState extends State<GRNModal> {
       isConverting.value = true;
 
       final totals = _recalculateGRNTotal();
-      final double manualRound = totals['roundOff'] ?? 0.0;
-
-      double finalRound = manualRound;
+      double finalRound = (totals['roundOff'] ?? 0.0);
       finalRound = double.parse(finalRound.toStringAsFixed(2));
 
       if (finalRound > 2.0) finalRound = 2.0;
       if (finalRound < -2.0) finalRound = -2.0;
+
+      /// ✅🔥 IMPORTANT FIX: SEND FULL TAX DATA + TAX %
+      final itemUpdates =
+          grn.itemDetails?.map((item) {
+            final taxAmount = item.taxAmount ?? 0.0;
+            final sgst = item.sgst ?? 0.0;
+            final cgst = item.cgst ?? 0.0;
+            final igst = item.igst ?? 0.0;
+            final totalPrice = item.totalPrice ?? 0.0;
+
+            /// fallback safety
+            final finalPrice = item.finalPrice ?? (totalPrice + taxAmount);
+
+            print("🧾 SENDING ITEM:");
+            print("itemId => ${item.itemId}");
+            print("taxAmount => $taxAmount");
+            print("sgst => $sgst");
+            print("cgst => $cgst");
+            print("finalPrice => $finalPrice");
+            print("tax % => ${item.purchasetaxName}");
+
+            return ItemDetail(
+              itemId: item.itemId,
+
+              // discounts
+              befTaxDiscount: item.befTaxDiscount ?? 0.0,
+              afTaxDiscount: item.afTaxDiscount ?? 0.0,
+
+              // expiry
+              expiryDate: item.expiryDate,
+
+              purchasetaxName: item.taxPercentage ?? 0.0,
+
+              /// tax values
+              taxAmount: taxAmount,
+              sgst: sgst,
+              cgst: cgst,
+              igst: igst,
+
+              /// price
+              totalPrice: totalPrice,
+              finalPrice: finalPrice,
+            );
+          }).toList() ??
+          [];
+
+      if (itemUpdates.isEmpty) {
+        throw Exception("No items to convert");
+      }
 
       final result = await context
           .read<GRNProvider>()
@@ -610,23 +643,12 @@ class _GRNModalState extends State<GRNModal> {
             grnId: grn.grnId ?? '',
             discountPrice: grn.discountPrice ?? 0.0,
             roundOffAdjustment: finalRound,
-            itemUpdates:
-                grn.itemDetails?.map((item) {
-                  return ItemDetail(
-                    itemId: item.itemId,
-                    befTaxDiscount: item.befTaxDiscount ?? 0.0,
-                    afTaxDiscount: item.afTaxDiscount ?? 0.0,
-                    expiryDate: item.expiryDate,
-                  );
-                }).toList() ??
-                [],
+            itemUpdates: itemUpdates,
           );
 
       if (result['success'] == true && context.mounted) {
-        /// CLOSE DIALOG IMMEDIATELY
         Navigator.of(context).pop();
 
-        /// REFRESH AP INVOICES IN BACKGROUND (DO NOT WAIT)
         Future.microtask(() {
           context.read<APInvoiceProvider>().fetchAPInvoices(
             status: "Outgoing Posted",
@@ -635,7 +657,6 @@ class _GRNModalState extends State<GRNModal> {
           );
         });
 
-        /// SUCCESS MESSAGE
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('GRN converted successfully'),
@@ -852,13 +873,8 @@ class _GRNModalState extends State<GRNModal> {
                         ValueListenableBuilder<Map<String, dynamic>>(
                           valueListenable: totalsNotifier,
                           builder: (context, totals, _) {
-                            final double totalItemsAmount =
-                                totals['totalItemsAmount'] ?? 0.0;
-                            final double discount =
-                                totals['commonDiscount'] ?? 0.0;
-                            final double roundOff = totals['roundOff'] ?? 0.0;
                             final double totalReceivedAmount =
-                                totals['totalReceivedAmount'] ?? 0.0;
+                                grn.grnAmount ?? 0.0;
 
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1308,7 +1324,7 @@ class _GRNModalState extends State<GRNModal> {
 
                       _buildSummaryRow(
                         "Final Total Amount",
-                        totalReceivedAmount.toStringAsFixed(2),
+                        (grn.grnAmount ?? 0.0).toStringAsFixed(2),
                         compact: true,
                       ),
                     ],

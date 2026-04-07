@@ -31,6 +31,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   List<String> _displayedVendors = [];
 
   @override
+  @override
   void initState() {
     super.initState();
 
@@ -60,15 +61,16 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
       await provider.fetchApprovedPOsOnly();
 
-      if (_allVendors.isEmpty) {
-        final vendors = await provider.fetchingAllVendors(
-          vendorName: '',
-          skip: 0,
-          limit: 5000,
-        );
-        _allVendors = vendors.map((e) => e.vendorName).toList();
-        _displayedVendors = List.from(_allVendors);
+      // ✅ FIX: LOAD ONLY IF CACHE EMPTY
+      if (provider.vendorCache.isEmpty && !provider.vendorsLoaded) {
+        await provider.fetchingAllVendors(vendorName: '', skip: 0, limit: 5000);
       }
+
+      // ✅ USE CACHE (NO API CALL AGAIN)
+      final vendors = provider.vendorCache;
+
+      _allVendors = vendors.map((e) => e.vendorName).toList();
+      _displayedVendors = List.from(_allVendors);
 
       isInitialized.value = true;
     });
@@ -84,28 +86,28 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     }
   }
 
-  Future<void> _initializeData() async {
-    final provider = context.read<POProvider>();
+  // Future<void> _initializeData() async {
+  //   final provider = context.read<POProvider>();
 
-    isInitialized.value = false;
+  //   isInitialized.value = false;
 
-    if (provider.pos.isEmpty && !provider.isLoading) {
-      await provider.fetchApprovedPOsOnly();
-    }
+  //   if (provider.pos.isEmpty && !provider.isLoading) {
+  //     await provider.fetchApprovedPOsOnly();
+  //   }
 
-    if (_allVendors.isEmpty) {
-      final vendors = await provider.fetchingAllVendors(
-        vendorName: '',
-        skip: 0,
-        limit: 5000,
-      );
+  //   // ✅ FIX: LOAD ONLY ONCE
+  //   if (provider.vendorCache.isEmpty && !provider.vendorsLoaded) {
+  //     await provider.fetchingAllVendors(vendorName: '', skip: 0, limit: 5000);
+  //   }
 
-      _allVendors = vendors.map((e) => e.vendorName).toList();
-      _displayedVendors = List.from(_allVendors);
-    }
+  //   // ✅ USE CACHE
+  //   final vendors = provider.vendorCache;
 
-    isInitialized.value = true;
-  }
+  //   _allVendors = vendors.map((e) => e.vendorName).toList();
+  //   _displayedVendors = List.from(_allVendors);
+
+  //   isInitialized.value = true;
+  // }
 
   @override
   void dispose() {
@@ -480,19 +482,51 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                           }
 
                           if (provider.error != null) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 120),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      "${provider.error}",
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                      ),
+                            return Expanded(
+                              child: ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  const SizedBox(height: 140),
+
+                                  Center(
+                                    child: Column(
+                                      children: [
+                                        /// 🔴 Icon
+                                        const Icon(
+                                          Icons.error_outline,
+                                          color: Colors.redAccent,
+                                          size: 40,
+                                        ),
+
+                                        const SizedBox(height: 12),
+
+                                        /// ✅ USER FRIENDLY MESSAGE
+                                        Text(
+                                          provider.error ??
+                                              "Something went wrong",
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+
+                                        const SizedBox(height: 14),
+
+                                        /// 🔁 RETRY BUTTON
+                                        ElevatedButton(
+                                          onPressed: _onRefresh,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blueAccent,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: const Text("Retry"),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             );
                           }

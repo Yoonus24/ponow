@@ -21,7 +21,6 @@ class POListView extends StatelessWidget {
     final poProvider = Provider.of<POProvider>(context);
 
     final mq = MediaQuery.of(context);
-
     final double bottomNavHeight = mq.size.height * 0.010;
 
     return LayoutBuilder(
@@ -29,15 +28,11 @@ class POListView extends StatelessWidget {
         int columns = constraints.maxWidth ~/ 300;
         if (columns < 1) columns = 1;
 
-        return SingleChildScrollView(
-          controller: scrollController,
-
+        return Padding(
           padding: EdgeInsets.only(bottom: bottomNavHeight + mq.padding.bottom),
-
           child: Wrap(
-            alignment: WrapAlignment.start,
-            spacing: 8.0,
-            runSpacing: 8.0,
+            spacing: 8,
+            runSpacing: 8,
             children: purchaseOrders.map((po) {
               final isSelected = poProvider.selectedPO?.randomId == po.randomId;
 

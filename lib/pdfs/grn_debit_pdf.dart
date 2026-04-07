@@ -8,11 +8,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRNDebitPdf {
-  static const String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
+  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
   static const String businessUrl =
-      'http://192.168.29.184:8000/nextjstestapi/pobusiness/';
+      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
   static const String vendorUrl =
-      'http://192.168.29.184:8000/nextjstestapi/vendors/exact-name/';
+      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
 
   final Dio _dio = Dio(
     BaseOptions(

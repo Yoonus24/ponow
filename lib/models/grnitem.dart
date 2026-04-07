@@ -36,6 +36,7 @@ class ItemDetail {
   double? returnedSgst;
   double? returnedCgst;
   double? finalPrice;
+  double? taxPercentage;
   List<Map<String, dynamic>>? returnHistory;
 
   ItemDetail({
@@ -76,12 +77,13 @@ class ItemDetail {
     this.returnedCgst,
     this.finalPrice,
     this.returnHistory,
+    this.taxPercentage,
   }) {
     taxType ??= (sgst != null && sgst! > 0) || (cgst != null && cgst! > 0)
-          ? 'cgst_sgst'
-          : (igst != null && igst! > 0)
-          ? 'igst'
-          : 'cgst_sgst';
+        ? 'cgst_sgst'
+        : (igst != null && igst! > 0)
+        ? 'igst'
+        : 'cgst_sgst';
   }
 
   factory ItemDetail.fromJson(Map<String, dynamic> json) {
@@ -149,6 +151,7 @@ class ItemDetail {
       returnHistory: json['returnHistory'] != null
           ? List<Map<String, dynamic>>.from(json['returnHistory'])
           : null,
+      taxPercentage: (json['taxPercentage'] as num?)?.toDouble(),
     );
   }
 
@@ -191,6 +194,7 @@ class ItemDetail {
       'returnedCgst': returnedCgst ?? 0.0,
       'finalPrice': finalPrice ?? 0.0,
       'returnHistory': returnHistory ?? [],
+      'taxPercentage': taxPercentage ?? 0.0,
     };
   }
 }
@@ -240,11 +244,10 @@ class ReturnItem {
   }
 }
 
-
 class ItemDetails {
   final String? itemId;
   final String? itemName;
-  final String noteType; 
+  final String noteType;
   final double quantity;
   final double unitPrice;
   final double totalPrice;

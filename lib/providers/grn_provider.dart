@@ -2,15 +2,18 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/pdfs/grn_pdf.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRNProvider with ChangeNotifier {
   List<GRN> _grns = [];
   List<String> _returnReasons = [];
   List<DebitCreditNote> _debitCreditNotes = [];
-
+  Map<String, bool> _pdfLoadingMap = {};
   bool _isLoading = false;
   bool _isLoadMore = false;
   String? _error;
@@ -21,12 +24,9 @@ class GRNProvider with ChangeNotifier {
   int _skip = 0;
   int _limit = 50;
 
-  static const String _baseApi = 'http://192.168.29.184:8000/nextjstestapi';
-  static const String _grnBase = '$_baseApi/grns';
-  static const String _grnListEndpoint = '$_grnBase/';
-
-  // static const String _returnReasonsEndpoint =
-  //     '$_grnBase/getgrn/return-reasons';
+  // static const String _baseApi = 'http://192.168.29.184:8000/purchasetestapi';
+  // static const String _grnBase = '$_baseApi/grns';
+  // static const String _grnListEndpoint = '$_grnBase/';
 
   List<GRN> get grns => _grns;
   bool get isLoading => _isLoading;
@@ -39,14 +39,7 @@ class GRNProvider with ChangeNotifier {
   int get limit => _limit;
   bool get hasMore => _hasMore;
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      sendTimeout: const Duration(seconds: 15),
-      headers: {'Content-Type': 'application/json'},
-    ),
-  );
+  final Dio _dio = DioClient.dio;
 
   GRNProvider() {
     fetchReturnReasons();
@@ -55,6 +48,10 @@ class GRNProvider with ChangeNotifier {
   void setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  bool isPdfLoading(String grnId) {
+    return _pdfLoadingMap[grnId] ?? false;
   }
 
   void setError(String? value) {
@@ -83,31 +80,6 @@ class GRNProvider with ChangeNotifier {
     return raw;
   }
 
-  // Future<String> addReturnReason(String reason) async {
-  //   setLoading(true);
-  //   try {
-  //     final response = await _dio.post(
-  //       _returnReasonsEndpoint.replaceFirst(
-  //         '/getgrn/return-reasons',
-  //         '/return-reasons',
-  //       ),
-  //       data: {'reason': reason},
-  //       options: Options(headers: {'Content-Type': 'application/json'}),
-  //     );
-
-  //     if (response.statusCode == 200 || response.statusCode == 201) {
-  //       await fetchReturnReasons();
-  //       return response.data['message'] ?? 'Reason added successfully';
-  //     } else {
-  //       throw Exception('Failed to add reason: ${response.statusCode}');
-  //     }
-  //   } catch (e) {
-  //     rethrow;
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }
-
   Future<void> fetchReturnReasons() async {
     _isLoading = true;
     _error = null;
@@ -115,7 +87,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        'http://192.168.29.184:8000/nextjstestapi/grns/getgrn/return-reasons',
+        'http://192.168.29.184:8000/purchasetestapi/grns/getgrn/return-reasons',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -130,9 +102,30 @@ class GRNProvider with ChangeNotifier {
         _error = 'Failed to fetch return reasons: ${response.statusCode}';
       }
     } catch (e) {
-      _error = 'Error fetching return reasons: $e';
+      _error = _getUserFriendlyError(e);
     } finally {
       _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> generatePdf(GRN grn, BuildContext context) async {
+    final id = grn.grnId ?? '';
+
+    _pdfLoadingMap[id] = true;
+    notifyListeners();
+
+    try {
+      final service = GRNPDF();
+      final pdfFile = await service.generateGRNPdf(id);
+
+      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } finally {
+      _pdfLoadingMap[id] = false;
       notifyListeners();
     }
   }
@@ -143,7 +136,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.patch(
-        '$_grnBase/$grnId/revert',
+        '/$grnId/revert',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -154,7 +147,7 @@ class GRNProvider with ChangeNotifier {
         throw Exception(response.data);
       }
     } catch (e) {
-      setError(e.toString());
+      setError(_getUserFriendlyError(e));
       return false;
     } finally {
       setLoading(false);
@@ -181,10 +174,9 @@ class GRNProvider with ChangeNotifier {
         notifyListeners();
       }
 
-      String endpoint = _grnListEndpoint;
-
+      String endpoint = '/grns/';
       if (status?.toLowerCase() == "returned") {
-        endpoint = '$_grnBase/returnprocess/Grnwise';
+        endpoint = '/grns/returnprocess/Grnwise';
       }
 
       final queryParams = {
@@ -209,7 +201,6 @@ class GRNProvider with ChangeNotifier {
 
       List<GRN> newGrns = data.map((e) => GRN.fromJson(e)).toList();
 
-      // 🔥 FILTER FULLY RETURNED FROM ACTIVE
       if (status == "active") {
         newGrns = newGrns.where((g) {
           final s = (g.status ?? "").toLowerCase().replaceAll(" ", "");
@@ -225,7 +216,7 @@ class GRNProvider with ChangeNotifier {
 
       _hasMore = newGrns.length == limit;
     } catch (e) {
-      _error = "Failed to fetch GRNs";
+      _error = _getUserFriendlyError(e);
     } finally {
       _isLoading = false;
       _isLoadMore = false;
@@ -245,7 +236,7 @@ class GRNProvider with ChangeNotifier {
       ).format(currentDate);
 
       final response = await _dio.patch(
-        '$_grnBase/${grn.grnId}',
+        '/grns/${grn.grnId}',
         data: {"status": newStatus, "lastUpdatedDate": formattedDate},
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -282,44 +273,45 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final itemsJson = itemUpdates
-          .where((e) => e.itemId != null && e.itemId!.isNotEmpty)
+          .where((e) => e.itemId.isNotEmpty)
           .map(
             (e) => {
-              'itemId': e.itemId,
-              'befTaxDiscount': e.befTaxDiscount ?? 0.0,
-              'afTaxDiscount': e.afTaxDiscount ?? 0.0,
-              'expiryDate': e.expiryDate,
+              "itemId": e.itemId,
+              "befTaxDiscount": e.befTaxDiscount ?? 0.0,
+              "afTaxDiscount": e.afTaxDiscount ?? 0.0,
+              "expiryDate": e.expiryDate,
+              "purchasetaxName": e.purchasetaxName ?? 0.0,
+              "taxAmount": e.taxAmount ?? 0.0,
+              "sgst": e.sgst ?? 0.0,
+              "cgst": e.cgst ?? 0.0,
+              "igst": e.igst ?? 0.0,
+              "totalPrice": e.totalPrice ?? 0.0,
+              "finalPrice": e.finalPrice ?? 0.0,
             },
           )
           .toList();
 
       if (itemsJson.isEmpty) {
-        throw Exception('No valid items found');
+        throw Exception("No valid items found");
       }
 
-      final grn = _grns.firstWhere(
-        (g) => g.grnId == grnId,
-        orElse: () => throw Exception('GRN not found'),
-      );
-
-      final double grnAmount = grn.grnAmount ?? 0.0;
-      final double finalApRoundOff = roundOffAdjustment;
       final response = await _dio.patch(
-        '$_grnBase/convert-to-ap/ap-to-outgoing/$grnId',
-        queryParameters: {'apRoundOff': finalApRoundOff.toStringAsFixed(2)},
+        "/grns/convert-to-ap/ap-to-outgoing/$grnId",
+        queryParameters: {"apRoundOff": roundOffAdjustment.toStringAsFixed(2)},
         data: itemsJson,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchFilteredGRNs(status: _filterStatus, skip: 0, limit: _limit);
-        return {'success': true};
+
+        return {"success": true};
       } else {
         throw Exception(response.data);
       }
     } catch (e) {
-      setError(e.toString());
-      return {'success': false, 'error': e.toString()};
+      setError(_getUserFriendlyError(e));
+      return {"success": false, "error": e.toString()};
     } finally {
       setLoading(false);
     }
@@ -327,7 +319,7 @@ class GRNProvider with ChangeNotifier {
 
   Future<Map<String, dynamic>?> fetchPODetails(String poId) async {
     try {
-      final response = await _dio.get('$_baseApi/purchaseorders/$poId');
+      final response = await _dio.get('$grns/purchaseorders/$poId');
 
       if (response.statusCode == 200) {
         return response.data;
@@ -343,7 +335,7 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await _dio.get('$_grnBase/items/status/$status');
+      final response = await _dio.get('$grns/items/status/$status');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -368,7 +360,7 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await _dio.get('$_baseApi/purchaseorders/getByRandomId');
+      final response = await _dio.get('$grns/purchaseorders/getByRandomId');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -419,7 +411,7 @@ class GRNProvider with ChangeNotifier {
       };
 
       final response = await _dio.patch(
-        '$_grnBase/$grnId/return',
+        '$grns/$grnId/return',
         data: requestBody,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -433,7 +425,7 @@ class GRNProvider with ChangeNotifier {
         throw Exception('Failed: ${response.statusCode} -> ${response.data}');
       }
     } catch (e) {
-      throw Exception('Failed to process GRN return: $e');
+      throw Exception(_getUserFriendlyError(e));
     }
   }
 
@@ -443,7 +435,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        '$_baseApi/grns/returnprocess/Grnwise',
+        '$grns/grns/returnprocess/Grnwise',
         queryParameters: {'skip': skip, 'limit': limit},
       );
 
@@ -453,7 +445,7 @@ class GRNProvider with ChangeNotifier {
         _grns = [];
       }
     } catch (e) {
-      _error = e.toString();
+      _error = _getUserFriendlyError(e);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -471,7 +463,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        '$_baseApi/returnprocess/DebitCreditNote/$grnId',
+        '$grns/returnprocess/DebitCreditNote/$grnId',
         queryParameters: {'skip': skip, 'limit': limit},
       );
 
@@ -495,6 +487,32 @@ class GRNProvider with ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  String _getUserFriendlyError(dynamic e) {
+    final msg = e.toString().toLowerCase();
+
+    if (msg.contains("socket") || msg.contains("connection")) {
+      return "No internet connection.";
+    }
+
+    if (msg.contains("timeout")) {
+      return "Server is taking too long. Please try again.";
+    }
+
+    if (msg.contains("404")) {
+      return "Data not found.";
+    }
+
+    if (msg.contains("500")) {
+      return "Server error. Please try again later.";
+    }
+
+    if (msg.contains("invalid")) {
+      return "Invalid data provided.";
+    }
+
+    return "Something went wrong. Please try again.";
   }
 
   @override

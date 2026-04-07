@@ -109,6 +109,7 @@ class VendorDetails {
 
 class PurchaseItem {
   final String itemName;
+  final String itemCode; // ✅ ADDED
   final double purchasePrice;
   final double purchasetaxName;
   final String purchasecategoryName;
@@ -119,6 +120,7 @@ class PurchaseItem {
 
   PurchaseItem({
     required this.itemName,
+    required this.itemCode, // ✅ ADDED
     required this.purchasePrice,
     required this.purchasetaxName,
     required this.purchaseItemId,
@@ -131,10 +133,10 @@ class PurchaseItem {
   factory PurchaseItem.fromJson(Map<String, dynamic> json) {
     return PurchaseItem(
       itemName: json['itemName'] ?? '',
+      itemCode: json['itemCode'] ?? '', // ✅ ADDED
       purchasePrice: json['purchasePrice']?.toDouble() ?? 0.0,
       purchasetaxName: json['purchasetaxName']?.toDouble() ?? 0.0,
       purchaseItemId: json['purchaseItemId'] ?? json['purchaseitemId'] ?? '',
-
       uom: json['uom'] ?? '',
       purchasecategoryName: json['purchasecategoryName'] ?? '',
       purchasesubcategoryName: json['purchasesubcategoryName'] ?? '',

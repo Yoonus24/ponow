@@ -216,9 +216,9 @@ class _ItemsTableState extends State<ItemsTable> {
 
                   final double tableHeight = rowHeight * (visibleRows + 1);
 
-                  return Container(
+                  return SizedBox(
                     height: tableHeight,
-                    child: Row(
+                    child: Row( 
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Column(

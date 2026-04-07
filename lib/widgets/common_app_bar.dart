@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/services/auth_service.dart';
+import 'package:purchaseorders2/services/session_service.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
-  final bool isLoading; 
+  final bool isLoading;
 
   static final ValueNotifier<String?> selectedLabel = ValueNotifier<String?>(
     'Home',
@@ -10,11 +12,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   static final ValueNotifier<String?> hoveredLabel = ValueNotifier<String?>('');
 
-  const CommonAppBar({
-    super.key,
-    required this.title,
-    this.isLoading = false,
-  });
+  const CommonAppBar({super.key, required this.title, this.isLoading = false});
 
   @override
   Size get preferredSize => const Size.fromHeight(60);
@@ -51,13 +49,134 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      color: Colors.white, 
+                      color: Colors.white,
                     ),
                   ),
                 ),
               ),
             ]
-          : null,
+          : [
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.white),
+                tooltip: "Logout",
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: const Text(
+                        "Logout",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      content: const Text(
+                        "Are you sure you want to logout?",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text(
+                            "Cancel",
+                            style: TextStyle(
+                              color: Colors.blueAccent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text(
+                            "Logout",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm != true) return;
+
+                  if (context.mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      barrierColor: Colors.black.withOpacity(0.5),
+                      builder: (context) => WillPopScope(
+                        onWillPop: () async => false,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 40,
+                                  height: 40,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 3,
+                                    color: Colors.blueAccent,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  "You are logging out...",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  await AuthService.logout();
+                  SessionService.stop();
+                  if (context.mounted) {
+                    // Close the loading dialog
+                    Navigator.pop(context);
+
+                    // Navigate to login screen
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
+                      (route) => false,
+                    );
+                  }
+                },
+              ),
+            ],
     );
   }
 }

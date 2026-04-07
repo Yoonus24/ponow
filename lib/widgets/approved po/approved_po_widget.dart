@@ -22,8 +22,6 @@ class ApprovedPOWidget extends StatefulWidget {
 }
 
 class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
-  bool _isLoadingPdf = false;
-
   void _showItemDetails(BuildContext context) {
     showDialog(
       context: context,
@@ -41,32 +39,9 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
     );
   }
 
-  Future<void> _handlePdfClick() async {
-    setState(() {
-      _isLoadingPdf = true;
-    });
-
-    try {
-      final poService = PurchaseOrderService();
-
-      final pdfFile = await poService.generatePurchaseOrderPdf(
-        widget.po.purchaseOrderId,
-      );
-
-      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
-    } finally {
-      setState(() {
-        _isLoadingPdf = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<POProvider>();
     return Container(
       margin: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -77,13 +52,13 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
       ),
 
       // ✅ ONLY BLUE HEADER (NO EMPTY SPACE)
-      child: _buildHeader(),
+      child: _buildHeader(provider),
     );
   }
 
   // ================= HEADER =================
 
-  Widget _buildHeader() {
+  Widget _buildHeader(POProvider provider) {
     final po = widget.po;
     final statusText = _formatStatus(po.poStatus);
 
@@ -160,7 +135,7 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
                     icon: const Icon(Icons.remove_red_eye, color: Colors.white),
                     onPressed: () => _showItemDetails(context),
                   ),
-                  _isLoadingPdf
+                  provider.isPdfLoading(widget.po.purchaseOrderId)
                       ? const SizedBox(
                           height: 25,
                           width: 25,
@@ -174,7 +149,12 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
                             Icons.picture_as_pdf,
                             color: Colors.white,
                           ),
-                          onPressed: _handlePdfClick,
+                          onPressed: () {
+                            context.read<POProvider>().generatePdf(
+                              widget.po,
+                              context,
+                            );
+                          },
                         ),
                 ],
               ),

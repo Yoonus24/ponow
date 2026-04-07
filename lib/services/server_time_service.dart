@@ -25,6 +25,7 @@ class ServerTimeService {
       throw Exception("Unable to fetch server time");
     }
   }
+  
 
   static DateTime get now {
     if (_serverOffset == null) {

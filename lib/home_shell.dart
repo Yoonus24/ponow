@@ -9,11 +9,11 @@ import 'package:purchaseorders2/screens/approved_po_page.dart';
 import 'package:purchaseorders2/screens/grn_page.dart';
 import 'package:purchaseorders2/screens/ap_invoice_page.dart';
 import 'package:purchaseorders2/screens/outgoing_payment_page.dart';
+import 'package:purchaseorders2/services/session_service.dart';
 
 import 'package:purchaseorders2/widgets/common_bottom_nav.dart';
 import 'package:purchaseorders2/widgets/common_app_bar.dart';
 import 'package:purchaseorders2/screens/create_po_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -27,7 +27,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   final ValueNotifier<int> _currentIndex = ValueNotifier(0);
   final ValueNotifier<bool> _isOpeningCreatePO = ValueNotifier(false);
-
+  bool _isLoginSnackShown = false;
   DateTime? _lastBackPress;
 
   @override
@@ -35,6 +35,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
 
     WidgetsBinding.instance.addObserver(this);
+
+    Future.microtask(() {
+      SessionService.start();
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = context.read<PurchaseOrderNotifier>();
@@ -48,9 +52,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.detached) {
-      final prefs = await SharedPreferences.getInstance();
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      /// Optional: you can validate token here if needed
+      // AuthService.validateToken();
     }
   }
 
@@ -89,7 +94,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       CommonAppBar.selectedLabel.value = "Home";
       _onTabChanged(0);
     } catch (e) {
-
+      debugPrint("Error opening PO dialog: $e");
     } finally {
       if (mounted) {
         _isOpeningCreatePO.value = false;
@@ -126,10 +131,37 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
 
+    SessionService.stop();
+
     _pageController.dispose();
     _currentIndex.dispose();
     _isOpeningCreatePO.dispose();
+
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_isLoginSnackShown) return;
+
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    if (args?["loginSuccess"] == true) {
+      _isLoginSnackShown = true;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Login successful!"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      });
+    }
   }
 
   @override
@@ -139,7 +171,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       child: Scaffold(
         body: PageView(
           controller: _pageController,
-          // physics: const ClampingScrollPhysics(),
           physics: const NeverScrollableScrollPhysics(),
           onPageChanged: (index) {
             _currentIndex.value = index;
@@ -147,12 +178,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             final provider = context.read<POProvider>();
 
             if (index == 0) {
-              provider.refreshPOList(); // Pending page
+              provider.refreshPOList();
             }
             if (index == 1 && provider.pos.isEmpty) {
               provider.fetchApprovedPOsOnly();
             } else if (index == 2) {
-              provider.fetchGRNConvertedPOsOnly(); // GRN page
+              provider.fetchGRNConvertedPOsOnly();
             }
           },
           children: const [

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/providers/import_provider.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
+import 'package:purchaseorders2/services/navigation_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:purchaseorders2/AppInitializer.dart';
@@ -21,26 +23,28 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   GoogleFonts.config.allowRuntimeFetching = true;
-  await ServerTimeService.initialize();
 
-  final prefs = await SharedPreferences.getInstance();
-
-  await prefs.reload(); 
-
-  final loginTime = prefs.getInt('loginTime');
-
-  bool isAuthenticated = false;
-
-  if (loginTime != null) {
-    final diff = ServerTimeService.now.difference(
-      DateTime.fromMillisecondsSinceEpoch(loginTime),
-    );
-
-    if (diff.inMinutes < 5) {
-      isAuthenticated = true;
-    }
+  /// 🔥 Server time init (optional)
+  try {
+    await ServerTimeService.initialize();
+  } catch (e) {
+    print("⚠️ Server time init failed: $e");
   }
+
+  /// 🔥 Init Dio
+  await DioClient.init();
+
+  /// 🔥 Get stored token
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
+
+  final token = prefs.getString('token');
+
+  /// ✅ SIMPLE AUTH CHECK (NO validateToken)
+  bool isAuthenticated = token != null;
+
   runApp(MyApp(isAuthenticated: isAuthenticated));
 }
 
@@ -68,11 +72,13 @@ class MyApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider(create: (_) => TemplateProvider()),
-        ChangeNotifierProvider(create: (_) =>  ImportProvider()),
+        ChangeNotifierProvider(create: (_) => ImportProvider()),
       ],
       child: MaterialApp(
+        navigatorKey: NavigationService.navigatorKey,
         debugShowCheckedModeBanner: false,
 
+        /// 🔥 Connectivity Banner Wrapper
         builder: (context, child) {
           final bottomInset = MediaQuery.of(context).padding.bottom;
 
@@ -86,6 +92,7 @@ class MyApp extends StatelessWidget {
                   children: [
                     child!,
 
+                    /// 🔴 Offline / 🟢 Online Banner
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
@@ -149,6 +156,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
+        /// 🔥 ROUTES
         initialRoute: isAuthenticated ? '/home' : '/login',
 
         routes: {

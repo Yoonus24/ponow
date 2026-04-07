@@ -3,13 +3,15 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
 import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/pdfs/apinvoice_pdf.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
-import 'package:purchaseorders2/services/server_time_service.dart';
+import 'package:purchaseorders2/services/dio_client.dart'; // Import DioClient
 
 class APInvoiceProvider extends ChangeNotifier {
   List<ApInvoice> _apInvoices = [];
@@ -28,6 +30,7 @@ class APInvoiceProvider extends ChangeNotifier {
   bool get isInitialLoad => _isInitialLoad;
   bool hasMore = true;
   bool isLoadingMore = false;
+  Map<String, bool> _pdfLoadingMap = {};
 
   set filterStatus(String status) {
     _filterStatus = status;
@@ -36,34 +39,17 @@ class APInvoiceProvider extends ChangeNotifier {
 
   String? get error => _error;
 
-  final String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
-  late Dio _dio;
-
   APInvoiceProvider() {
-    _initDio();
+    _ensureDioInitialized();
   }
 
-  void _initDio() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        headers: {'Content-Type': 'application/json'},
-      ),
-    );
+  // Ensure DioClient is initialized
+  Future<void> _ensureDioInitialized() async {
+    await DioClient.init();
+  }
 
-    _dio.interceptors.add(
-      RetryInterceptor(
-        dio: _dio,
-        retries: 3,
-        retryDelays: const [
-          Duration(seconds: 1),
-          Duration(seconds: 2),
-          Duration(seconds: 3),
-        ],
-      ),
-    );
+  bool isPdfLoading(String invoiceId) {
+    return _pdfLoadingMap[invoiceId] ?? false;
   }
 
   Future<void> fetchAPInvoices({
@@ -110,7 +96,8 @@ class APInvoiceProvider extends ChangeNotifier {
         if (formattedToDate != null) 'toDate': formattedToDate,
       };
 
-      final response = await _dio.get(
+      // Use DioClient.dio instead of creating new Dio instance
+      final response = await DioClient.dio.get(
         '/apinvoices/',
         queryParameters: queryParams,
       );
@@ -143,10 +130,37 @@ class APInvoiceProvider extends ChangeNotifier {
       }
     } catch (e) {
       print("AP INVOICE ERROR => $e");
-      _setError("Failed to fetch AP invoices");
+
+      if (e is DioException) {
+        _setError(_getReadableError(e));
+      } else {
+        _setError("Something went wrong. Please try again.");
+      }
     } finally {
       _loading = false;
       _isFetching = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> generatePdf(ApInvoice apinvoice, BuildContext context) async {
+    final id = apinvoice.invoiceId!;
+
+    _pdfLoadingMap[id] = true;
+    notifyListeners();
+
+    try {
+      final pdfService = APInvoicePDF();
+
+      final pdfFile = await pdfService.generateAPInvoicePdf(id);
+
+      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } finally {
+      _pdfLoadingMap[id] = false;
       notifyListeners();
     }
   }
@@ -159,7 +173,8 @@ class APInvoiceProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      final response = await _dio.patch(
+      // Use DioClient.dio instead of creating new Dio instance
+      final response = await DioClient.dio.patch(
         '/apinvoices/convert-to-grn-from-returned/$invoiceId',
       );
 
@@ -241,31 +256,5 @@ class APInvoiceProvider extends ChangeNotifier {
   void postOutgoingAndUpdateStatus(String s) {}
 }
 
-class RetryInterceptor extends Interceptor {
-  final Dio dio;
-  final int retries;
-  final List<Duration> retryDelays;
-
-  RetryInterceptor({
-    required this.dio,
-    required this.retries,
-    required this.retryDelays,
-  });
-
-  @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
-    final attempt = err.requestOptions.extra['retry_attempt'] ?? 0;
-    if (attempt < retries && err.type == DioExceptionType.connectionTimeout) {
-      err.requestOptions.extra['retry_attempt'] = attempt + 1;
-      await Future.delayed(retryDelays[attempt]);
-      try {
-        final response = await dio.fetch(err.requestOptions);
-        handler.resolve(response);
-      } catch (e) {
-        handler.reject(err);
-      }
-    } else {
-      handler.reject(err);
-    }
-  }
-}
+// Remove the RetryInterceptor class as it's no longer needed
+// (unless used elsewhere in your codebase)

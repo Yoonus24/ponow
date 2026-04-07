@@ -10,11 +10,11 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class APInvoicePDF {
-  static const String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
+  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
   static const String businessUrl =
-      'http://192.168.29.184:8000/nextjstestapi/pobusiness/';
+      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
   static const String vendorBaseUrl =
-      'http://192.168.29.184:8000/nextjstestapi/vendors/exact-name/';
+      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
 
   final Dio _dio = Dio(
     BaseOptions(
@@ -85,7 +85,7 @@ class APInvoicePDF {
     final Map<String, dynamic> businessData = await fetchBusinessDetails();
 
     final vendorId = (invoiceData['vendorId'] ?? '').toString();
-    final Map<String, dynamic> vendorData = await fetchVendorById(vendorId);
+    final Map<String, dynamic> vendourData = await fetchVendorById(vendorId);
 
     final List<dynamic> itemsRaw = (invoiceData['itemDetails'] is List)
         ? List<dynamic>.from(invoiceData['itemDetails'])
@@ -148,316 +148,312 @@ class APInvoicePDF {
     final pdf = pw.Document();
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: pw.EdgeInsets.all(20),
         build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Header - EXACT same as GRNPDF
-              pw.Table(
-                columnWidths: {
-                  0: pw.FlexColumnWidth(1),
-                  1: pw.FlexColumnWidth(3),
-                },
-                children: [
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.only(right: 10),
-                        child: logoImage != null
-                            ? pw.Container(
-                                width: 60,
-                                height: 60,
-                                child: pw.Image(
-                                  logoImage,
-                                  fit: pw.BoxFit.contain,
-                                ),
-                              )
-                            : pw.SizedBox(),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.only(left: 50),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'AP INVOICE',
-                              style: pw.TextStyle(
-                                fontSize: 14,
-                                fontWeight: pw.FontWeight.bold,
-                                color: PdfColor(0, 0, 128 / 255),
-                              ),
-                            ),
-                            pw.SizedBox(height: 4),
-                            pw.Text(
-                              businessData['companyName']?.toString() ?? '',
-                              style: pw.TextStyle(
-                                fontSize: 12,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.Text(
-                              _joinNonEmpty([
-                                businessData['address1']?.toString(),
-                                businessData['address2']?.toString(),
-                              ]),
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'Tel.No: ${businessData['phoneNo'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'E-Mail: ${businessData['emailId'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                            pw.Text(
-                              'GSTIN: ${businessData['gstIn'] ?? ''}',
-                              style: pw.TextStyle(fontSize: 9),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              pw.SizedBox(height: 12),
-
-              // Vendor/Billing/Invoice Details Table - EXACT same styling
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.5),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(1.5),
-                  2: pw.FlexColumnWidth(1.5),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(0, 0, 128 / 255),
-                    ),
-                    children: [
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Vendor Details',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Billing Address',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Invoice Details',
-                          style: pw.TextStyle(
-                            fontSize: 12,
-                            color: PdfColors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          _joinNonEmpty([
-                            invoiceData['vendorName']?.toString(),
-                            'GSTIN: ${invoiceData['gstNumber'] ?? 'N/A'}',
-                            invoiceData['address']?.toString(),
-                            invoiceData['city']?.toString(),
-                            invoiceData['state']?.toString(),
-                            invoiceData['country']?.toString(),
-                            'Email: ${invoiceData['contactpersonEmail'] ?? 'Not Provided'}',
-                            'Phone: ${invoiceData['vendorContact'] ?? 'Not Provided'}',
-                          ], separator: '\n'),
-                          style: pw.TextStyle(fontSize: 10),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          _joinNonEmpty([
-                            invoiceData['billingAddress']?.toString() ??
-                                'No.40, Kenikarai',
-                            invoiceData['shippingAddress']?.toString() ??
-                                'Ramanathapuram',
-                          ]),
-                          style: pw.TextStyle(fontSize: 10),
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Invoice No: ${invoiceData['randomId']?.toString() ?? invoiceId}\n'
-                          'AP Invoice Date: $formattedInvoiceDate\n'
-                          'Invoice Date: $invoiceDate\n'
-                          'PO Date: $poDate\n'
-                          'Due Date: $dueDate\n'
-                          'Payment Terms: ${invoiceData['paymentTerms']?.toString() ?? 'N/A'}\n'
-                          'Currency: ${invoiceData['currency']?.toString() ?? 'INR'}',
-                          style: pw.TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              // Items Table - EXACT same columns as GRN
-              pw.Table(
-                border: pw.TableBorder.all(width: 0.5),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(0.7),
-                  1: pw.FlexColumnWidth(2),
-                  2: pw.FlexColumnWidth(1.2),
-                  3: pw.FlexColumnWidth(1),
-                  4: pw.FlexColumnWidth(0.8),
-                  5: pw.FlexColumnWidth(1),
-                  6: pw.FlexColumnWidth(1),
-                  7: pw.FlexColumnWidth(0.8),
-                  8: pw.FlexColumnWidth(1.2),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(0, 0, 128 / 255),
-                    ),
-                    children: [
-                      _tableHeaderCell('S.No'),
-                      _tableHeaderCell('Description'),
-                      _tableHeaderCell('HsnCode'),
-                      _tableHeaderCell('Count'),
-                      _tableHeaderCell('Qty'),
-                      _tableHeaderCell('PO Qty'),
-                      _tableHeaderCell('Unit Price'),
-                      _tableHeaderCell('Tax %'),
-                      _tableHeaderCell('Amount'),
-                    ],
-                  ),
-                  ..._buildItemRows(itemsRaw),
-                ],
-              ),
-
-              // Summary Table - EXACT same layout as GRN
-              pw.Container(
-                width: double.infinity,
-                child: pw.Table(
-                  border: pw.TableBorder.all(width: 0.5),
-                  columnWidths: {
-                    0: pw.FlexColumnWidth(2),
-                    1: pw.FlexColumnWidth(1),
-                  },
+          return <pw.Widget>[
+            // Header - EXACT same as GRNPDF
+            pw.Table(
+              columnWidths: {
+                0: pw.FlexColumnWidth(1),
+                1: pw.FlexColumnWidth(3),
+              },
+              children: [
+                pw.TableRow(
                   children: [
-                    _twoCellRow(
-                      'Total Amount',
-                      _safeFixedString(invoiceData['invoiceAmount']),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.only(right: 10),
+                      child: logoImage != null
+                          ? pw.Container(
+                              width: 60,
+                              height: 60,
+                              child: pw.Image(
+                                logoImage,
+                                fit: pw.BoxFit.contain,
+                              ),
+                            )
+                          : pw.SizedBox(),
                     ),
-                    _twoCellRow(
-                      'Total Discount',
-                      _safeFixedString(invoiceData['discountDetails']),
-                    ),
-                    if (taxPercentage > 0) ...[
-                      _twoCellRow(
-                        'CGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
-                        _safeFixedString(cgstTotal),
-                      ),
-                      _twoCellRow(
-                        'SGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
-                        _safeFixedString(sgstTotal),
-                      ),
-                    ] else ...[
-                      _twoCellRow('CGST @ 0%', '0.00'),
-                      _twoCellRow('SGST @ 0%', '0.00'),
-                    ],
-                    _twoCellRow(
-                      'Round Off Amount',
-                      roundOffAmount.toStringAsFixed(
-                        2,
-                      ), // FIXED: Using apRoundOff from API
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Amount in Words: $amountInWords',
-                            style: pw.TextStyle(fontSize: 12),
-                            textAlign: pw.TextAlign.right,
+                    pw.Padding(
+                      padding: pw.EdgeInsets.only(left: 50),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            'AP INVOICE',
+                            style: pw.TextStyle(
+                              fontSize: 14,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColor(0, 0, 128 / 255),
+                            ),
                           ),
-                        ),
-                        pw.Padding(
-                          padding: pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Total: ${_safeFixedString(invoiceData['invoiceAmount'])}',
-                            style: pw.TextStyle(fontSize: 12),
-                            textAlign: pw.TextAlign.right,
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            businessData['companyName']?.toString() ?? '',
+                            style: pw.TextStyle(
+                              fontSize: 12,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                          pw.Text(
+                            _joinNonEmpty([
+                              businessData['address1']?.toString(),
+                              businessData['address2']?.toString(),
+                            ]),
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'Tel.No: ${businessData['phoneNo'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'E-Mail: ${businessData['emailId'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                          pw.Text(
+                            'GSTIN: ${businessData['gstIn'] ?? ''}',
+                            style: pw.TextStyle(fontSize: 9),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
 
-              pw.SizedBox(height: 12),
+            pw.SizedBox(height: 12),
 
-              // Terms & Conditions
-              pw.Text(
-                'Terms & Conditions',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+            // Vendor/Billing/Invoice Details Table - EXACT same styling
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5),
+              columnWidths: {
+                0: pw.FlexColumnWidth(2),
+                1: pw.FlexColumnWidth(1.5),
+                2: pw.FlexColumnWidth(1.5),
+              },
+              children: [
+                pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: PdfColor(0, 0, 128 / 255),
+                  ),
+                  children: [
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Vendor Details',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Billing Address',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Invoice Details',
+                        style: pw.TextStyle(
+                          fontSize: 12,
+                          color: PdfColors.white,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              pw.SizedBox(height: 8),
-              ..._buildTermsAndConditions(invoiceData['termsAndConditions']),
-
-              pw.SizedBox(height: 16),
-
-              // Declaration
-              pw.Text(
-                'Declaration:',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+                pw.TableRow(
+                  children: [
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        _joinNonEmpty([
+                          invoiceData['vendorName']?.toString(),
+                          'GSTIN: ${invoiceData['gstNumber'] ?? 'N/A'}',
+                          invoiceData['address']?.toString(),
+                          invoiceData['city']?.toString(),
+                          invoiceData['state']?.toString(),
+                          invoiceData['country']?.toString(),
+                          'Email: ${invoiceData['contactpersonEmail'] ?? 'Not Provided'}',
+                          'Phone: ${invoiceData['vendorContact'] ?? 'Not Provided'}',
+                        ], separator: '\n'),
+                        style: pw.TextStyle(fontSize: 10),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        _joinNonEmpty([
+                          invoiceData['billingAddress']?.toString() ??
+                              'No.40, Kenikarai',
+                          invoiceData['shippingAddress']?.toString() ??
+                              'Ramanathapuram',
+                        ]),
+                        style: pw.TextStyle(fontSize: 10),
+                      ),
+                    ),
+                    pw.Padding(
+                      padding: pw.EdgeInsets.all(6),
+                      child: pw.Text(
+                        'Invoice No: ${invoiceData['randomId']?.toString() ?? invoiceId}\n'
+                        'AP Invoice Date: $formattedInvoiceDate\n'
+                        'Invoice Date: $invoiceDate\n'
+                        'PO Date: $poDate\n'
+                        'Due Date: $dueDate\n'
+                        'Payment Terms: ${invoiceData['paymentTerms']?.toString() ?? 'N/A'}\n'
+                        'Currency: ${invoiceData['currency']?.toString() ?? 'INR'}',
+                        style: pw.TextStyle(fontSize: 10),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              pw.SizedBox(height: 8),
-              pw.Text(
-                invoiceData['declaration']?.toString() ??
-                    'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
-                style: pw.TextStyle(fontSize: 11),
-              ),
+              ],
+            ),
 
-              pw.SizedBox(height: 20),
+            // Items Table - Wrap in pw.Column to allow breaking across pages
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Table(
+                  border: pw.TableBorder.all(width: 0.5),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(0.7),
+                    1: pw.FlexColumnWidth(2),
+                    2: pw.FlexColumnWidth(1.2),
+                    3: pw.FlexColumnWidth(1),
+                    4: pw.FlexColumnWidth(0.8),
+                    5: pw.FlexColumnWidth(1),
+                    6: pw.FlexColumnWidth(1),
+                    7: pw.FlexColumnWidth(0.8),
+                    8: pw.FlexColumnWidth(1.2),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor(0, 0, 128 / 255),
+                      ),
+                      children: [
+                        _tableHeaderCell('S.No'),
+                        _tableHeaderCell('Description'),
+                        _tableHeaderCell('HsnCode'),
+                        _tableHeaderCell('Count'),
+                        _tableHeaderCell('Qty'),
+                        _tableHeaderCell('PO Qty'),
+                        _tableHeaderCell('Unit Price'),
+                        _tableHeaderCell('Tax %'),
+                        _tableHeaderCell('Amount'),
+                      ],
+                    ),
+                    ..._buildItemRows(itemsRaw),
+                  ],
+                ),
+              ],
+            ),
 
-              // Footer
-              pw.Row(
+            // Summary Table - EXACT same layout as GRN
+            pw.Container(
+              width: double.infinity,
+              child: pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  0: pw.FlexColumnWidth(2),
+                  1: pw.FlexColumnWidth(1),
+                },
                 children: [
-                  pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
-                  pw.Text('Authorized Signatory'),
+                  _twoCellRow(
+                    'Total Amount',
+                    _safeFixedString(invoiceData['invoiceAmount']),
+                  ),
+                  _twoCellRow(
+                    'Total Discount',
+                    _safeFixedString(invoiceData['discountDetails']),
+                  ),
+                  if (taxPercentage > 0) ...[
+                    _twoCellRow(
+                      'CGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
+                      _safeFixedString(cgstTotal),
+                    ),
+                    _twoCellRow(
+                      'SGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
+                      _safeFixedString(sgstTotal),
+                    ),
+                  ] else ...[
+                    _twoCellRow('CGST @ 0%', '0.00'),
+                    _twoCellRow('SGST @ 0%', '0.00'),
+                  ],
+                  _twoCellRow(
+                    'Round Off Amount',
+                    roundOffAmount.toStringAsFixed(
+                      2,
+                    ), // FIXED: Using apRoundOff from API
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Amount in Words: $amountInWords',
+                          style: pw.TextStyle(fontSize: 12),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Total: ${_safeFixedString(invoiceData['invoiceAmount'])}',
+                          style: pw.TextStyle(fontSize: 12),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
-            ],
-          );
+            ),
+
+            pw.SizedBox(height: 12),
+
+            // Terms & Conditions
+            pw.Text(
+              'Terms & Conditions',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            ..._buildTermsAndConditions(invoiceData['termsAndConditions']),
+
+            pw.SizedBox(height: 16),
+
+            // Declaration
+            pw.Text(
+              'Declaration:',
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              invoiceData['declaration']?.toString() ??
+                  'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
+              style: pw.TextStyle(fontSize: 11),
+            ),
+
+            pw.SizedBox(height: 20),
+
+            // Footer
+            pw.Row(
+              children: [
+                pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
+                pw.Text('Authorized Signatory'),
+              ],
+            ),
+          ];
         },
       ),
     );

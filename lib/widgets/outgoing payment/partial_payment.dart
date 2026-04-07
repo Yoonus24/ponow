@@ -29,9 +29,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   final int _limit = 50;
   final ValueNotifier<bool> _loadingMoreNotifier = ValueNotifier(false);
   final ScrollController _verticalScrollController = ScrollController();
-  Map<int, bool> _loadingPdfMap = {};
   bool _isLoading = false;
-
   @override
   void initState() {
     super.initState();
@@ -170,37 +168,9 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       ? NumberFormat.currency(symbol: '', decimalDigits: 2).format(amount)
       : '0.00';
 
-  Future<void> _generateAndViewPdf(int index, Outgoing payment) async {
-    setState(() {
-      _loadingPdfMap[index] = true;
-    });
-
-    try {
-      final poService = OutgoingPdf();
-      final pdfFile = await poService.generateOutgoingPdf(payment.outgoingId);
-
-      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF generated successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to generate PDF: $e')));
-      }
-    } finally {
-      setState(() {
-        _loadingPdfMap[index] = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<OutgoingPaymentProvider>();
     final Color headerColor = Colors.blueAccent;
     final isSmallScreen = MediaQuery.of(context).size.width < 1000;
 
@@ -220,21 +190,51 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                   return ValueListenableBuilder<String>(
                     valueListenable: _errorMessageNotifier,
                     builder: (context, errorMessage, _) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Error: $errorMessage',
-                              style: const TextStyle(color: Colors.red),
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          const SizedBox(height: 200),
+
+                          Center(
+                            child: Column(
+                              children: [
+                                /// 🔴 ICON
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.redAccent,
+                                  size: 40,
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                /// ✅ CLEAN MESSAGE
+                                Text(
+                                  errorMessage.isNotEmpty
+                                      ? errorMessage
+                                      : "Something went wrong. Please try again.",
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                /// 🔁 RETRY BUTTON
+                                ElevatedButton(
+                                  onPressed: _loadData,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blueAccent,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                  child: const Text("Retry"),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: _loadData,
-                              child: const Text('Retry'),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     },
                   );
@@ -434,8 +434,9 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                                                     width: 70,
                                                     alignment: Alignment.center,
                                                     child:
-                                                        _loadingPdfMap[index] ==
-                                                            true
+                                                        provider.isPdfLoading(
+                                                          index,
+                                                        )
                                                         ? const SizedBox(
                                                             height: 18,
                                                             width: 18,
@@ -453,11 +454,16 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                                                                   .redAccent,
                                                               size: 20,
                                                             ),
-                                                            onPressed: () =>
-                                                                _generateAndViewPdf(
-                                                                  index,
-                                                                  payment,
-                                                                ),
+                                                            onPressed: () {
+                                                              context
+                                                                  .read<
+                                                                    OutgoingPaymentProvider
+                                                                  >()
+                                                                  .generatePdf(
+                                                                    index,
+                                                                    payment,
+                                                                  );
+                                                            },
                                                             padding:
                                                                 EdgeInsets.zero,
                                                             constraints:

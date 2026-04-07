@@ -11,7 +11,7 @@ class TemplateProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  final String baseUrl = 'http://192.168.29.184:8000/nextjstestapi';
+  final String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
   final Dio _dio = Dio();
 
   List<POTemplate> get templates => _templates;

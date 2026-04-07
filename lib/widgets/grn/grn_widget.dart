@@ -1,8 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/pdfs/grn_pdf.dart';
+import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/widgets/grn/debit_note_viewdialog.dart';
 import 'package:purchaseorders2/widgets/grn/grn_return_dialog.dart';
 import 'package:printing/printing.dart';
@@ -21,7 +23,6 @@ class GRNWidget extends StatefulWidget {
 class _GRNWidgetState extends State<GRNWidget> {
   bool _isHeaderScrolling = false;
   bool _isBodyScrolling = false;
-  bool _isLoadingPdf = false;
   late ScrollController _headerHorizontal;
   late ScrollController _bodyHorizontal;
 
@@ -58,29 +59,9 @@ class _GRNWidgetState extends State<GRNWidget> {
     super.dispose();
   }
 
-  Future<void> _handlePdfClick(GRN grn) async {
-    setState(() {
-      _isLoadingPdf = true;
-    });
-
-    try {
-      final service = GRNPDF();
-      final pdfFile = await service.generateGRNPdf(grn.grnId ?? '');
-
-      await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
-    } finally {
-      setState(() {
-        _isLoadingPdf = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<GRNProvider>();
     final grn = widget.grn;
     globals.grnRandomId = grn.randomId ?? "";
 
@@ -216,7 +197,7 @@ class _GRNWidgetState extends State<GRNWidget> {
 
                     Column(
                       children: [
-                        _isLoadingPdf
+                        provider.isPdfLoading(grn.grnId ?? '')
                             ? const SizedBox(
                                 height: 25,
                                 width: 25,
@@ -231,7 +212,12 @@ class _GRNWidgetState extends State<GRNWidget> {
                                   color: Colors.white,
                                   size: 25,
                                 ),
-                                onPressed: () => _handlePdfClick(grn),
+                                onPressed: () {
+                                  context.read<GRNProvider>().generatePdf(
+                                    grn,
+                                    context,
+                                  );
+                                },
                               ),
                         const Text(
                           'PDF',

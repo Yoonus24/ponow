@@ -1,10 +1,10 @@
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
-import 'package:purchaseorders2/widgets/ap%20invoice/ap_viewinvoice_modal.dart';
-import 'package:purchaseorders2/widgets/outgoing%20payment/grn_details_screen.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/pending%20_outgoing_view_dialog.dart';
 import 'package:provider/provider.dart';
 import '../../providers/outgoing_payment_provider.dart';
@@ -25,7 +25,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   void initState() {
     super.initState();
     _logic = PendingOutgoingLogic();
-    
+
     _logic.horizontalScrollController.addListener(_handleHorizontalScroll);
     _logic.verticalScrollController.addListener(_handleScroll);
     _logic.selectedRowsNotifier.value = [];
@@ -66,17 +66,21 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             return ValueListenableBuilder<bool>(
               valueListenable: _logic.sortAscendingNotifier,
               builder: (context, isAscending, __) {
-                final bool isActive = sortColumn != null && currentSortColumn == sortColumn;
+                final bool isActive =
+                    sortColumn != null && currentSortColumn == sortColumn;
 
                 return GestureDetector(
-                  onTap: sortColumn == null ? null : () {
-                    if (_logic.sortColumnNotifier.value == sortColumn) {
-                      _logic.sortAscendingNotifier.value = !_logic.sortAscendingNotifier.value;
-                    } else {
-                      _logic.sortColumnNotifier.value = sortColumn!;
-                      _logic.sortAscendingNotifier.value = true;
-                    }
-                  },
+                  onTap: sortColumn == null
+                      ? null
+                      : () {
+                          if (_logic.sortColumnNotifier.value == sortColumn) {
+                            _logic.sortAscendingNotifier.value =
+                                !_logic.sortAscendingNotifier.value;
+                          } else {
+                            _logic.sortColumnNotifier.value = sortColumn!;
+                            _logic.sortAscendingNotifier.value = true;
+                          }
+                        },
                   child: Tooltip(
                     message: text,
                     child: Row(
@@ -101,7 +105,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                             padding: const EdgeInsets.only(left: 4),
                             child: Icon(
                               isActive
-                                  ? (isAscending ? Icons.arrow_upward : Icons.arrow_downward)
+                                  ? (isAscending
+                                        ? Icons.arrow_upward
+                                        : Icons.arrow_downward)
                                   : Icons.unfold_more,
                               size: 12,
                               color: Colors.white,
@@ -120,20 +126,26 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   }
 
   // Content Cell Widget
-  Widget _buildContentCell(String text, double width, {Widget? child, TextStyle? textStyle}) {
+  Widget _buildContentCell(
+    String text,
+    double width, {
+    Widget? child,
+    TextStyle? textStyle,
+  }) {
     return SizedBox(
       width: width,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
         child: Center(
-          child: child ?? 
-          Text(
-            text,
-            style: textStyle ?? const TextStyle(fontSize: 12),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+          child:
+              child ??
+              Text(
+                text,
+                style: textStyle ?? const TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
         ),
       ),
     );
@@ -172,46 +184,70 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                         ),
                       );
                     },
-                    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                      if (selectedVendor != null &&
-                          selectedVendor.isNotEmpty &&
-                          controller.text != selectedVendor) {
-                        controller.text = selectedVendor;
-                        controller.selection = TextSelection.fromPosition(
-                          TextPosition(offset: controller.text.length),
-                        );
-                      }
-                      return TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        style: const TextStyle(fontSize: 14),
-                        decoration: InputDecoration(
-                          hintText: 'Filter by Vendor',
-                          hintStyle: const TextStyle(fontSize: 12, color: Colors.black54),
-                          prefixIcon: const Padding(
-                            padding: EdgeInsets.only(left: 10, right: 6),
-                            child: Icon(Icons.person, size: 18, color: Colors.black54),
-                          ),
-                          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                          suffixIcon: controller.text.isNotEmpty && controller.text != 'All Vendors'
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  onPressed: () {
-                                    controller.clear();
-                                    _logic.handleVendorSelected(null, context);
-                                    FocusScope.of(context).unfocus();
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.only(top: 6, bottom: 0, left: 5, right: 5),
-                        ),
-                        onTap: () {
-                          if (controller.text == 'All Vendors') controller.clear();
+                    fieldViewBuilder:
+                        (context, controller, focusNode, onFieldSubmitted) {
+                          if (selectedVendor != null &&
+                              selectedVendor.isNotEmpty &&
+                              controller.text != selectedVendor) {
+                            controller.text = selectedVendor;
+                            controller.selection = TextSelection.fromPosition(
+                              TextPosition(offset: controller.text.length),
+                            );
+                          }
+                          return TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            style: const TextStyle(fontSize: 14),
+                            decoration: InputDecoration(
+                              hintText: 'Filter by Vendor',
+                              hintStyle: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(left: 10, right: 6),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 18,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
+                              suffixIcon:
+                                  controller.text.isNotEmpty &&
+                                      controller.text != 'All Vendors'
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        controller.clear();
+                                        _logic.handleVendorSelected(
+                                          null,
+                                          context,
+                                        );
+                                        FocusScope.of(context).unfocus();
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.only(
+                                top: 6,
+                                bottom: 0,
+                                left: 5,
+                                right: 5,
+                              ),
+                            ),
+                            onTap: () {
+                              if (controller.text == 'All Vendors') {
+                                controller.clear();
+                              }
+                            },
+                          );
                         },
-                      );
-                    },
-                    onSelected: (selected) => _logic.handleVendorSelected(selected, context),
+                    onSelected: (selected) =>
+                        _logic.handleVendorSelected(selected, context),
                     optionsViewBuilder: (context, onSelected, options) {
                       return Align(
                         alignment: Alignment.topLeft,
@@ -235,8 +271,14 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                       FocusScope.of(context).unfocus();
                                     },
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                      child: Text(option, style: const TextStyle(fontSize: 13)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                      child: Text(
+                                        option,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
                                     ),
                                   );
                                 },
@@ -275,7 +317,10 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   padding: EdgeInsets.only(left: 10, right: 6),
                   child: Icon(Icons.search, size: 18, color: Colors.black54),
                 ),
-                prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
                 suffixIcon: value.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 18),
@@ -287,7 +332,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       )
                     : null,
                 border: InputBorder.none,
-                contentPadding: const EdgeInsets.only(top: 6, bottom: 0, left: 5, right: 5),
+                contentPadding: const EdgeInsets.only(
+                  top: 6,
+                  bottom: 0,
+                  left: 5,
+                  right: 5,
+                ),
               ),
               onChanged: (value) {
                 Future.delayed(const Duration(milliseconds: 500), () {
@@ -315,7 +365,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
               icon: Icon(
                 Icons.payments,
                 size: 22,
-                color: selectedIndices.length >= 2 ? Colors.blueAccent : Colors.grey,
+                color: selectedIndices.length >= 2
+                    ? Colors.blueAccent
+                    : Colors.grey,
               ),
               tooltip: selectedIndices.length >= 2
                   ? 'Process Selected Payments'
@@ -325,7 +377,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                       final selectedPayments = selectedIndices
                           .map((index) => filteredPayments[index])
                           .toList();
-                      _logic.showPaymentDialog(context, selectedPayments, null, true);
+                      _logic.showPaymentDialog(
+                        context,
+                        selectedPayments,
+                        null,
+                        true,
+                      );
                     }
                   : null,
             ),
@@ -349,13 +406,16 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     final dueDays = _logic.calculateDueDays(outgoing);
     final grn = grnMap[outgoing.grnId];
     final ap = apMap[outgoing.invoiceId];
-    final grnDisplay = grn?.randomId ?? outgoing.grnId ?? 'N/A';
-    final apDisplay = ap?.randomId ?? outgoing.invoiceId ?? 'N/A';
+    final bool isGrnLoading = outgoing.grnId != null && grn == null;
+    final bool isApLoading = outgoing.invoiceId != null && ap == null;
+
+    final String? grnDisplay = grn?.randomId;
+    final String? apDisplay = ap?.randomId;
 
     return Row(
       children: [
         _buildContentCell('${index + 1}', columnWidths[0]),
-        
+
         _buildContentCell(
           '',
           columnWidths[1],
@@ -376,9 +436,14 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     newSelectedRows[index] = value ?? false;
                     _logic.selectedRowsNotifier.value = newSelectedRows;
 
-                    final newSelectedIndices = Set<int>.from(_logic.selectedIndicesNotifier.value);
-                    if (value == true) newSelectedIndices.add(index);
-                    else newSelectedIndices.remove(index);
+                    final newSelectedIndices = Set<int>.from(
+                      _logic.selectedIndicesNotifier.value,
+                    );
+                    if (value == true) {
+                      newSelectedIndices.add(index);
+                    } else {
+                      newSelectedIndices.remove(index);
+                    }
                     _logic.selectedIndicesNotifier.value = newSelectedIndices;
                   }
                 },
@@ -391,7 +456,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           '',
           columnWidths[2],
           child: IconButton(
-            icon: const Icon(Icons.remove_red_eye, color: Colors.blue, size: 18),
+            icon: const Icon(
+              Icons.remove_red_eye,
+              color: Colors.blue,
+              size: 18,
+            ),
             onPressed: () {
               showDialog(
                 context: context,
@@ -415,7 +484,12 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 ),
                 onPressed: selectedIndices.length > 1
                     ? null
-                    : () => _logic.showPaymentDialog(context, [outgoing], index, false),
+                    : () => _logic.showPaymentDialog(
+                        context,
+                        [outgoing],
+                        index,
+                        false,
+                      ),
               );
             },
           ),
@@ -431,8 +505,13 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : IconButton(
-                  icon: const Icon(Icons.picture_as_pdf, color: Colors.blue, size: 18),
-                  onPressed: () => _logic.handlePdfClick(context, index, outgoing),
+                  icon: const Icon(
+                    Icons.picture_as_pdf,
+                    color: Colors.blue,
+                    size: 18,
+                  ),
+                  onPressed: () =>
+                      _logic.handlePdfClick(context, index, outgoing),
                 ),
         ),
 
@@ -441,13 +520,17 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           columnWidths[5],
           textStyle: TextStyle(
             fontSize: 12,
-            color: dueDays < 0 ? Colors.red : dueDays <= 3 ? Colors.orange : Colors.green,
+            color: dueDays < 0
+                ? Colors.red
+                : dueDays <= 3
+                ? Colors.orange
+                : Colors.green,
           ),
         ),
 
         _buildContentCell(outgoing.vendorName ?? 'N/A', columnWidths[6]),
         _buildContentCell(outgoing.invoiceNo ?? 'N/A', columnWidths[7]),
-        
+
         _buildContentCell(
           outgoing.invoiceDate != null
               ? DateFormat('dd-MM-yyyy').format(outgoing.invoiceDate!)
@@ -460,7 +543,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           columnWidths[9],
           child: GestureDetector(
             onTap: () => _logic.showGrnDetailsDialog(
-              context, outgoing.grnId, grnMap.values.toList(),
+              context,
+              outgoing.grnId,
+              grnMap.values.toList(),
             ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -468,17 +553,23 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                grnDisplay,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: isGrnLoading
+                  ? const SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      grnDisplay ?? '-',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
             ),
           ),
         ),
@@ -488,7 +579,9 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           columnWidths[10],
           child: GestureDetector(
             onTap: () => _logic.showApDetailsDialog(
-              context, outgoing.invoiceId, apMap.values.toList(),
+              context,
+              outgoing.invoiceId,
+              apMap.values.toList(),
             ),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -496,17 +589,23 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                 color: Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                apDisplay,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.blue,
-                  decoration: TextDecoration.underline,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: isApLoading
+                  ? const SizedBox(
+                      height: 14,
+                      width: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      apDisplay ?? '-',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
             ),
           ),
         ),
@@ -520,7 +619,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           '',
           columnWidths[12],
           child: GestureDetector(
-            onTap: () => _logic.showTaxTooltip(context, cellKey, outgoing, index),
+            onTap: () =>
+                _logic.showTaxTooltip(context, cellKey, outgoing, index),
             child: Container(
               key: cellKey,
               decoration: BoxDecoration(
@@ -583,15 +683,67 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             builder: (context, refreshData, _) {
               return Consumer<OutgoingPaymentProvider>(
                 builder: (context, provider, child) {
+                  if (provider.error.isNotEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 200),
+
+                        Center(
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.error_outline,
+                                color: Colors.redAccent,
+                                size: 40,
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              Text(
+                                provider.error,
+                                style: const TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+
+                              const SizedBox(height: 14),
+
+                              ElevatedButton(
+                                onPressed: () async {
+                                  await provider.fetchFilteredOutgoings(
+                                    status: 'Pending',
+                                    filterBy: 'invoiceDate',
+                                    limit: 100,
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blueAccent,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text("Retry"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }
                   final List<Outgoing> filtered = provider.payments;
                   final Map<String, GRN> grnMap = {
-                    for (var g in provider.grnList) if (g.grnId != null) g.grnId!: g,
+                    for (var g in provider.grnList)
+                      if (g.grnId != null) g.grnId!: g,
                   };
                   final Map<String, ApInvoice> apMap = {
-                    for (var a in provider.apInvoices) if (a.invoiceId != null) a.invoiceId!: a,
+                    for (var a in provider.apInvoices)
+                      if (a.invoiceId != null) a.invoiceId!: a,
                   };
 
-                  if (provider.isLoadingOutgoings && provider.payments.isEmpty) {
+                  if (provider.isLoadingOutgoings &&
+                      provider.payments.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
@@ -599,7 +751,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     return const Center(
                       child: Text(
                         'No pending outgoing',
-                        style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     );
                   }
@@ -607,7 +763,24 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   final sortedPayments = _logic.sortPayments(filtered);
 
                   const columnWidths = <double>[
-                    45, 50, 45, 50, 50, 150, 150, 85, 95, 85, 85, 95, 85, 85, 85, 95, 85, 150,
+                    45,
+                    50,
+                    45,
+                    50,
+                    50,
+                    150,
+                    150,
+                    85,
+                    95,
+                    85,
+                    85,
+                    95,
+                    85,
+                    85,
+                    85,
+                    95,
+                    85,
+                    150,
                   ];
                   final totalWidth = columnWidths.reduce((a, b) => a + b);
 
@@ -631,7 +804,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                 children: [
                                   const Text(
                                     'PENDING OUTGOING',
-                                    style: TextStyle(fontSize: 25, fontWeight: FontWeight.bold, color: Colors.black),
+                                    style: TextStyle(
+                                      fontSize: 25,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black,
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   Row(
@@ -639,7 +816,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                       Expanded(
                                         child: Text(
                                           'Total Payable Amount: ${sortedPayments.fold(0.0, (sum, p) => sum + (p.totalPayableAmount ?? 0.0)).toStringAsFixed(2)}',
-                                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.red),
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.red,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -654,20 +835,33 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                             const SizedBox(width: 8),
                                             _buildInvoiceSearchField(provider),
                                             const SizedBox(width: 8),
-                                            _buildMultiplePaymentButton(sortedPayments),
+                                            _buildMultiplePaymentButton(
+                                              sortedPayments,
+                                            ),
                                             const SizedBox(width: 8),
                                             Expanded(
                                               child: ValueListenableBuilder<Set<int>>(
-                                                valueListenable: _logic.selectedIndicesNotifier,
+                                                valueListenable: _logic
+                                                    .selectedIndicesNotifier,
                                                 builder: (context, selectedIndices, _) {
-                                                  if (selectedIndices.length > 1) {
+                                                  if (selectedIndices.length >
+                                                      1) {
                                                     final amount = selectedIndices.fold(
                                                       0.0,
-                                                      (sum, index) => sum + (sortedPayments[index].totalPayableAmount ?? 0.0),
+                                                      (sum, index) =>
+                                                          sum +
+                                                          (sortedPayments[index]
+                                                                  .totalPayableAmount ??
+                                                              0.0),
                                                     );
                                                     return Text(
                                                       'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black),
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: Colors.black,
+                                                      ),
                                                     );
                                                   }
                                                   return const SizedBox();
@@ -681,28 +875,50 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                         children: [
                                           Row(
                                             children: [
-                                              Expanded(child: _buildVendorFilterField(provider)),
+                                              Expanded(
+                                                child: _buildVendorFilterField(
+                                                  provider,
+                                                ),
+                                              ),
                                               const SizedBox(width: 8),
-                                              Expanded(child: _buildInvoiceSearchField(provider)),
+                                              Expanded(
+                                                child: _buildInvoiceSearchField(
+                                                  provider,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                           const SizedBox(height: 8),
                                           Row(
                                             children: [
-                                              _buildMultiplePaymentButton(sortedPayments),
+                                              _buildMultiplePaymentButton(
+                                                sortedPayments,
+                                              ),
                                               const SizedBox(width: 8),
                                               Expanded(
                                                 child: ValueListenableBuilder<Set<int>>(
-                                                  valueListenable: _logic.selectedIndicesNotifier,
+                                                  valueListenable: _logic
+                                                      .selectedIndicesNotifier,
                                                   builder: (context, selectedIndices, _) {
-                                                    if (selectedIndices.length > 1) {
-                                                      final amount = selectedIndices.fold(
-                                                        0.0,
-                                                        (sum, index) => sum + (sortedPayments[index].totalPayableAmount ?? 0.0),
-                                                      );
+                                                    if (selectedIndices.length >
+                                                        1) {
+                                                      final amount =
+                                                          selectedIndices.fold(
+                                                            0.0,
+                                                            (sum, index) =>
+                                                                sum +
+                                                                (sortedPayments[index]
+                                                                        .totalPayableAmount ??
+                                                                    0.0),
+                                                          );
                                                       return Text(
                                                         'Selected Amount: ${amount.toStringAsFixed(2)}',
-                                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.black),
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: Colors.black,
+                                                        ),
                                                       );
                                                     }
                                                     return const SizedBox();
@@ -723,48 +939,121 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                               valueListenable: _logic.selectedVendorNotifier,
                               builder: (context, selectedVendor, _) {
                                 return ValueListenableBuilder<String?>(
-                                  valueListenable: _logic.selectedInvoiceNotifier,
+                                  valueListenable:
+                                      _logic.selectedInvoiceNotifier,
                                   builder: (context, selectedInvoice, _) {
                                     return Container(
-                                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
                                       child: Stack(
                                         children: [
                                           Column(
                                             children: [
                                               Scrollbar(
-                                                controller: _logic.horizontalScrollController,
+                                                controller: _logic
+                                                    .horizontalScrollController,
                                                 thumbVisibility: true,
                                                 child: SingleChildScrollView(
-                                                  controller: _logic.horizontalScrollController,
-                                                  scrollDirection: Axis.horizontal,
+                                                  controller: _logic
+                                                      .horizontalScrollController,
+                                                  scrollDirection:
+                                                      Axis.horizontal,
                                                   child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
                                                     children: [
                                                       Container(
-                                                        decoration: const BoxDecoration(color: Colors.blueAccent),
-                                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                                        decoration:
+                                                            const BoxDecoration(
+                                                              color: Colors
+                                                                  .blueAccent,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              vertical: 16,
+                                                            ),
                                                         child: SizedBox(
                                                           width: totalWidth,
                                                           child: Row(
                                                             children: [
-                                                              _buildHeaderCell('No', columnWidths[0]),
-                                                              _buildHeaderCell('Select', columnWidths[1]),
-                                                              _buildHeaderCell('View', columnWidths[2]),
-                                                              _buildHeaderCell('Action', columnWidths[3]),
-                                                              _buildHeaderCell('Pdf', columnWidths[4]),
-                                                              _buildHeaderCell('Due Days', columnWidths[5], sortColumn: 'dueDays'),
-                                                              _buildHeaderCell('Vendor Name', columnWidths[6]),
-                                                              _buildHeaderCell('Invoice No', columnWidths[7]),
-                                                              _buildHeaderCell('Invoice Date', columnWidths[8]),
-                                                              _buildHeaderCell('GRN No', columnWidths[9]),
-                                                              _buildHeaderCell('AP No', columnWidths[10]),
-                                                              _buildHeaderCell('Total Amount', columnWidths[11]),
-                                                              _buildHeaderCell('Tax', columnWidths[12]),
-                                                              _buildHeaderCell('Discount', columnWidths[13]),
-                                                              _buildHeaderCell('Total', columnWidths[14]),
-                                                              _buildHeaderCell('Paid Amount', columnWidths[15]),
-                                                              _buildHeaderCell('Remaining', columnWidths[16]),
-                                                              _buildHeaderCell('Payment Terms', columnWidths[17], sortColumn: 'paymentTerms'),
+                                                              _buildHeaderCell(
+                                                                'No',
+                                                                columnWidths[0],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Select',
+                                                                columnWidths[1],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'View',
+                                                                columnWidths[2],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Action',
+                                                                columnWidths[3],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Pdf',
+                                                                columnWidths[4],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Due Days',
+                                                                columnWidths[5],
+                                                                sortColumn:
+                                                                    'dueDays',
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Vendor Name',
+                                                                columnWidths[6],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Invoice No',
+                                                                columnWidths[7],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Invoice Date',
+                                                                columnWidths[8],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'GRN No',
+                                                                columnWidths[9],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'AP No',
+                                                                columnWidths[10],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Total Amount',
+                                                                columnWidths[11],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Tax',
+                                                                columnWidths[12],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Discount',
+                                                                columnWidths[13],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Total',
+                                                                columnWidths[14],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Paid Amount',
+                                                                columnWidths[15],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Remaining',
+                                                                columnWidths[16],
+                                                              ),
+                                                              _buildHeaderCell(
+                                                                'Payment Terms',
+                                                                columnWidths[17],
+                                                                sortColumn:
+                                                                    'paymentTerms',
+                                                              ),
                                                             ],
                                                           ),
                                                         ),
@@ -772,36 +1061,59 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                       SizedBox(
                                                         height: 360,
                                                         child: ValueListenableBuilder<bool>(
-                                                          valueListenable: _logic.isLoadingMoreNotifier,
-                                                          builder: (context, isLoadingMore, _) {
-                                                            return Scrollbar(
-                                                              controller: _logic.verticalScrollController,
-                                                              thumbVisibility: true,
-                                                              child: SizedBox(
-                                                                width: totalWidth,
-                                                                child: ListView.builder(
-                                                                  controller: _logic.verticalScrollController,
-                                                                  itemCount: sortedPayments.length + (isLoadingMore ? 1 : 0),
-                                                                  itemBuilder: (context, index) {
-                                                                    if (index >= sortedPayments.length) {
-                                                                      return Container(
-                                                                        height: 70,
-                                                                        alignment: Alignment.center,
-                                                                        child: const CircularProgressIndicator(strokeWidth: 2),
-                                                                      );
-                                                                    }
-                                                                    return _buildDataRow(
-                                                                      index,
-                                                                      sortedPayments[index],
-                                                                      grnMap,
-                                                                      apMap,
-                                                                      columnWidths,
-                                                                    );
-                                                                  },
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
+                                                          valueListenable: _logic
+                                                              .isLoadingMoreNotifier,
+                                                          builder:
+                                                              (
+                                                                context,
+                                                                isLoadingMore,
+                                                                _,
+                                                              ) {
+                                                                return Scrollbar(
+                                                                  controller: _logic
+                                                                      .verticalScrollController,
+                                                                  thumbVisibility:
+                                                                      true,
+                                                                  child: SizedBox(
+                                                                    width:
+                                                                        totalWidth,
+                                                                    child: ListView.builder(
+                                                                      controller:
+                                                                          _logic
+                                                                              .verticalScrollController,
+                                                                      itemCount:
+                                                                          sortedPayments
+                                                                              .length +
+                                                                          (isLoadingMore
+                                                                              ? 1
+                                                                              : 0),
+                                                                      itemBuilder:
+                                                                          (
+                                                                            context,
+                                                                            index,
+                                                                          ) {
+                                                                            if (index >=
+                                                                                sortedPayments.length) {
+                                                                              return Container(
+                                                                                height: 70,
+                                                                                alignment: Alignment.center,
+                                                                                child: const CircularProgressIndicator(
+                                                                                  strokeWidth: 2,
+                                                                                ),
+                                                                              );
+                                                                            }
+                                                                            return _buildDataRow(
+                                                                              index,
+                                                                              sortedPayments[index],
+                                                                              grnMap,
+                                                                              apMap,
+                                                                              columnWidths,
+                                                                            );
+                                                                          },
+                                                                    ),
+                                                                  ),
+                                                                );
+                                                              },
                                                         ),
                                                       ),
                                                     ],
@@ -813,8 +1125,13 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                           if (provider.isTableLoading)
                                             Positioned.fill(
                                               child: Container(
-                                                color: Colors.white.withOpacity(0.6),
-                                                child: const Center(child: CircularProgressIndicator()),
+                                                color: Colors.white.withOpacity(
+                                                  0.6,
+                                                ),
+                                                child: const Center(
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
                                               ),
                                             ),
                                         ],

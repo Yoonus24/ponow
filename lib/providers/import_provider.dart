@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:purchaseorders2/services/dio_client.dart'; // Import DioClient
 
 class ImportProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -15,15 +16,18 @@ class ImportProvider extends ChangeNotifier {
   String? get currentFileName => _currentFileName;
   List get importErrors => _importErrors;
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: "http://192.168.29.184:8000/nextjstestapi/poimport",
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 60),
-      sendTimeout: const Duration(seconds: 60),
-      validateStatus: (status) => status != null && status < 500,
-    ),
-  );
+  // Remove local Dio instance - we'll use DioClient.dio instead
+  // Note: The base URL is already configured in DioClient, but we need the import endpoint
+  // The full URL will be: DioClient.baseUrl + "/poimport/import-items-csv"
+
+  ImportProvider() {
+    _ensureDioInitialized();
+  }
+
+  // Ensure DioClient is initialized
+  Future<void> _ensureDioInitialized() async {
+    await DioClient.init();
+  }
 
   Future<Map<String, dynamic>> uploadFile(String filePath) async {
     try {
@@ -40,20 +44,25 @@ class ImportProvider extends ChangeNotifier {
         "file": await MultipartFile.fromFile(filePath, filename: fileName),
       });
 
-      /// 🔵 Upload started
       _uploadStatus = "Uploading...";
       notifyListeners();
 
-      final response = await _dio.post(
-        "/import-items-csv",
+      // Use DioClient.dio instead of local Dio instance
+      // Note: The full endpoint is /poimport/import-items-csv
+      final response = await DioClient.dio.post(
+        "/poimport/import-items-csv", // Path relative to DioClient.baseUrl
         data: formData,
-
-        /// ✅ REAL upload progress (max 90%)
+        options: Options(
+          // Increase timeout for file uploads since default is 10 seconds
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 60),
+          // Don't validate status strictly - we handle it ourselves
+          validateStatus: (status) => status != null && status < 500,
+        ),
         onSendProgress: (int sent, int total) {
           if (total > 0) {
             double progress = sent / total;
 
-            // 👇 cap at 90%
             if (progress > 0.9) progress = 0.9;
 
             _uploadProgress = progress;
@@ -62,8 +71,6 @@ class ImportProvider extends ChangeNotifier {
             notifyListeners();
           }
         },
-
-        /// ✅ While waiting for response
         onReceiveProgress: (int received, int total) {
           _uploadProgress = 0.95;
           _uploadStatus = "Processing...";
@@ -71,15 +78,12 @@ class ImportProvider extends ChangeNotifier {
         },
       );
 
-      /// ✅ ONLY NOW → FULL COMPLETE
       _uploadProgress = 1.0;
       _uploadStatus = "Completed!";
       notifyListeners();
 
-      // small smooth delay (optional)
       await Future.delayed(const Duration(milliseconds: 300));
 
-      /// 🔍 Handle response
       if (response.data is Map<String, dynamic>) {
         final data = response.data as Map<String, dynamic>;
 
@@ -138,6 +142,9 @@ class ImportProvider extends ChangeNotifier {
         } else {
           errors = [errData?['message'] ?? "Invalid file format or data"];
         }
+      } else if (e.response?.statusCode == 401) {
+        // Session expired - handled by DioClient interceptor
+        errors = ["Session expired. Please login again."];
       } else if (e.response?.statusCode == 413) {
         errors = ["File is too large"];
       } else {

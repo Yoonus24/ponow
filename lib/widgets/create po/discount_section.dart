@@ -87,7 +87,9 @@ class _DiscountSectionState extends State<DiscountSection> {
     final n = widget.notifier;
 
     if (n.isOverallDiscountActive && n.overallDiscountValue > 0) {
-      widget.discountMode.value = n.discountMode.value;
+      /// 🔥 FORCE AMOUNT MODE
+      widget.discountMode.value = DiscountMode.fixedAmount;
+
       widget.overallDiscountController.text = n.overallDiscountValue
           .toStringAsFixed(2);
     } else {
@@ -433,7 +435,7 @@ class _DiscountSectionState extends State<DiscountSection> {
       widget.overallDiscountController.clear();
 
       // ✅ DISABLE FIELD & BUTTON
-      widget.notifier.isOverallDiscountActive = false;
+      // widget.notifier.isOverallDiscountActive = false;
 
       widget.notifier.calculateTotals();
       widget.onCalculationsUpdate();
@@ -616,7 +618,7 @@ class _DiscountSectionState extends State<DiscountSection> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: _optionButton(
-                      label: "Rupees",
+                      label: "Amount",
                       icon: Icons.currency_rupee,
                       selected: mode == DiscountMode.fixedAmount,
                       enabled: mode != DiscountMode.none,
@@ -841,12 +843,12 @@ class _DiscountSectionState extends State<DiscountSection> {
         double.tryParse(widget.roundOffController.text) ?? 0.0;
     double itemWise = widget.notifier.itemWiseDiscount ?? 0.0;
     double overall = widget.notifier.overallDiscountAmount ?? 0.0;
-    double totalDisc = itemWise + overall;
+    bool hasOverall = widget.notifier.isOverallDiscountActive;
+    double totalDisc = hasOverall ? overall : itemWise;
     double subtotal = widget.notifier.subTotal ?? 0.0;
     double totalCGST = this.totalCGST;
     double totalSGST = this.totalSGST;
     double totalIGST = this.totalIGST;
-
     double totalTax = totalCGST + totalSGST + totalIGST;
     return Container(
       padding: const EdgeInsets.all(12),
@@ -865,10 +867,11 @@ class _DiscountSectionState extends State<DiscountSection> {
 
           if (totalSGST > 0) _summary("SGST", "(+) ${_fmt(totalSGST)}"),
 
-          if (itemWise > 0)
+          if (!hasOverall && itemWise > 0)
             _summary("Item-wise Discount", "(-) ${_fmt(itemWise)}"),
 
-          if (overall > 0) _summary("Overall Discount", "(-) ${_fmt(overall)}"),
+          if (hasOverall && overall > 0)
+            _summary("Overall Discount", "(-) ${_fmt(overall)}"),
 
           const Divider(),
 
@@ -880,7 +883,9 @@ class _DiscountSectionState extends State<DiscountSection> {
                 ? "(+) ${_fmt(parsedRoundOff)}"
                 : "(-) ${_fmt(parsedRoundOff.abs())}",
           ),
+
           const Divider(thickness: 1.5),
+
           if (widget.notifier.totalFreightAmount > 0)
             _summary(
               "Freight Charges",

@@ -658,6 +658,16 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     return ValueListenableBuilder<int>(
       valueListenable: _logic.uiRefresh,
       builder: (_, __, ___) {
+        final double orderedItemsFinal = _logic.po.items.fold<double>(
+          0.0,
+          (sum, i) => sum + ((i.poQuantitypendingFinalPrice ?? 0.0)),
+        );
+
+        final double orderedFinalWithExtras =
+            orderedItemsFinal +
+            _logic.totalFreightAmount +
+            _logic.roundOffAmount.value;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -701,16 +711,10 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
             /// 🔹 ROUND OFF
             _summaryRow("Round Off", _logic.roundOffAmount.value),
 
-            /// 🔹 FINAL AMOUNT
+            /// 🔹 FINAL AMOUNT ✅ FIXED
             _summaryRow(
               "Final Amount",
-              isOrdered
-                  ? _logic.po.items.fold<double>(
-                      0.0,
-                      (sum, i) =>
-                          sum + ((i.poQuantitypendingFinalPrice ?? 0.0)),
-                    )
-                  : _logic.receivedFinalAmount,
+              isOrdered ? orderedFinalWithExtras : _logic.receivedFinalAmount,
               highlight: true,
             ),
           ],

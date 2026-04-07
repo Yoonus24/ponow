@@ -43,28 +43,64 @@ class _POPageState extends State<POPage> {
     return Scaffold(
       appBar: const CommonAppBar(title: 'Pending Purchase Orders'),
       body: RefreshIndicator(
-        color: Colors.blueAccent,
         onRefresh: _refreshPOs,
         child: Consumer<POProvider>(
           builder: (context, poProvider, _) {
             final pendingOrders = poProvider.pendingPOs;
 
-            // ✅ Show loader first time only
+            print("UI DATA COUNT: ${pendingOrders.length}");
+
+            // ✅ First loading
             if (poProvider.isLoading && pendingOrders.isEmpty) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            // ✅ Show error only if no data
             if (poProvider.error != null && pendingOrders.isEmpty) {
-              return Center(
-                child: Text(
-                  poProvider.error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
-                ),
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 200),
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.redAccent,
+                          size: 40,
+                        ),
+                        const SizedBox(height: 10),
+
+                        /// ✅ USER FRIENDLY MESSAGE
+                        Text(
+                          poProvider.error ?? "Something went wrong",
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        /// 🔁 RETRY BUTTON
+                        ElevatedButton(
+                          onPressed: _refreshPOs,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blueAccent,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text("Retry"),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               );
             }
 
-            // ✅ Show empty only after loading finished
+            // ✅ Empty
             if (!poProvider.isLoading && pendingOrders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -73,18 +109,18 @@ class _POPageState extends State<POPage> {
                   Center(
                     child: Text(
                       'No pending purchase orders available.',
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ),
                 ],
               );
             }
 
+            // ✅ DATA UI (FIXED)
             return ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
               controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                // 🔹 Small loader when refreshing
                 if (poProvider.isLoading)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -98,7 +134,6 @@ class _POPageState extends State<POPage> {
                   ),
 
                 POListView(
-                  key: const PageStorageKey("po_list"),
                   purchaseOrders: pendingOrders,
                   scrollController: _scrollController,
                   onStatusChanged: _refreshPOs,

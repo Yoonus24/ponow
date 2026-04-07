@@ -32,7 +32,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   double pendingDiscountAmount = 0.0;
   double pendingTaxAmount = 0.0;
   double pendingOrderAmount = 0.0;
-
+  String? selectedVendorId;
   bool _disposed = false;
   bool isOverallDisabledFromItem = false;
   bool isOverallDiscountActive = false;
@@ -480,11 +480,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   Future<void> fetchAllVendors1() async {
-    if (_vendorsLoading) return;
+    if (_vendorsLoaded) return;
+
     _vendorsLoading = true;
-    await poProvider.fetchingAllVendors();
+
+    await poProvider.fetchingAllVendors(vendorName: '', skip: 0, limit: 5000);
+
     vendorAllList = poProvider.vendorAllList;
+
+    _vendorsLoaded = true;
     _vendorsLoading = false;
+
     safeNotify();
   }
 
@@ -612,7 +618,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void clearSelectedItem() {
     if (_disposed) return;
-
+    _selectedItem = null;
     editingIndex = null;
     itemController.clear();
     uomController.clear();
@@ -648,6 +654,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     if (_disposed) return;
     PurchaseItem foundItem = PurchaseItem(
       itemName: itemName,
+      itemCode: '',
       purchasePrice: 0,
       purchasetaxName: 0,
       uom: '',
@@ -692,9 +699,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   void setSelectedVendor(String? vendorName) {
-    if (_disposed) {
-      return;
-    }
+    if (_disposed) return;
 
     selectedVendor = vendorName;
 
@@ -705,25 +710,22 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         );
 
         selectedVendorDetails = vendor;
+        selectedVendorId = vendor.vendorId; // ✅ IMPORTANT
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_disposed) {
             vendorContactController.text = vendor.contactpersonPhone;
             paymentTermsController.text = vendor.paymentTerms;
             creditLimitController.text = vendor.creditLimit.toString();
-            addressController.text = vendor.address;
-            cityController.text = vendor.city;
-            stateController.text = vendor.state;
-            countryController.text = vendor.country;
-            postalCodeController.text = vendor.postalCode.toString();
-            gstNumberController.text = vendor.gstNumber;
           }
         });
       } catch (e) {
         selectedVendorDetails = null;
+        selectedVendorId = null; // safety
       }
     } else {
       selectedVendorDetails = null;
+      selectedVendorId = null;
     }
 
     safeNotify();
@@ -777,9 +779,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       recalculateFromLoadedPO(notify: false);
     }
 
-    if (_disposed) {
-      return;
-    }
+    if (_disposed) return;
 
     double subTotal = 0.0;
     double totalTax = 0.0;
@@ -798,10 +798,16 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       totalBefTaxDiscount += item.befTaxDiscountAmount ?? 0.0;
       totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
-    if (isOverallDiscountActive) {
-      _itemWiseDiscount = totalBefTaxDiscount;
+
+    /// 🔥 FINAL FIX: BASED ON OVERALL FLAG (NOT ITEM COUNT)
+    bool hasOverallDiscount = isOverallDiscountActive;
+
+    if (hasOverallDiscount) {
+      /// ✅ OVERALL DISCOUNT MODE
+      _itemWiseDiscount = 0.0;
       _overallDiscountAmount = totalAfTaxDiscount;
     } else {
+      /// ✅ ITEM DISCOUNT MODE (even multiple items)
       _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
       _overallDiscountAmount = 0.0;
     }
@@ -813,9 +819,13 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     _calculatedFinalAmount =
         totalFinal + totalFreightAmount + totalFreightTaxAmount + roundOff;
+
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
+
+    /// ✅ IMPORTANT
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
+
     safeNotify();
   }
 
@@ -1069,6 +1079,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       final newPO = PO(
         purchaseOrderId: '',
         vendorName: selectedVendor ?? '',
+        vendorId: selectedVendorId,
         location: selectedLocation,
         locationName: selectedLocationName,
         vendorContact: snapshot["vendorContact"],

@@ -81,31 +81,38 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
 
-    // ✅ FIX: clear immediately before UI builds
+    // ✅ clear immediately before UI builds
     notifier.expectedDeliveryDateController.text = '';
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
 
-      Provider.of<POProvider>(
-        context,
-        listen: false,
-      ).fetchBranches(force: true);
+      // ✅ SAFE: initialize provider here
+      poProvider = Provider.of<POProvider>(context, listen: false);
+
+      // 🔥 preload vendors (FIXED)
+      poProvider.preloadVendors();
+
+      // 🔥 fetch branches
+      poProvider.fetchBranches(force: true);
 
       if (widget.editingPO == null) {
         notifier.poItems.clear();
         notifier.clearSelectedVendor();
         notifier.editingIndex = null;
+
         notifier.vendorContactController.clear();
         notifier.paymentTermsController.clear();
         notifier.creditLimitController.clear();
         notifier.billingController.clear();
         notifier.shippingController.clear();
+
         notifier.clearFreights();
+
         notifier.overallDiscountController.text = '0';
         notifier.roundOffController.text = '0';
 
-        // 🔥 ADD THIS ALSO (important)
+        // ✅ important
         notifier.expectedDeliveryDateController.text = '';
 
         notifier.subTotal = 0.0;
@@ -116,12 +123,16 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         notifier.pendingOrderAmount = 0.0;
         notifier.pendingDiscountAmount = 0.0;
         notifier.pendingTaxAmount = 0.0;
+
         notifier.discountMode.value = DiscountMode.none;
         _overallDiscountMode.value = DiscountMode.none;
         _itemWiseDiscountMode.value = 'Percentage ( % )';
+
         notifier.isOverallDiscountActive = false;
         notifier.isOverallDisabledFromItem = false;
+
         _vendorAutocompleteController.clear();
+
         notifier.calculateTotals();
       }
 
@@ -521,6 +532,12 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         const SnackBar(
           content: Text('Please select a vendor before saving as template'),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating, // 🔥 important
+          margin: EdgeInsets.only(
+            bottom: 80, // 🔥 adjust if needed
+            left: 16,
+            right: 16,
+          ),
         ),
       );
       return;
@@ -587,6 +604,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _editPO(BuildContext context, PO po) {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
     notifier.setEditingPO(po);
+
     showDialog(
       barrierDismissible: false,
       context: context,
@@ -598,19 +616,18 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     ).then((result) async {
       if (!mounted) return;
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          notifier.setEditingPO(null);
-        }
-      });
+      // ✅ direct reset (no need postFrame)
+      notifier.setEditingPO(null);
 
       if (result == true) {
         final poProvider = Provider.of<POProvider>(context, listen: false);
-        await poProvider.fetchPOs();
+
+        // ✅ important fix
+        await poProvider.fetchPendingPOsFromBackend(clearExisting: true);
+
         if (!mounted) return;
-        if (widget.onStatusChanged != null) {
-          widget.onStatusChanged!();
-        }
+
+        widget.onStatusChanged?.call();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -618,7 +635,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
             backgroundColor: Colors.green,
           ),
         );
-      } else {}
+      }
     });
   }
 

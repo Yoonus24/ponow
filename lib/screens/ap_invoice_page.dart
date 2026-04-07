@@ -52,13 +52,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
       }
 
       final poProvider = context.read<POProvider>();
-
-      final vendors = await poProvider.fetchingAllVendors(
-        vendorName: '',
-        skip: 0,
-        limit: 5000,
-      );
-
+      final vendors = poProvider.vendorCache;
       final names = vendors
           .map((e) => e.vendorName ?? '')
           .where((name) => name.isNotEmpty)
@@ -67,8 +61,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
       if (!mounted) return;
 
       _allVendors.value = names;
-
-      print("ALL VENDORS LOADED => ${names.length}");
     });
   }
 
@@ -650,16 +642,47 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                             const AlwaysScrollableScrollPhysics(),
                                         children: [
                                           const SizedBox(height: 200),
+
                                           Center(
                                             child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
                                               children: [
+                                                /// 🔴 ERROR ICON
+                                                const Icon(
+                                                  Icons.error_outline,
+                                                  color: Colors.redAccent,
+                                                  size: 40,
+                                                ),
+
+                                                const SizedBox(height: 12),
+
+                                                /// ✅ MESSAGE
                                                 Text(
-                                                  provider.error!,
+                                                  provider.error ??
+                                                      "Something went wrong",
                                                   style: const TextStyle(
-                                                    fontSize: 15,
-                                                    color: Colors.grey,
+                                                    color: Colors.black87,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                                   textAlign: TextAlign.center,
+                                                ),
+
+                                                const SizedBox(height: 14),
+
+                                                /// 🔁 RETRY BUTTON
+                                                ElevatedButton(
+                                                  onPressed:
+                                                      _applyFilters, // ✅ IMPORTANT
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                        backgroundColor:
+                                                            Colors.blueAccent,
+                                                        foregroundColor:
+                                                            Colors.white,
+                                                      ),
+                                                  child: const Text("Retry"),
                                                 ),
                                               ],
                                             ),

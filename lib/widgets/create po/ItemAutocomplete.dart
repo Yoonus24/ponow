@@ -29,12 +29,9 @@ class ItemAutocomplete extends StatefulWidget {
 
 class _ItemAutocompleteState extends State<ItemAutocomplete> {
   Timer? _debounceTimer;
-  List<String> _allItemNames = [];
   final ValueNotifier<List<String>> _displayedItemsNotifier =
       ValueNotifier<List<String>>([]);
-
   final ValueNotifier<bool> _isLoadingNotifier = ValueNotifier<bool>(false);
-
   final ValueNotifier<bool> _isLoadingMoreNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<String> _queryNotifier = ValueNotifier<String>('');
 
@@ -42,26 +39,51 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   bool _hasMore = true;
   String _currentQuery = '';
   final int _limit = 50;
-
+  bool _isDisposed = false;
   final Map<String, PurchaseItem> _itemCache = {};
   List<PurchaseItem> _allPurchaseItems = [];
 
   @override
   void initState() {
     super.initState();
-    _loadInitialItems();
+    _initialLoad();
   }
 
-  Future<void> _loadInitialItems() async {
-    while (widget.poProvider.purchaseItems.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 50));
+  Future<void> _initialLoad() async {
+    if (_isDisposed) return;
+
+    _isLoadingNotifier.value = true;
+
+    try {
+      await widget.poProvider.preloadAllPurchaseItems();
+
+      if (_isDisposed) return;
+
+      _allPurchaseItems = widget.poProvider.purchaseItems;
+      _displayedItemsNotifier.value = _allPurchaseItems
+          .map((e) => e.itemName ?? '')
+          .toList();
+    } catch (e) {
+      if (_isDisposed) return;
+    } finally {
+      if (_isDisposed) return;
+      _isLoadingNotifier.value = false;
     }
+  }
 
-    _allPurchaseItems = List.from(widget.poProvider.purchaseItems);
+  void _filterItems(String query) {
+    final q = query.toLowerCase().trim();
 
-    _displayedItemsNotifier.value = _allPurchaseItems
-        .map((e) => e.itemName ?? '')
-        .toList();
+    if (q.isEmpty) {
+      _displayedItemsNotifier.value = _allPurchaseItems
+          .map((e) => e.itemName ?? '')
+          .toList();
+    } else {
+      _displayedItemsNotifier.value = _allPurchaseItems
+          .where((item) => (item.itemName ?? '').toLowerCase().contains(q))
+          .map((e) => e.itemName ?? '')
+          .toList();
+    }
   }
 
   void _cacheItems(List<PurchaseItem> items) {
@@ -72,49 +94,21 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     }
   }
 
-  void _searchItems(String query) {
-    final q = query.toLowerCase().trim();
-
-    if (q.isEmpty) {
-      _displayedItemsNotifier.value = _allPurchaseItems
-          .map((e) => e.itemName ?? '')
-          .toList();
-      return;
-    }
-
-    _displayedItemsNotifier.value = _allPurchaseItems
-        .where((item) => (item.itemName ?? '').toLowerCase().contains(q))
-        .map((e) => e.itemName ?? '')
-        .toList();
-  }
-
   Future<void> _loadMoreItems() async {
+    if (_isDisposed) return;
     if (_isLoadingMoreNotifier.value || !_hasMore) return;
 
     _isLoadingMoreNotifier.value = true;
 
     try {
-      await widget.poProvider.searchPurchaseItems(
+      final newItems = await widget.poProvider.searchPurchaseItems(
         query: _currentQuery,
         skip: _skip,
         limit: _limit,
         append: true,
       );
 
-      final fetched = widget.poProvider.purchaseItems;
-
-      if (fetched.isEmpty) {
-        _hasMore = false;
-        return;
-      }
-
-      final existingIds = _allPurchaseItems
-          .map((i) => i.purchaseItemId)
-          .toSet();
-
-      final newItems = fetched
-          .where((item) => !existingIds.contains(item.purchaseItemId))
-          .toList();
+      if (_isDisposed) return;
 
       if (newItems.isEmpty) {
         _hasMore = false;
@@ -122,7 +116,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       }
 
       _cacheItems(newItems);
-
       _allPurchaseItems.addAll(newItems);
 
       final newNames = newItems
@@ -130,19 +123,21 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
           .where((e) => e.isNotEmpty)
           .toList();
 
-      _allItemNames.addAll(newNames);
-
       _displayedItemsNotifier.value = [
         ..._displayedItemsNotifier.value,
         ...newNames,
       ];
 
-      _skip += newItems.length;
-
+      _skip += _limit;
       _hasMore = newItems.length == _limit;
     } catch (e) {
+      if (!_isDisposed) {
+        debugPrint("Load more error: $e");
+      }
     } finally {
-      _isLoadingMoreNotifier.value = false;
+      if (!_isDisposed) {
+        _isLoadingMoreNotifier.value = false;
+      }
     }
   }
 
@@ -167,17 +162,15 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       child: Autocomplete<String>(
         optionsBuilder: (TextEditingValue textEditingValue) {
           final input = textEditingValue.text.trim();
-
-          if (input != _currentQuery) {
-            _searchItems(input);
-          }
-
+          _currentQuery = input;
+          _filterItems(input);
           return _displayedItemsNotifier.value;
         },
 
         onSelected: (selectedItemName) async {
           widget.controller.text = selectedItemName;
           final selectedItem = _findItemByName(selectedItemName);
+
           if (selectedItem != null) {
             widget.notifier.updateItemDetailsFromCache(selectedItem);
             _updateItemDetailsDirectly(selectedItem);
@@ -194,26 +187,24 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                 (item) =>
                     item.itemName?.toLowerCase() ==
                     selectedItemName.toLowerCase(),
-                orElse: () {
-                  return PurchaseItem(
-                    itemName: selectedItemName,
-                    purchasePrice: 0,
-                    purchasetaxName: 0,
-                    uom: '',
-                    purchaseItemId: '',
-                    purchasecategoryName: '',
-                    purchasesubcategoryName: '',
-                    hsnCode: '',
-                  );
-                },
+                orElse: () => PurchaseItem(
+                  itemName: selectedItemName,
+                  itemCode: '',
+                  purchasePrice: 0,
+                  purchasetaxName: 0,
+                  uom: '',
+                  purchaseItemId: '',
+                  purchasecategoryName: '',
+                  purchasesubcategoryName: '',
+                  hsnCode: '',
+                ),
               );
 
               if (foundItem.itemName?.isNotEmpty ?? false) {
                 _itemCache[selectedItemName] = foundItem;
                 _allPurchaseItems.add(foundItem);
-
                 widget.notifier.updateItemDetailsFromCache(foundItem);
-              } else {}
+              }
             } catch (e) {}
           }
 
@@ -242,22 +233,18 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                   decoration: InputDecoration(
                     labelText: 'Select Item*',
                     floatingLabelBehavior: FloatingLabelBehavior.never,
-
                     labelStyle: TextStyle(
                       fontSize: 14,
                       color: Colors.grey.shade800,
                     ),
-
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),
                       borderSide: BorderSide(color: Colors.grey.shade500),
                     ),
-
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8.0),
                       borderSide: BorderSide(color: Colors.grey.shade500),
                     ),
-
                     focusedBorder: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(8.0)),
                       borderSide: BorderSide(
@@ -265,31 +252,25 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                         width: 2.0,
                       ),
                     ),
-
                     contentPadding: const EdgeInsets.symmetric(
                       vertical: 14,
                       horizontal: 12,
                     ),
-
                     filled: true,
                     fillColor: Colors.white,
-
                     suffixIconConstraints: const BoxConstraints(
                       minWidth: 48,
                       minHeight: 40,
                     ),
-
                     suffixIcon: _buildSuffixIcon(
                       textEditingController,
                       focusNode,
                     ),
-
                     errorStyle: TextStyle(
                       fontSize: 12,
                       color: Colors.red.shade700,
                     ),
                   ),
-
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please select an item';
@@ -298,7 +279,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                   },
                   onChanged: (value) {
                     widget.controller.text = value;
-                    _searchItems(value);
                   },
                 ),
               );
@@ -343,7 +323,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                             itemBuilder: (context, index) {
                               if (index < displayedItems.length) {
                                 final option = displayedItems[index];
-
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 14,
@@ -361,7 +340,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                                   ),
                                   onTap: () {
                                     onSelected(option);
-
                                     Future.microtask(() {
                                       FocusManager.instance.primaryFocus
                                           ?.unfocus();
@@ -369,7 +347,6 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                                   },
                                 );
                               }
-
                               return const Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(8.0),
@@ -424,50 +401,68 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       builder: (context, isLoading, _) {
         if (isLoading) {
           return const Padding(
-            padding: EdgeInsets.all(8.0),
+            padding: EdgeInsets.all(10),
             child: SizedBox(
-              width: 16,
               height: 16,
-              child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              width: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           );
         }
 
-        return ValueListenableBuilder<TextEditingValue>(
-          valueListenable: textEditingController,
-          builder: (context, value, __) {
-            if (value.text.isEmpty) {
-              return const SizedBox.shrink();
-            }
+        if (textEditingController.text.isNotEmpty) {
+          return IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () async {
+              textEditingController.clear();
+              widget.controller.clear();
+              widget.onItemSelected('');
 
-            return IconButton(
-              icon: Icon(Icons.clear, size: 20, color: Colors.grey[600]),
-              tooltip: "Clear",
-              onPressed: () {
-                textEditingController.clear();
-                widget.controller.clear();
+              widget.notifier.safeControllerAction(() {
+                widget.notifier.existingPriceController.clear();
+                widget.notifier.newPriceController.clear();
+                widget.notifier.taxPercentageController.clear();
+                widget.notifier.uomController.clear();
+                widget.notifier.eachQuantityController.clear();
+                widget.notifier.quantityController.clear();
+                widget.notifier.befTaxDiscountController.clear();
+                widget.notifier.afTaxDiscountController.clear();
+              });
 
-                _queryNotifier.value = '';
-                _currentQuery = '';
+              _skip = 0;
+              _hasMore = true;
+              _currentQuery = '';
 
-                // reset dropdown list
+              if (!_isDisposed) {
+                _isLoadingNotifier.value = true;
+              }
+
+              try {
+                await widget.poProvider.preloadAllPurchaseItems();
+                if (_isDisposed) return;
+                _allPurchaseItems = widget.poProvider.purchaseItems;
                 _displayedItemsNotifier.value = _allPurchaseItems
                     .map((e) => e.itemName ?? '')
                     .toList();
+              } finally {
+                if (!_isDisposed) {
+                  _isLoadingNotifier.value = false;
+                }
+              }
 
-                widget.onItemSelected('');
+              focusNode.requestFocus();
+            },
+          );
+        }
 
-                focusNode.requestFocus();
-              },
-            );
-          },
-        );
+        return const SizedBox();
       },
     );
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     _debounceTimer?.cancel();
     _displayedItemsNotifier.dispose();
     _isLoadingNotifier.dispose();

@@ -6,6 +6,7 @@ import 'discount_model.dart';
 class PO {
   final String purchaseOrderId;
   final String? vendorName;
+  final String? vendorId;
   final String? vendorContact;
   final String? orderDate;
   final String? orderedDate;
@@ -57,6 +58,7 @@ class PO {
   PO({
     required this.purchaseOrderId,
     this.vendorName,
+    this.vendorId,
     this.newPrice,
     this.vendorContact,
     this.orderDate,
@@ -145,6 +147,7 @@ class PO {
   PO copyWith({
     String? purchaseOrderId,
     String? vendorName,
+    String? vendorId,
     String? vendorContact,
     String? orderDate,
     String? orderedDate,
@@ -194,6 +197,7 @@ class PO {
     return PO(
       purchaseOrderId: purchaseOrderId ?? this.purchaseOrderId,
       vendorName: vendorName ?? this.vendorName,
+      vendorId: vendorId ?? this.vendorId,
       vendorContact: vendorContact ?? this.vendorContact,
       orderDate: orderDate ?? this.orderDate,
       orderedDate: orderedDate ?? this.orderedDate,
@@ -246,6 +250,7 @@ class PO {
   Map<String, dynamic> toJson() => {
     'purchaseOrderId': purchaseOrderId,
     'vendorName': vendorName ?? '',
+    "vendorId": vendorId ?? "",
     'vendorContact': vendorContact ?? '',
     'orderDate': orderDate ?? '',
     'orderedDate': orderedDate ?? '',
@@ -297,6 +302,7 @@ class PO {
   factory PO.fromJson(Map<String, dynamic> json) => PO(
     purchaseOrderId: json['purchaseOrderId'] ?? '',
     vendorName: json['vendorName'] ?? '',
+    vendorId: json['vendorId'] ?? '',
     vendorContact: json['vendorContact'] ?? '',
     orderDate: json['orderDate']?.toString() ?? '',
     orderedDate: json['orderedDate']?.toString() ?? '',

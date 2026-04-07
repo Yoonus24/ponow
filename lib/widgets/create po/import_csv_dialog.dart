@@ -44,9 +44,7 @@ class ImportCSVDialog extends StatelessWidget {
               : [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.blue,
-                    ),
+                    style: TextButton.styleFrom(foregroundColor: Colors.blue),
                     child: const Text(
                       "Cancel",
                       style: TextStyle(fontWeight: FontWeight.w600),
@@ -108,6 +106,14 @@ class ImportCSVDialog extends StatelessWidget {
                     ),
                     backgroundColor: Colors.green,
                     duration: const Duration(seconds: 2),
+
+                    behavior: SnackBarBehavior.floating, 
+
+                    margin: const EdgeInsets.only(
+                      bottom: 80, 
+                      left: 16,
+                      right: 16,
+                    ),
                   ),
                 );
               } else {

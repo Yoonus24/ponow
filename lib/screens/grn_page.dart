@@ -53,11 +53,7 @@ class _GRNPageState extends State<GRNPage> {
         _applyFilters();
       }
 
-      final vendors = await poProvider.fetchingAllVendors(
-        vendorName: '',
-        skip: 0,
-        limit: 5000,
-      );
+      final vendors = poProvider.vendorCache;
 
       _allVendors = vendors.map((e) => e.vendorName).toList();
       // _displayedVendors = List.from(_allVendors);
@@ -435,10 +431,38 @@ class _GRNPageState extends State<GRNPage> {
             children: [
               const SizedBox(height: 200),
               Center(
-                child: Text(
-                  provider.error!,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                  textAlign: TextAlign.center,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Colors.redAccent,
+                        size: 40,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        provider.error ?? "Something went wrong",
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+
+                      /// 🔁 Retry Button
+                      ElevatedButton(
+                        onPressed: _applyFilters,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text("Retry"),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
