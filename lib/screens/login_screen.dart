@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/services/session_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -49,71 +53,113 @@ class _LoginPageState extends State<LoginPage>
     _animationController.forward();
   }
 
-  Future<void> _login() async {
-    FocusScope.of(context).unfocus();
-    _formSubmitted.value = true;
+Future<void> _login() async {
+  FocusScope.of(context).unfocus();
+  _formSubmitted.value = true;
 
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+  if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    _isLoading.value = true;
+  _isLoading.value = true;
 
-    final username = _usernameController.text.trim();
-    final password = _passwordController.text.trim();
+  final username = _usernameController.text.trim();
+  final password = _passwordController.text.trim();
 
-    final prefs = await SharedPreferences.getInstance();
-    final uuid = const Uuid();
+  final prefs = await SharedPreferences.getInstance();
+  final uuid = const Uuid();
 
-    /// ✅ Get or create browser_session_id
-    String? browserSessionId = prefs.getString('browser_session_id');
+  /// ✅ Get or create browser_session_id
+  String? browserSessionId = prefs.getString('browser_session_id');
 
-    if (browserSessionId == null) {
-      browserSessionId = uuid.v4();
-      await prefs.setString('browser_session_id', browserSessionId);
-    }
-
-    try {
-      /// 🔥 DIRECT LOGIN (no session check)
-      final result = await AuthService.login(
-        username: username,
-        password: password,
-        browserSessionId: browserSessionId,
-      );
-
-      _isLoading.value = false;
-
-      if (result != null) {
-        /// ✅ Start session timer
-        SessionService.start();
-
-        /// ✅ Navigate to home
-        Navigator.pushReplacementNamed(
-          context,
-          '/home',
-          arguments: {"loginSuccess": true},
-        );
-      }
-    } catch (e) {
-      _isLoading.value = false;
-
-      String message = "Something went wrong";
-
-      if (e.toString().contains("SESSION_EXISTS")) {
-        message = "Already logged in another device";
-      } else if (e.toString().contains("INVALID_CREDENTIALS")) {
-        message = "Invalid username or password";
-      } else if (e.toString().contains("LOGIN_FAILED")) {
-        message = "Login failed. Please try again";
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
+  if (browserSessionId == null) {
+    browserSessionId = uuid.v4();
+    await prefs.setString('browser_session_id', browserSessionId);
   }
+
+  try {
+    /// 🔥 LOGIN API CALL
+    final result = await AuthService.login(
+      username: username,
+      password: password,
+      browserSessionId: browserSessionId,
+    );
+
+    print("🔥 LOGIN RESULT FULL:");
+    print(result);
+
+    print("🔥 ROLE:");
+    print(result?['role_name']);
+
+    print("🔥 PERMISSIONS:");
+    print(result?['permissions']);
+
+    _isLoading.value = false;
+
+    if (result != null) {
+      /// ✅ Start session
+      SessionService.start();
+
+      /// ✅ Save role
+      await prefs.setString('role', result['role_name'] ?? '');
+
+      /// ✅ Save permissions
+      await prefs.setString(
+        'permissions',
+        jsonEncode(result['permissions'] ?? {}),
+      );
+
+      print("💾 SAVED PERMISSIONS:");
+      print(jsonEncode(result['permissions']));
+
+      /// ✅ Verify from storage
+      final savedPermissions = prefs.getString('permissions');
+      print("📦 FROM STORAGE:");
+      print(savedPermissions);
+
+      /// 🔥 IMPORTANT: Load into Provider (if using)
+      try {
+        final permissionProvider =
+            Provider.of<PermissionProvider>(context, listen: false);
+
+        await permissionProvider.loadPermissions();
+
+        print("🧠 PROVIDER PERMISSIONS:");
+        print(permissionProvider.permissions);
+      } catch (e) {
+        print("⚠️ Provider not loaded: $e");
+      }
+
+      /// ✅ Navigate
+      Navigator.pushReplacementNamed(
+        context,
+        '/home',
+        arguments: {"loginSuccess": true},
+      );
+    }
+  } catch (e) {
+    _isLoading.value = false;
+
+    print("❌ LOGIN ERROR:");
+    print(e);
+
+    String message = "Something went wrong";
+
+    if (e.toString().contains("SESSION_EXISTS")) {
+      message = "Already logged in another device";
+    } else if (e.toString().contains("INVALID_CREDENTIALS")) {
+      message = "Invalid username or password";
+    } else if (e.toString().contains("LOGIN_FAILED")) {
+      message = "Login failed. Please try again";
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+}
 
   void _togglePasswordVisibility() {
     _obscurePassword.value = !_obscurePassword.value;

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/models/po_template.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
@@ -302,32 +303,59 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   }
 
   Widget _buildSaveButton() {
-    return SizedBox(
-      width: 130,
-      height: 45,
-      child: ElevatedButton(
-        onPressed: () async {
-          if (!_shouldHandleTap('saveOrder')) return;
-          await logic.savePurchaseOrder(
-            vendorSectionKey: _vendorSectionKey,
-            billingSectionKey: _billingSectionKey,
-            itemsSectionKey: _itemsSectionKey,
-          );
+    return Consumer<PermissionProvider>(
+      builder: (context, permission, child) {
+        /// 🔥 CHECK PERMISSION
+        bool canSave = permission.hasPermission(
+          "yenerp",
+          "purchaseorders_pending",
+          "add",
+        );
 
-          if (!mounted || _isDisposed) return;
-        },
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.blueAccent,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30.0),
+        /// ❌ Hide button if no permission
+        if (!canSave) {
+          return SizedBox();
+        }
+
+        return SizedBox(
+          width: 130,
+          height: 45,
+          child: ElevatedButton(
+            onPressed: () async {
+              if (!_shouldHandleTap('saveOrder')) return;
+
+              /// 🔥 DOUBLE CHECK (IMPORTANT)
+              if (!permission.hasPermission(
+                "yenerp",
+                "purchaseorders_pending",
+                "add",
+              )) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text("Access Denied")));
+                return;
+              }
+
+              await logic.savePurchaseOrder(
+                vendorSectionKey: _vendorSectionKey,
+                billingSectionKey: _billingSectionKey,
+                itemsSectionKey: _itemsSectionKey,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(30.0),
+              ),
+            ),
+            child: Text(
+              widget.editingPO != null ? 'Update Order' : 'Save Order',
+              style: const TextStyle(fontSize: 16),
+            ),
           ),
-        ),
-        child: Text(
-          widget.editingPO != null ? 'Update Order' : 'Save Order',
-          style: const TextStyle(fontSize: 16),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -590,6 +618,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _showAddItemDialog(BuildContext context) async {
     await showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AddItemDialog(
         onItemAdded: () {
           if (!mounted || _isDisposed) return;

@@ -20,7 +20,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     await DioClient.init();
   }
 
-  final String _baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
+  // final String _baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
   List<GRN> _grnList = [];
@@ -103,7 +103,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   Future<void> fetchGrnList() async {
     try {
       final response = await DioClient.dio.get(
-        '$_baseUrl/grns/getAll',
+        '/grns/getAll',
         options: Options(validateStatus: (status) => (status ?? 500) < 500),
       );
 
@@ -125,7 +125,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       }
 
       final response = await DioClient.dio.get(
-        '$_baseUrl/apinvoices/getAll',
+        '/apinvoices/getAll',
         options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
 
@@ -176,7 +176,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
     try {
       final response = await DioClient.dio.get(
-        '$_baseUrl/outgoingpayments/outgoing/getAll',
+        '/outgoingpayments/outgoing/getAll',
         queryParameters: {
           'status': 'active,Pending,Partially Paid',
           'limit': 500,
@@ -274,7 +274,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       };
 
       final response = await DioClient.dio.get(
-        '$_baseUrl/outgoingpayments',
+        '/outgoingpayments',
         queryParameters: queryParams,
         options: Options(validateStatus: (s) => (s ?? 500) < 500),
       );
@@ -331,7 +331,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
     try {
       final response = await DioClient.dio.get(
-        '$_baseUrl/outgoingpayments/outgoing/getAll',
+        '/outgoingpayments/outgoing/getAll',
         queryParameters: {
           if (fromDate != null)
             'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
@@ -368,7 +368,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       data['createdDate'] = ServerTimeService.now.toIso8601String();
 
       final response = await DioClient.dio.post(
-        '$_baseUrl/outgoingpayments/',
+        '/outgoingpayments/',
         data: data,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -397,7 +397,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         print('[API] Processing payment for ID: $outgoingId');
       }
       final response = await DioClient.dio.post(
-        '$_baseUrl/outgoingpayments/$outgoingId/process',
+        '/outgoingpayments/$outgoingId/process',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -493,7 +493,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       }
 
       final response = await DioClient.dio.patch(
-        '$_baseUrl/outgoingpayments/$outgoingId/payment',
+        '/outgoingpayments/$outgoingId/payment',
         data: requestData,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
@@ -645,7 +645,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       debugPrint('✅ BULK REQUEST => $requestData');
 
       final response = await DioClient.dio.patch(
-        '$_baseUrl/outgoingpayments/bulk/bulk-payment',
+        '/outgoingpayments/bulk/bulk-payment',
         data: requestData,
         options: Options(
           headers: {'Content-Type': 'application/json'},

@@ -7,8 +7,7 @@ bool _isRedirecting = false;
 
 class DioClient {
   static const String baseUrl = "http://192.168.29.184:8000/purchasetestapi";
-
-  static const String domain = "localhost:3001"; 
+  static const String domain = "localhost:3000";
 
   static final Dio dio = Dio(
     BaseOptions(
@@ -32,25 +31,39 @@ class DioClient {
             options.headers["Authorization"] = "Bearer $token";
           }
 
-          // (Tenant identification)
           options.headers["x-domain"] = domain;
 
+          /// 🔥 DEBUG PRINTS
           print("➡️ API CALL: ${options.method} ${options.path}");
           print("🔐 TOKEN: $token");
           print("🌐 DOMAIN: ${options.headers["x-domain"]}");
           print("📦 HEADERS: ${options.headers}");
+          print("📨 REQUEST DATA: ${options.data}");
 
           return handler.next(options);
+        },
+
+        onResponse: (response, handler) {
+          /// 🔥 RESPONSE DEBUG
+          print("✅ RESPONSE: ${response.requestOptions.path}");
+          print("📥 STATUS: ${response.statusCode}");
+          print("📦 DATA: ${response.data}");
+
+          return handler.next(response);
         },
 
         onError: (e, handler) async {
           final path = e.requestOptions.path;
 
+          print("❌ ERROR API: $path");
+          print("❌ STATUS: ${e.response?.statusCode}");
+          print("❌ MESSAGE: ${e.message}");
+          print("❌ DATA: ${e.response?.data}");
+
           if (path.contains("/login")) {
             return handler.next(e);
           }
 
-          // Handle session expiry
           if (e.response?.statusCode == 401 && !_isRedirecting) {
             _isRedirecting = true;
 

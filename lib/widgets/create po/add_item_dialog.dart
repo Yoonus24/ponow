@@ -54,6 +54,15 @@ class _AddItemDialogState extends State<AddItemDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
 
+      final notifier = Provider.of<PurchaseOrderNotifier>(
+        context,
+        listen: false,
+      );
+
+      notifier.itemController.clear();
+      notifier.uomController.clear();
+      _clearItemDetails();
+
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
       if (!poProvider.itemsLoaded) {
@@ -415,7 +424,20 @@ class _AddItemDialogState extends State<AddItemDialog> {
                     ),
                     IconButton(
                       icon: Icon(Icons.close, size: isMobile ? 20 : 22),
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () {
+                        _poNotifier.isOverallDisabledFromItem = false;
+
+                        final notifier = Provider.of<PurchaseOrderNotifier>(
+                          context,
+                          listen: false,
+                        );
+
+                        notifier.itemController.clear();
+                        notifier.uomController.clear();
+                        _clearItemDetails();
+
+                        Navigator.pop(context);
+                      },
                     ),
                   ],
                 ),
@@ -1087,12 +1109,19 @@ class _AddItemDialogState extends State<AddItemDialog> {
           final existingItem = notifier.poItems[existingIndex];
 
           final newQty = (existingItem.quantity ?? 0) + (newItem.quantity ?? 0);
-
           final newCount = (existingItem.count ?? 0) + (newItem.count ?? 0);
 
+          // ✅ UPDATE ALL RELATED VALUES
           existingItem.quantity = newQty;
           existingItem.count = newCount;
+
           existingItem.pendingTotalQuantity = newQty;
+          existingItem.pendingCount = newCount;
+
+          // 🔥 IMPORTANT
+          existingItem.pendingQuantity =
+              newQty / (newCount == 0 ? 1 : newCount);
+
           existingItem.newPrice = newItem.newPrice;
         } else {
           notifier.poItems.add(newItem);

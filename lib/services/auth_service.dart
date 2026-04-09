@@ -5,7 +5,7 @@ import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/session_service.dart';
 
 class AuthService {
-  static const String domain = "localhost:3001";
+  static const String domain = "localhost:3000";
 
   // 🔐 LOGIN
   static Future<Map<String, dynamic>?> login({
@@ -33,13 +33,19 @@ class AuthService {
           },
         ),
       );
-
+      print(response.data);
       final data = response.data;
 
       final prefs = await SharedPreferences.getInstance();
 
       await prefs.setString('token', data['access_token']);
       await prefs.setString('username', data['username']);
+      await prefs.setString('role', data['role_name'] ?? '');
+      await prefs.setString(
+        'permissions',
+        jsonEncode(data['permissions'] ?? {}),
+      );
+
       await prefs.setString('browser_session_id', browserSessionId);
 
       return data;
