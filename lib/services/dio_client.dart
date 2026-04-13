@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 bool _isRedirecting = false;
 
 class DioClient {
-  static const String baseUrl = "http://192.168.29.184:8000/purchasetestapi";
+  static const String baseUrl = "http://192.168.29.184:8000/purchasetestapi/";
   static const String domain = "localhost:3000";
 
   static final Dio dio = Dio(
@@ -32,33 +32,15 @@ class DioClient {
           }
 
           options.headers["x-domain"] = domain;
-
-          /// 🔥 DEBUG PRINTS
-          print("➡️ API CALL: ${options.method} ${options.path}");
-          print("🔐 TOKEN: $token");
-          print("🌐 DOMAIN: ${options.headers["x-domain"]}");
-          print("📦 HEADERS: ${options.headers}");
-          print("📨 REQUEST DATA: ${options.data}");
-
           return handler.next(options);
         },
 
         onResponse: (response, handler) {
-          /// 🔥 RESPONSE DEBUG
-          print("✅ RESPONSE: ${response.requestOptions.path}");
-          print("📥 STATUS: ${response.statusCode}");
-          print("📦 DATA: ${response.data}");
-
           return handler.next(response);
         },
 
         onError: (e, handler) async {
           final path = e.requestOptions.path;
-
-          print("❌ ERROR API: $path");
-          print("❌ STATUS: ${e.response?.statusCode}");
-          print("❌ MESSAGE: ${e.message}");
-          print("❌ DATA: ${e.response?.data}");
 
           if (path.contains("/login")) {
             return handler.next(e);
@@ -66,9 +48,6 @@ class DioClient {
 
           if (e.response?.statusCode == 401 && !_isRedirecting) {
             _isRedirecting = true;
-
-            print("🚨 Session expired");
-            print("❌ Failed API: ${e.requestOptions.path}");
 
             Future.delayed(const Duration(milliseconds: 300), () {
               _showSessionExpiredDialog();
@@ -89,7 +68,6 @@ class DioClient {
     final context = NavigationService.navigatorKey.currentContext;
 
     if (context == null) {
-      print("❌ Dialog failed: context is null");
       return;
     }
 

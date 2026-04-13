@@ -54,7 +54,7 @@ class PO {
   List<FreightData>? freights;
   double? totalFreightAmount;
   double? totalFreightTaxAmount;
-
+  final List<String>? termsandConditions;
   PO({
     required this.purchaseOrderId,
     this.vendorName,
@@ -105,6 +105,7 @@ class PO {
     this.freights,
     this.totalFreightAmount,
     this.totalFreightTaxAmount,
+    this.termsandConditions,
   }) : items = items ?? [];
 
   double get subTotal {
@@ -193,6 +194,7 @@ class PO {
     List<FreightData>? freights,
     double? totalFreightAmount,
     double? totalFreightTaxAmount,
+    List<String>? termsandConditions,
   }) {
     return PO(
       purchaseOrderId: purchaseOrderId ?? this.purchaseOrderId,
@@ -244,6 +246,7 @@ class PO {
       totalFreightAmount: totalFreightAmount ?? this.totalFreightAmount,
       totalFreightTaxAmount:
           totalFreightTaxAmount ?? this.totalFreightTaxAmount,
+      termsandConditions: termsandConditions ?? this.termsandConditions,
     );
   }
 
@@ -297,6 +300,7 @@ class PO {
     "freights": freights?.map((f) => f.toJson()).toList() ?? [],
     "totalFreightAmount": totalFreightAmount ?? 0.0,
     "totalFreightTaxAmount": totalFreightTaxAmount ?? 0.0,
+    'termsandConditions': termsandConditions ?? [],
   };
 
   factory PO.fromJson(Map<String, dynamic> json) => PO(
@@ -361,6 +365,11 @@ class PO {
         [],
     totalFreightAmount: (json["totalFreightAmount"] ?? 0.0).toDouble(),
     totalFreightTaxAmount: (json["totalFreightTaxAmount"] ?? 0.0).toDouble(),
+    termsandConditions:
+        (json['termsandConditions'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        [],
   );
 
   String get formattedOrderDate {

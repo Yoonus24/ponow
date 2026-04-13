@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,9 +7,12 @@ import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/session_service.dart';
 
 class AuthService {
+  // IMPORTANT: match this with backend expectation
   static const String domain = "localhost:3000";
 
-  // 🔐 LOGIN
+  /// =========================
+  /// LOGIN
+  /// =========================
   static Future<Map<String, dynamic>?> login({
     required String username,
     required String password,
@@ -33,8 +38,9 @@ class AuthService {
           },
         ),
       );
-      print(response.data);
+
       final data = response.data;
+      print("✅ LOGIN RESPONSE: $data");
 
       final prefs = await SharedPreferences.getInstance();
 
@@ -45,7 +51,6 @@ class AuthService {
         'permissions',
         jsonEncode(data['permissions'] ?? {}),
       );
-
       await prefs.setString('browser_session_id', browserSessionId);
 
       return data;
@@ -68,7 +73,9 @@ class AuthService {
     }
   }
 
-  // 🔓 LOGOUT
+  /// =========================
+  /// LOGOUT
+  /// =========================
   static Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -81,40 +88,69 @@ class AuthService {
         ),
       );
     } catch (e) {
-      print("⚠️ Logout API error: $e");
+      print("❌ Logout failed: $e");
+
+      // Do NOT clear session if backend logout fails
+      throw Exception("LOGOUT_FAILED");
     }
 
-    // 🔥 Stop session timer
+    // Stop session ping
     SessionService.stop();
 
+    //  Clear local session
     await clearSession();
   }
 
-  // 🔁 KEEP SESSION ALIVE
+  /// =========================
+  /// KEEP SESSION ALIVE (PING)
+  /// =========================
   static Future<void> ping() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final browserId = prefs.getString('browser_session_id');
+      final token = prefs.getString('token');
+
+      print("🔄 PING START");
+      print("TOKEN: $token");
+      print("BROWSER ID: $browserId");
+
       await DioClient.dio.post(
         "/ping",
-        options: Options(headers: {"x-domain": domain}),
+        options: Options(
+          headers: {
+            "x-domain": domain,
+            "x-browser-session-id": browserId,
+            // Authorization handled by interceptor
+          },
+        ),
       );
+
+      print("✅ PING SUCCESS");
     } catch (e) {
-      print("❌ Ping failed: $e");
-      rethrow; // important → interceptor handle pannum
+      // ❌ Do NOT logout here
+      print("⚠️ Ping failed, ignoring: $e");
     }
   }
 
-  // ✅ CHECK LOGIN STATE
+  /// =========================
+  /// CHECK LOGIN STATE
+  /// =========================
   static Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token') != null;
   }
 
-  // 🧹 CLEAR SESSION
+  /// =========================
+  /// CLEAR SESSION (LOCAL)
+  /// =========================
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
 
+    await prefs.remove('permissions');
     await prefs.remove('token');
     await prefs.remove('username');
     await prefs.remove('browser_session_id');
+
+    print("🧹 Session cleared");
   }
 }

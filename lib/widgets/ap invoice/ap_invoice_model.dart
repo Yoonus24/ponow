@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/widgets/column_filter.dart';
 import '../../providers/ap_invoice_provider.dart';
 import 'package:provider/provider.dart';
@@ -104,6 +105,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     super.initState();
 
     columnOrderNotifier = ValueNotifier<List<String>>([
+      'S.No',
       'Item Name',
       'UOM',
       'Count',
@@ -135,6 +137,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
   }
 
   final Map<String, double> columnWidths = {
+    'S.No': 40,
     'Item Name': 130,
     'UOM': 70,
     'Count': 70,
@@ -206,14 +209,22 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
             width: columnWidths[column] ?? 120,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: _buildCellContent(column, item),
+            child: _buildCellContent(column, item, index),
           );
         }).toList(),
       ),
     );
   }
 
-  Widget _buildCellContent(String column, dynamic item) {
+  Widget _buildCellContent(String column, dynamic item, int index) {
+    if (column == 'S.No') {
+      return Text(
+        '${index + 1}',
+        style: const TextStyle(fontSize: 14),
+        textAlign: TextAlign.center,
+      );
+    }
+
     final renderer = cellRenderers[column];
     if (renderer != null) {
       return Align(alignment: Alignment.center, child: renderer(item));
@@ -223,6 +234,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.read<PermissionProvider>();
     final outgoingProvider = context.read<OutgoingPaymentProvider>();
 
     final hasOutgoing = outgoingProvider.allPayments.any(
@@ -243,8 +255,11 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     final double totalDiscount = (widget.apinvoice.discountDetails ?? 0.0);
 
     final apStatus = (widget.apinvoice.status ?? '').toLowerCase().trim();
-    final canReturn = apStatus.isNotEmpty && !apStatus.contains('returned');
-
+    final canReturn =
+        apStatus.isNotEmpty &&
+        !apStatus.contains('returned') &&
+        permission.hasPermission('grns', '', 'edit') &&
+        permission.hasEditAction('grns', 'return_grn');
     double totalSgst = 0.0, totalCgst = 0.0;
     for (var item in items) {
       totalSgst += (item.sgst ?? 0.0);
@@ -270,7 +285,9 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                         .toList();
 
                     final rightColumns = visibleColumns
-                        .where((column) => column != 'Item Name')
+                        .where(
+                          (column) => column != 'Item Name' && column != 'S.No',
+                        )
                         .toList();
 
                     return Column(
@@ -343,51 +360,95 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                         Expanded(
                           child: Row(
                             children: [
+                              /// 🔥 LEFT SIDE (S.No + Item Name)
                               SizedBox(
-                                width: columnWidths['Item Name'],
+                                width:
+                                    columnWidths['S.No']! +
+                                    columnWidths['Item Name']!,
                                 child: Column(
                                   children: [
-                                    Container(
-                                      height: 40,
-                                      alignment: Alignment.center,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 5,
-                                      ),
-                                      color: Colors.grey[200],
-                                      child: const Text(
-                                        "Item Name",
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
+                                    /// HEADER
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: columnWidths['S.No'],
+                                          height: 40,
+                                          alignment: Alignment.center,
+                                          color: Colors.grey[200],
+                                          child: const Text(
+                                            "S.No",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        Container(
+                                          width: columnWidths['Item Name'],
+                                          height: 40,
+                                          alignment:
+                                              Alignment.centerLeft, // ✅ FIX
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ), // ✅ spacing
+                                          color: Colors.grey[200],
+                                          child: const Text(
+                                            "Item Name",
+                                            textAlign: TextAlign
+                                                .left, // ✅ optional but better
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
 
+                                    /// BODY (ONE ListView only ✅)
                                     Expanded(
                                       child: ListView.builder(
                                         controller: _leftVerticalController,
                                         itemCount: items.length,
                                         itemBuilder: (context, index) {
-                                          return Container(
-                                            height: 45,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                            ),
-                                            alignment: Alignment.center,
-                                            decoration: const BoxDecoration(
-                                              border: Border(
-                                                bottom: BorderSide(
-                                                  color: Colors.grey,
-                                                  width: 0.5,
+                                          return Row(
+                                            children: [
+                                              Container(
+                                                width: columnWidths['S.No'],
+                                                height: 45,
+                                                alignment: Alignment.center,
+                                                decoration: const BoxDecoration(
+                                                  border: Border(
+                                                    bottom: BorderSide(
+                                                      color: Colors.grey,
+                                                      width: 0.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Text('${index + 1}'),
+                                              ),
+                                              Container(
+                                                width:
+                                                    columnWidths['Item Name'],
+                                                height: 45,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
+                                                alignment: Alignment.centerLeft,
+                                                decoration: const BoxDecoration(
+                                                  border: Border(
+                                                    bottom: BorderSide(
+                                                      color: Colors.grey,
+                                                      width: 0.5,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  items[index].itemName ?? '',
                                                 ),
                                               ),
-                                            ),
-                                            child: Text(
-                                              items[index].itemName ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                              ),
-                                            ),
+                                            ],
                                           );
                                         },
                                       ),
@@ -396,39 +457,35 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                 ),
                               ),
 
+                              /// 🔥 RIGHT SIDE (SCROLLABLE)
                               Expanded(
-                                child: ScrollConfiguration(
-                                  behavior: ScrollConfiguration.of(
-                                    context,
-                                  ).copyWith(scrollbars: false),
-                                  child: SingleChildScrollView(
-                                    controller: _rightHorizontalController,
-                                    scrollDirection: Axis.horizontal,
-                                    child: SizedBox(
-                                      width: rightColumns.fold<double>(
-                                        0.0,
-                                        (sum, col) =>
-                                            sum + (columnWidths[col] ?? 120),
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          _buildHeaderRow(rightColumns),
-                                          Expanded(
-                                            child: ListView.builder(
-                                              controller:
-                                                  _rightVerticalController,
-                                              itemCount: items.length,
-                                              itemBuilder: (context, index) {
-                                                return _buildItemRow(
-                                                  items[index],
-                                                  index,
-                                                  rightColumns,
-                                                );
-                                              },
-                                            ),
+                                child: SingleChildScrollView(
+                                  controller: _rightHorizontalController,
+                                  scrollDirection: Axis.horizontal,
+                                  child: SizedBox(
+                                    width: rightColumns.fold<double>(
+                                      0.0,
+                                      (sum, col) =>
+                                          sum + (columnWidths[col] ?? 120),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        _buildHeaderRow(rightColumns),
+                                        Expanded(
+                                          child: ListView.builder(
+                                            controller:
+                                                _rightVerticalController,
+                                            itemCount: items.length,
+                                            itemBuilder: (context, index) {
+                                              return _buildItemRow(
+                                                items[index],
+                                                index,
+                                                rightColumns,
+                                              );
+                                            },
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -484,165 +541,177 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            if (canReturn)
-                              Expanded(
-                                child: SizedBox(
-                                  height: 40,
-                                  child: ElevatedButton(
-                                    onPressed: () async {
-                                      final shouldReturn = await showDialog<bool>(
-                                        context: context,
-                                        barrierDismissible: false,
-                                        builder: (context) {
-                                          return ValueListenableBuilder<bool>(
-                                            valueListenable: _isReturning,
-                                            builder: (context, returning, _) {
-                                              return AlertDialog(
-                                                backgroundColor: Colors.white,
-                                                title: const Text(
-                                                  "Confirm Return",
-                                                ),
-                                                content: const Text(
-                                                  "Are you sure you want to return this GRN?",
-                                                ),
-                                                actions: [
-                                                  ElevatedButton(
-                                                    onPressed: returning
-                                                        ? null
-                                                        : () => Navigator.of(
-                                                            context,
-                                                          ).pop(false),
-                                                    style:
-                                                        ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              Colors.blueAccent,
-                                                          foregroundColor:
-                                                              Colors.white,
-                                                        ),
-                                                    child: const Text("Cancel"),
-                                                  ),
-
-                                                  ElevatedButton(
-                                                    onPressed: returning
-                                                        ? null
-                                                        : () async {
-                                                            _isReturning.value =
-                                                                true;
-
-                                                            try {
-                                                              await context
-                                                                  .read<
-                                                                    APInvoiceProvider
-                                                                  >()
-                                                                  .convertToGrnFromApReturned(
-                                                                    widget
-                                                                            .apinvoice
-                                                                            .invoiceId ??
-                                                                        '',
+                            Expanded(
+                              child: SizedBox(
+                                height: 40,
+                                child: ElevatedButton(
+                                  onPressed: canReturn
+                                      ? () async {
+                                          final shouldReturn = await showDialog<bool>(
+                                            context: context,
+                                            barrierDismissible: false,
+                                            builder: (context) {
+                                              return ValueListenableBuilder<
+                                                bool
+                                              >(
+                                                valueListenable: _isReturning,
+                                                builder: (context, returning, _) {
+                                                  return AlertDialog(
+                                                    backgroundColor:
+                                                        Colors.white,
+                                                    title: const Text(
+                                                      "Confirm Return",
+                                                    ),
+                                                    content: const Text(
+                                                      "Are you sure you want to return this GRN?",
+                                                    ),
+                                                    actions: [
+                                                      ElevatedButton(
+                                                        onPressed: returning
+                                                            ? null
+                                                            : () =>
+                                                                  Navigator.of(
                                                                     context,
-                                                                  );
-
-                                                              if (context
-                                                                  .mounted) {
-                                                                Navigator.of(
-                                                                  context,
-                                                                ).pop(true);
-                                                              }
-                                                            } catch (e) {
-                                                              _isReturning
-                                                                      .value =
-                                                                  false;
-
-                                                              if (context
-                                                                  .mounted) {
-                                                                ScaffoldMessenger.of(
-                                                                  context,
-                                                                ).showSnackBar(
-                                                                  SnackBar(
-                                                                    content: Text(
-                                                                      'Return failed: $e',
-                                                                    ),
-                                                                    backgroundColor:
-                                                                        Colors
-                                                                            .red,
-                                                                  ),
-                                                                );
-                                                              }
-                                                            }
-                                                          },
-                                                    style:
-                                                        ElevatedButton.styleFrom(
-                                                          backgroundColor:
-                                                              Colors.blueAccent,
-                                                          foregroundColor:
-                                                              Colors.white,
+                                                                  ).pop(false),
+                                                        style:
+                                                            ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  Colors
+                                                                      .blueAccent,
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                            ),
+                                                        child: const Text(
+                                                          "Cancel",
                                                         ),
-                                                    child: returning
-                                                        ? const SizedBox(
-                                                            height: 18,
-                                                            width: 18,
-                                                            child:
-                                                                CircularProgressIndicator(
+                                                      ),
+
+                                                      ElevatedButton(
+                                                        onPressed: returning
+                                                            ? null
+                                                            : () async {
+                                                                _isReturning
+                                                                        .value =
+                                                                    true;
+
+                                                                try {
+                                                                  await context
+                                                                      .read<
+                                                                        APInvoiceProvider
+                                                                      >()
+                                                                      .convertToGrnFromApReturned(
+                                                                        widget.apinvoice.invoiceId ??
+                                                                            '',
+                                                                        context,
+                                                                      );
+
+                                                                  if (context
+                                                                      .mounted) {
+                                                                    Navigator.of(
+                                                                      context,
+                                                                    ).pop(true);
+                                                                  }
+                                                                } catch (e) {
+                                                                  _isReturning
+                                                                          .value =
+                                                                      false;
+
+                                                                  if (context
+                                                                      .mounted) {
+                                                                    ScaffoldMessenger.of(
+                                                                      context,
+                                                                    ).showSnackBar(
+                                                                      SnackBar(
+                                                                        content:
+                                                                            Text(
+                                                                              'Return failed: $e',
+                                                                            ),
+                                                                        backgroundColor:
+                                                                            Colors.red,
+                                                                      ),
+                                                                    );
+                                                                  }
+                                                                }
+                                                              },
+                                                        style:
+                                                            ElevatedButton.styleFrom(
+                                                              backgroundColor:
+                                                                  Colors
+                                                                      .blueAccent,
+                                                              foregroundColor:
+                                                                  Colors.white,
+                                                            ),
+                                                        child: returning
+                                                            ? const SizedBox(
+                                                                height: 18,
+                                                                width: 18,
+                                                                child: CircularProgressIndicator(
                                                                   strokeWidth:
                                                                       2,
                                                                   color: Colors
                                                                       .white,
                                                                 ),
-                                                          )
-                                                        : const Text("Confirm"),
-                                                  ),
-                                                ],
+                                                              )
+                                                            : const Text(
+                                                                "Confirm",
+                                                              ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                },
                                               );
                                             },
                                           );
-                                        },
-                                      );
 
-                                      if (shouldReturn == true &&
-                                          context.mounted) {
-                                        await context
-                                            .read<APInvoiceProvider>()
-                                            .convertToGrnFromApReturned(
-                                              widget.apinvoice.invoiceId ?? '',
-                                              context,
-                                            );
+                                          if (shouldReturn == true &&
+                                              context.mounted) {
+                                            await context
+                                                .read<APInvoiceProvider>()
+                                                .convertToGrnFromApReturned(
+                                                  widget.apinvoice.invoiceId ??
+                                                      '',
+                                                  context,
+                                                );
 
-                                        _isReturning.value = false;
-                                        if (context.mounted) {
-                                          Navigator.of(context).pop(true);
+                                            _isReturning.value = false;
+
+                                            if (context.mounted) {
+                                              Navigator.of(context).pop(true);
+                                            }
+                                          }
                                         }
-                                      }
-                                    },
+                                      : null, // 🔥 THIS LINE DISABLES BUTTON
 
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blueAccent,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: _isReturning,
-                                      builder: (context, returning, _) {
-                                        return returning
-                                            ? const SizedBox(
-                                                height: 16,
-                                                width: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : const Text(
-                                                'Return to GRN',
-                                                style: TextStyle(fontSize: 12),
-                                              );
-                                      },
-                                    ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: canReturn
+                                        ? Colors.blueAccent
+                                        : Colors.grey, // disabled color
+                                    foregroundColor: Colors.white,
+                                  ),
+
+                                  child: ValueListenableBuilder<bool>(
+                                    valueListenable: _isReturning,
+                                    builder: (context, returning, _) {
+                                      return returning
+                                          ? const SizedBox(
+                                              height: 16,
+                                              width: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Text(
+                                              'Return to GRN',
+                                              style: TextStyle(fontSize: 12),
+                                            );
+                                    },
                                   ),
                                 ),
                               ),
+                            ),
 
-                            if (canReturn) const SizedBox(width: 10),
-
+                            const SizedBox(width: 10),
                             Expanded(
                               child: SizedBox(
                                 height: 40,

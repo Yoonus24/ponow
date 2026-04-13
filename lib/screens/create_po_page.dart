@@ -47,7 +47,6 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   final ValueNotifier<bool> _refreshUI = ValueNotifier(false);
   bool _isDisposed = false;
   bool _logicInitialized = false;
-
   late PurchaseOrderNotifier notifier;
   late POProvider poProvider;
   late TemplateProvider templateProvider;
@@ -59,7 +58,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
   final Map<String, DateTime> _lastTapTime = {};
   final Duration _tapThrottleDuration = const Duration(milliseconds: 300);
-
+  final ValueNotifier<bool> _isSaving = ValueNotifier(false);
   final ValueNotifier<double> _totalOrderAmount = ValueNotifier(0.0);
   final ValueNotifier<String> _itemWiseDiscountMode = ValueNotifier(
     'Percentage ( % )',
@@ -82,19 +81,19 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
     notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
 
-    // ✅ clear immediately before UI builds
+    // clear immediately before UI builds
     notifier.expectedDeliveryDateController.text = '';
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _isDisposed) return;
 
-      // ✅ SAFE: initialize provider here
+      // initialize provider here
       poProvider = Provider.of<POProvider>(context, listen: false);
 
-      // 🔥 preload vendors (FIXED)
+      //  preload vendors (FIXED)
       poProvider.preloadVendors();
 
-      // 🔥 fetch branches
+      // fetch branches
       poProvider.fetchBranches(force: true);
 
       if (widget.editingPO == null) {
@@ -113,7 +112,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         notifier.overallDiscountController.text = '0';
         notifier.roundOffController.text = '0';
 
-        // ✅ important
+        // important
         notifier.expectedDeliveryDateController.text = '';
 
         notifier.subTotal = 0.0;
@@ -147,38 +146,68 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         (i) => i.randomId == item['randomId'],
       );
 
+      // TAX SPLIT FIX
+      final double tax = (item['pendingTaxAmount'] ?? 0.0).toDouble();
+      final String taxType = item['taxType'] ?? 'cgst_sgst';
+
+      double cgst = 0.0;
+      double sgst = 0.0;
+      double igst = 0.0;
+
+      if (taxType == 'cgst_sgst') {
+        cgst = tax / 2;
+        sgst = tax / 2;
+      } else {
+        igst = tax;
+      }
+
       final newItem = Item(
         itemId: item['itemId'],
         itemName: item['itemName'],
         uom: item['uom'] ?? '',
+
         quantity: (item['pendingTotalQuantity'] ?? 0.0).toDouble(),
         count: (item['pendingCount'] ?? 1.0).toDouble(),
+
         eachQuantity:
             ((item['pendingTotalQuantity'] ?? 0.0) /
                     ((item['pendingCount'] ?? 1.0) == 0
                         ? 1
                         : item['pendingCount']))
                 .toDouble(),
-        existingPrice: item['existingPrice'] ?? 0.0,
-        newPrice: item['newPrice'] ?? 0.0,
-        taxPercentage: item['taxPercentage'] ?? 0.0,
-        finalPrice: item['pendingFinalPrice'] ?? 0.0,
-        pendingFinalPrice: item['pendingFinalPrice'] ?? 0.0,
-        totalPrice: item['pendingTotalPrice'] ?? 0.0,
-        pendingTotalPrice: item['pendingTotalPrice'] ?? 0.0,
-        taxAmount: item['pendingTaxAmount'] ?? 0.0,
-        pendingTaxAmount: item['pendingTaxAmount'] ?? 0.0,
+
+        existingPrice: (item['existingPrice'] ?? 0.0).toDouble(),
+        newPrice: (item['newPrice'] ?? 0.0).toDouble(),
+
+        taxPercentage: (item['taxPercentage'] ?? 0.0).toDouble(),
+
+        finalPrice: (item['pendingFinalPrice'] ?? 0.0).toDouble(),
+        pendingFinalPrice: (item['pendingFinalPrice'] ?? 0.0).toDouble(),
+
+        totalPrice: (item['pendingTotalPrice'] ?? 0.0).toDouble(),
+        pendingTotalPrice: (item['pendingTotalPrice'] ?? 0.0).toDouble(),
+
+        taxAmount: tax,
+        pendingTaxAmount: tax,
+
+        // IMPORTANT FIX
+        pendingCgst: cgst,
+        pendingSgst: sgst,
+        pendingIgst: igst,
+        taxType: taxType,
+
         randomId:
             item['randomId'] ??
             "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}",
+
         expiryDate: '',
       );
 
       if (existingIndex != -1) {
-        // 🔁 REPLACE existing item
+        // REPLACE existing item
         notifier.poItems[existingIndex] = newItem;
       } else {
-        // ➕ ADD new item
+        // ADD new item
         notifier.poItems.add(newItem);
       }
     }
@@ -302,57 +331,74 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton({
+    required double buttonHeight,
+    required bool isSmall,
+  }) {
     return Consumer<PermissionProvider>(
       builder: (context, permission, child) {
-        /// 🔥 CHECK PERMISSION
         bool canSave = permission.hasPermission(
           "yenerp",
           "purchaseorders_pending",
           "add",
         );
 
-        /// ❌ Hide button if no permission
-        if (!canSave) {
-          return SizedBox();
-        }
+        return Expanded(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: _isSaving,
+            builder: (context, isSaving, _) {
+              return SizedBox(
+                height: buttonHeight,
+                child: ElevatedButton(
+                  onPressed: (canSave && !isSaving)
+                      ? () async {
+                          if (!_shouldHandleTap('saveOrder')) return;
 
-        return SizedBox(
-          width: 130,
-          height: 45,
-          child: ElevatedButton(
-            onPressed: () async {
-              if (!_shouldHandleTap('saveOrder')) return;
+                          _isSaving.value = true;
 
-              /// 🔥 DOUBLE CHECK (IMPORTANT)
-              if (!permission.hasPermission(
-                "yenerp",
-                "purchaseorders_pending",
-                "add",
-              )) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text("Access Denied")));
-                return;
-              }
+                          try {
+                            await logic.savePurchaseOrder(
+                              vendorSectionKey: _vendorSectionKey,
+                              billingSectionKey: _billingSectionKey,
+                              itemsSectionKey: _itemsSectionKey,
+                            );
+                          } finally {
+                            _isSaving.value = false;
+                          }
+                        }
+                      : null,
 
-              await logic.savePurchaseOrder(
-                vendorSectionKey: _vendorSectionKey,
-                billingSectionKey: _billingSectionKey,
-                itemsSectionKey: _itemsSectionKey,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: (canSave && !isSaving)
+                        ? Colors.blueAccent
+                        : Colors.grey,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(isSmall ? 14 : 20),
+                    ),
+                  ),
+
+                  child: isSaving
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.editingPO != null
+                              ? 'Update Order'
+                              : 'Save Order',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blueAccent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30.0),
-              ),
-            ),
-            child: Text(
-              widget.editingPO != null ? 'Update Order' : 'Save Order',
-              style: const TextStyle(fontSize: 16),
-            ),
           ),
         );
       },
@@ -743,6 +789,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     _totalOrderAmount.dispose();
     _itemWiseDiscountMode.dispose();
     _overallDiscountMode.dispose();
+    _isSaving.dispose();
     _refreshUI.dispose();
     super.dispose();
   }
@@ -1316,50 +1363,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
                                 SizedBox(width: spacing),
 
-                                buildActionButton(
-                                  text: widget.editingPO != null
-                                      ? "Update Order"
-                                      : "Save Order",
-                                  color: Colors.blueAccent,
-                                  onPressed: logic.isSaving.value
-                                      ? null
-                                      : () async {
-                                          if (!_shouldHandleTap('saveOrder'))
-                                            return;
-
-                                          await logic.savePurchaseOrder(
-                                            vendorSectionKey: _vendorSectionKey,
-                                            billingSectionKey:
-                                                _billingSectionKey,
-                                            itemsSectionKey: _itemsSectionKey,
-                                          );
-
-                                          if (!mounted || _isDisposed) return;
-                                        },
-                                  child: ValueListenableBuilder<bool>(
-                                    valueListenable: logic.isSaving,
-                                    builder: (_, saving, __) {
-                                      return saving
-                                          ? const SizedBox(
-                                              height: 22,
-                                              width: 22,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : Text(
-                                              widget.editingPO != null
-                                                  ? "Update Order"
-                                                  : "Save Order",
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.white,
-                                              ),
-                                            );
-                                    },
-                                  ),
+                                _buildSaveButton(
+                                  buttonHeight: buttonHeight,
+                                  isSmall: isSmall,
                                 ),
                               ],
                             );

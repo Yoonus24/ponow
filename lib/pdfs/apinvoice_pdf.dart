@@ -2,30 +2,20 @@
 // ignore_for_file: unused_element
 
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class APInvoicePDF {
-  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-  static const String businessUrl =
-      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
-  static const String vendorBaseUrl =
-      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
-
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
+  final Dio _dio = DioClient.dio;
 
   Future<Map<String, dynamic>> fetchAPInvoice(String invoiceId) async {
-    final uri = '$baseUrl/apinvoices/$invoiceId';
-
+    final uri = '/apinvoices/$invoiceId';
     final response = await _dio.get(
       uri,
       options: Options(receiveTimeout: const Duration(seconds: 30)),
@@ -41,39 +31,73 @@ class APInvoicePDF {
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await _dio.get(
-      businessUrl,
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    try {
+      final response = await _dio.get(
+        '/pobusiness/',
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
 
-    final List<dynamic> data = response.data;
+      final data = response.data;
 
-    if (data.isNotEmpty && data.first is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(data.first);
+      if (data is List &&
+          data.isNotEmpty &&
+          data.first is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(data.first);
+      }
+
+      return <String, dynamic>{};
+    } catch (e) {
+      debugPrint("❌ fetchBusinessDetails error: $e");
+      return <String, dynamic>{};
     }
-
-    return <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
-    if (vendorId.trim().isEmpty) return {};
+    try {
+      if (vendorId.trim().isEmpty) return {};
 
-    final response = await _dio.get(
-      '$vendorBaseUrl$vendorId',
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+      final response = await _dio.get('/vendors/$vendorId');
 
-    final dynamic decoded = response.data;
+      final decoded = response.data;
 
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      if (decoded is List && decoded.isNotEmpty) {
+        return Map<String, dynamic>.from(decoded.first);
+      }
+
+      return {};
+    } catch (e) {
+      debugPrint("❌ fetchVendorById error: $e");
+      return {};
     }
+  }
 
-    if (decoded is List && decoded.isNotEmpty) {
-      return Map<String, dynamic>.from(decoded.first);
+  Future<Map<String, dynamic>> fetchShippingAddress() async {
+    try {
+      final response = await _dio.get(
+        'https://yenerp.com/purchaseapi/poshippingaddress/',
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+
+      if (response.data is List) {
+        final list = response.data as List;
+
+        final match = list.firstWhere(
+          (e) => e['randomId'] == 'SA003',
+          orElse: () => list.isNotEmpty ? list[0] : {},
+        );
+
+        return Map<String, dynamic>.from(match);
+      }
+
+      return {};
+    } catch (e) {
+      debugPrint("❌ fetchShippingAddress error: $e");
+      return {};
     }
-
-    return {};
   }
 
   Future<File> generateAPInvoicePdf(String invoiceId) async {
@@ -83,7 +107,7 @@ class APInvoicePDF {
 
     final Map<String, dynamic> invoiceData = await fetchAPInvoice(invoiceId);
     final Map<String, dynamic> businessData = await fetchBusinessDetails();
-
+    final shippingData = await fetchShippingAddress();
     final vendorId = (invoiceData['vendorId'] ?? '').toString();
     final Map<String, dynamic> vendourData = await fetchVendorById(vendorId);
 
@@ -93,7 +117,7 @@ class APInvoicePDF {
 
     pw.MemoryImage? logoImage;
     try {
-      logoImage = await _tryLoadLogoImage('assets/bestmummy.png');
+      logoImage = await _tryLoadLogoImage('assets/bestmummy.jpg');
     } catch (_) {
       logoImage = null;
     }
@@ -252,7 +276,7 @@ class APInvoicePDF {
                     pw.Padding(
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
-                        'Billing Address',
+                        'Shipping Address',
                         style: pw.TextStyle(
                           fontSize: 12,
                           color: PdfColors.white,
@@ -277,14 +301,15 @@ class APInvoicePDF {
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
                         _joinNonEmpty([
-                          invoiceData['vendorName']?.toString(),
-                          'GSTIN: ${invoiceData['gstNumber'] ?? 'N/A'}',
-                          invoiceData['address']?.toString(),
-                          invoiceData['city']?.toString(),
-                          invoiceData['state']?.toString(),
-                          invoiceData['country']?.toString(),
-                          'Email: ${invoiceData['contactpersonEmail'] ?? 'Not Provided'}',
-                          'Phone: ${invoiceData['vendorContact'] ?? 'Not Provided'}',
+                          vendourData['vendorName']?.toString() ??
+                              invoiceData['vendorName'],
+                          'GSTIN: ${vendourData['gstNumber'] ?? 'N/A'}',
+                          vendourData['address']?.toString(),
+                          vendourData['city']?.toString(),
+                          vendourData['state']?.toString(),
+                          vendourData['country']?.toString(),
+                          'Email: ${invoiceData['contactpersonEmail']?.isNotEmpty == true ? invoiceData['contactpersonEmail'] : 'Not Provided'}',
+                          'Phone: ${invoiceData['vendorContact']?.isNotEmpty == true ? invoiceData['vendorContact'] : 'Not Provided'}',
                         ], separator: '\n'),
                         style: pw.TextStyle(fontSize: 10),
                       ),
@@ -292,12 +317,8 @@ class APInvoicePDF {
                     pw.Padding(
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
-                        _joinNonEmpty([
-                          invoiceData['billingAddress']?.toString() ??
-                              'No.40, Kenikarai',
-                          invoiceData['shippingAddress']?.toString() ??
-                              'Ramanathapuram',
-                        ]),
+                        shippingData['address']?.toString() ??
+                            'No: 95 B, GODOWN, DEVIPATTINAM, RAMANATHAPURAM',
                         style: pw.TextStyle(fontSize: 10),
                       ),
                     ),
@@ -308,8 +329,8 @@ class APInvoicePDF {
                         'AP Invoice Date: $formattedInvoiceDate\n'
                         'Invoice Date: $invoiceDate\n'
                         'PO Date: $poDate\n'
-                        'Due Date: $dueDate\n'
-                        'Payment Terms: ${invoiceData['paymentTerms']?.toString() ?? 'N/A'}\n'
+                        'Due Days: ${invoiceData['dueDays'] ?? 'N/A'}\n'
+                        'Payment Terms: ${invoiceData['paymentTerms'] ?? invoiceData['paymentTerm'] ?? 'N/A'}\n'
                         'Currency: ${invoiceData['currency']?.toString() ?? 'INR'}',
                         style: pw.TextStyle(fontSize: 10),
                       ),
@@ -459,8 +480,12 @@ class APInvoicePDF {
     );
 
     final output = await getTemporaryDirectory();
-    final filename =
-        'ap_invoice_${invoiceData['randomId']?.toString() ?? invoiceId}.pdf';
+    final safeId = (invoiceData['randomId'] ?? invoiceId).toString().replaceAll(
+      '/',
+      '_',
+    );
+
+    final filename = 'ap_invoice_$safeId.pdf';
     final file = File('${output.path}/$filename');
     await file.writeAsBytes(await pdf.save());
     return file;

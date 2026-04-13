@@ -8,7 +8,7 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:purchaseorders2/widgets/ap%20invoice/ap_viewinvoice_modal.dart';
+import 'package:purchaseorders2/widgets/outgoing%20payment/ap_viewinvoice_modal.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/grn_details_screen.dart';
 import '../../providers/outgoing_payment_provider.dart';
 import 'payment_dialogue.dart';

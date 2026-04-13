@@ -1,20 +1,20 @@
-//------------------ dialog for inside outgoing for showing grn details ------------------
+//---------------dialog for inside outgoing for showing invoice details ------------------
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/widgets/column_filter.dart';
 
-class GRNDetailsDialog extends StatefulWidget {
-  final GRN grn;
+class APViewInvoiceModal extends StatefulWidget {
+  final ApInvoice apinvoice;
 
-  const GRNDetailsDialog({super.key, required this.grn});
+  const APViewInvoiceModal({super.key, required this.apinvoice});
 
   @override
-  State<GRNDetailsDialog> createState() => _GRNDetailsDialogState();
+  State<APViewInvoiceModal> createState() => _APViewInvoiceModalState();
 }
 
-class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
+class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
   late ValueNotifier<List<String>> columnOrderNotifier;
   late ValueNotifier<Map<String, bool>> columnVisibilityNotifier;
   final ScrollController _leftVerticalController = ScrollController();
@@ -27,7 +27,6 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
   void initState() {
     super.initState();
 
-    // Initialize cellRenderers here after the instance is ready
     cellRenderers = {
       'Item Name': (item) => Text(
         item.itemName ?? '',
@@ -53,45 +52,60 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.right,
       ),
-      'Rcv Qty': (item) => Text(
-        '${item.receivedQuantity ?? 0}',
+      'T.Qty': (item) => Text(
+        '${item.quantity ?? 0}',
         style: const TextStyle(fontSize: 14),
         overflow: TextOverflow.ellipsis,
         textAlign: TextAlign.right,
       ),
-      'Unit Price': (item) => Text(
+      'Price': (item) => Text(
         item.unitPrice?.toStringAsFixed(2) ?? '0.00',
         style: const TextStyle(fontSize: 14),
         overflow: TextOverflow.visible,
         softWrap: false,
         textAlign: TextAlign.right,
       ),
-      'Total Price': (item) => Text(
-        item.totalPrice != null ? item.totalPrice!.toStringAsFixed(2) : '0.00',
+      'Disc': (item) => Text(
+        item.discountAmount?.toStringAsFixed(2) ?? '0.00',
         style: const TextStyle(fontSize: 14),
         overflow: TextOverflow.visible,
         softWrap: false,
         textAlign: TextAlign.right,
       ),
-      'Tax': (item) => Text(
-        item.taxAmount?.toStringAsFixed(2) ?? '0.00',
+      'SGST': (item) => Text(
+        item.sgst?.toStringAsFixed(2) ?? '0.00',
         style: const TextStyle(fontSize: 14),
         overflow: TextOverflow.visible,
         softWrap: false,
         textAlign: TextAlign.right,
       ),
-      'Final Price': (item) => Text(
+      'CGST': (item) => Text(
+        item.cgst?.toStringAsFixed(2) ?? '0.00',
+        style: const TextStyle(fontSize: 14),
+        overflow: TextOverflow.visible,
+        softWrap: false,
+        textAlign: TextAlign.right,
+      ),
+      'IGST': (item) => Text(
+        item.igst?.toStringAsFixed(2) ?? '0.00',
+        style: const TextStyle(fontSize: 14),
+        overflow: TextOverflow.visible,
+        softWrap: false,
+        textAlign: TextAlign.right,
+      ),
+      'Total': (item) => Text(
+        item.totalPrice?.toStringAsFixed(2) ?? '0.00',
+        style: const TextStyle(fontSize: 14),
+        overflow: TextOverflow.visible,
+        softWrap: false,
+        textAlign: TextAlign.right,
+      ),
+      'Final': (item) => Text(
         item.finalPrice?.toStringAsFixed(2) ?? '0.00',
         style: const TextStyle(fontSize: 14),
         overflow: TextOverflow.visible,
         softWrap: false,
         textAlign: TextAlign.right,
-      ),
-      'Expiry Date': (item) => Text(
-        _formatDate(item.expiryDate),
-        style: const TextStyle(fontSize: 14),
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.left,
       ),
     };
 
@@ -101,12 +115,14 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
       'UOM',
       'Count',
       'Qty',
-      'Rcv Qty',
-      'Unit Price',
-      'Total Price',
-      'Tax',
-      'Final Price',
-      'Expiry Date',
+      'T.Qty',
+      'Price',
+      'Disc',
+      'SGST',
+      'CGST',
+      'IGST',
+      'Total',
+      'Final',
     ]);
 
     columnVisibilityNotifier = ValueNotifier<Map<String, bool>>({
@@ -132,12 +148,14 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
     'UOM': 70,
     'Count': 70,
     'Qty': 70,
-    'Rcv Qty': 80,
-    'Unit Price': 100,
-    'Total Price': 100,
-    'Tax': 80,
-    'Final Price': 100,
-    'Expiry Date': 105,
+    'T.Qty': 70,
+    'Price': 100,
+    'Disc': 80,
+    'SGST': 80,
+    'CGST': 80,
+    'IGST': 80,
+    'Total': 100,
+    'Final': 100,
   };
 
   @override
@@ -225,18 +243,21 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.grn.itemDetails ?? [];
-    final double roundOff = widget.grn.roundOffAdjustment ?? 0.0;
-    final double finalTotal = widget.grn.grnAmount ?? 0.0;
-    final double freightAmount = widget.grn.totalFreightAmount ?? 0.0;
-    final double freightTax = widget.grn.totalFreightTaxAmount ?? 0.0;
-    final double freightTotal = freightAmount + freightTax;
-    final double totalDiscount =
-        widget.grn.totalDiscount ?? widget.grn.discountPrice ?? 0.0;
+    final items = widget.apinvoice.itemDetails ?? [];
+    final double roundOff = widget.apinvoice.roundOffAdjustment ?? 0.0;
+    final double finalTotal = widget.apinvoice.invoiceAmount ?? 0.0;
+    final double totalDiscount = widget.apinvoice.discountDetails ?? 0.0;
 
+    double totalSGST = 0.0;
+    double totalCGST = 0.0;
+    double totalIGST = 0.0;
     double totalTax = 0.0;
+
     for (var item in items) {
-      totalTax += (item.taxAmount ?? 0.0);
+      totalSGST += item.sgst ?? 0;
+      totalCGST += item.cgst ?? 0;
+      totalIGST += item.igst ?? 0;
+      totalTax += (item.sgst ?? 0) + (item.cgst ?? 0) + (item.igst ?? 0);
     }
 
     return Dialog(
@@ -270,7 +291,7 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text(
-                              'GRN Details',
+                              'AP Invoice Details',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 20,
@@ -301,21 +322,21 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
                         const SizedBox(height: 4),
 
                         Text(
-                          'GRN No: ${widget.grn.randomId ?? 'N/A'}',
+                          'Invoice No: ${widget.apinvoice.randomId ?? 'N/A'}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
                         Text(
-                          'Vendor: ${widget.grn.vendorName ?? 'Unknown Vendor'}',
+                          'Vendor: ${widget.apinvoice.vendorName ?? 'Unknown Vendor'}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
                         ),
                         Text(
-                          'Date: ${_formatDate(widget.grn.grnDate)}',
+                          'Date: ${_formatDate(widget.apinvoice.invoiceDate)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -483,28 +504,30 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
                                 style: const TextStyle(fontSize: 14),
                               ),
                               Text(
+                                'Total SGST: ${totalSGST.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              Text(
+                                'Total CGST: ${totalCGST.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                              if (totalIGST > 0)
+                                Text(
+                                  'Total IGST: ${totalIGST.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              Text(
                                 'Total Tax: ${totalTax.toStringAsFixed(2)}',
                                 style: const TextStyle(fontSize: 14),
                               ),
-                              Text(
-                                'Freight Charges: ${freightAmount.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              Text(
-                                'Freight Tax: ${freightTax.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              Text(
-                                'Total Freight: ${freightTotal.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              Text(
-                                'Round Off: ${roundOff.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
+                              if (roundOff != 0)
+                                Text(
+                                  'Round Off: ${roundOff.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
                               const SizedBox(height: 4),
                               Text(
-                                'Total GRN Amount: ${finalTotal.toStringAsFixed(2)}',
+                                'Total Invoice Amount: ${finalTotal.toStringAsFixed(2)}',
                                 style: const TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
@@ -527,13 +550,10 @@ class _GRNDetailsDialogState extends State<GRNDetailsDialog> {
                                   backgroundColor: Colors.blueAccent,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, // 👈 controls width
+                                    horizontal: 16,
                                     vertical: 8,
                                   ),
-                                  minimumSize: Size(
-                                    0,
-                                    40,
-                                  ), // 👈 removes default full width
+                                  minimumSize: const Size(0, 40),
                                 ),
                                 child: const Text(
                                   'Close',

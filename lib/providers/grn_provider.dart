@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, prefer_final_fields
+
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -23,10 +25,6 @@ class GRNProvider with ChangeNotifier {
 
   int _skip = 0;
   int _limit = 50;
-
-  // static const String _baseApi = 'http://192.168.29.184:8000/purchasetestapi';
-  // static const String _grnBase = '$_baseApi/grns';
-  // static const String _grnListEndpoint = '$_grnBase/';
 
   List<GRN> get grns => _grns;
   bool get isLoading => _isLoading;
@@ -87,20 +85,22 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        'http://192.168.29.184:8000/purchasetestapi/grns/getgrn/return-reasons',
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        '/grns/getgrn/return-reasons', 
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
 
         _returnReasons = data
-            .map<String>((e) => e['reason'].toString())
+            .map<String>((e) => e['reason']?.toString() ?? '')
+            .where((e) => e.isNotEmpty)
             .toList();
       } else {
         _returnReasons = [];
         _error = 'Failed to fetch return reasons: ${response.statusCode}';
       }
+    } on DioException catch (e) {
+      _error = e.response?.data?.toString() ?? _getUserFriendlyError(e);
     } catch (e) {
       _error = _getUserFriendlyError(e);
     } finally {
@@ -136,7 +136,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.patch(
-        '/$grnId/revert',
+        '/grns/$grnId/revert',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -319,7 +319,7 @@ class GRNProvider with ChangeNotifier {
 
   Future<Map<String, dynamic>?> fetchPODetails(String poId) async {
     try {
-      final response = await _dio.get('$grns/purchaseorders/$poId');
+      final response = await _dio.get('/grns/purchaseorders/$poId');
 
       if (response.statusCode == 200) {
         return response.data;
@@ -335,7 +335,7 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await _dio.get('$grns/items/status/$status');
+      final response = await _dio.get('/grns/items/status/$status');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -411,7 +411,7 @@ class GRNProvider with ChangeNotifier {
       };
 
       final response = await _dio.patch(
-        '$grns/$grnId/return',
+        '/grns/$grnId/return',
         data: requestBody,
         options: Options(headers: {'Content-Type': 'application/json'}),
       );

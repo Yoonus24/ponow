@@ -8,24 +8,13 @@ import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class OutgoingPdf {
-  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-  static const String businessUrl =
-      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
-  static const String vendorBaseUrl =
-      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
-
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
+  final Dio _dio = DioClient.dio;
 
   Future<Map<String, dynamic>> fetchOutgoing(String outgoingId) async {
-    final uri = '$baseUrl/outgoingpayments/$outgoingId';
-
+    final uri = '/outgoingpayments/$outgoingId';
     final response = await _dio.get(
       uri,
       options: Options(receiveTimeout: const Duration(seconds: 30)),
@@ -42,7 +31,7 @@ class OutgoingPdf {
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
     final response = await _dio.get(
-      businessUrl,
+      '/pobusiness/',
       options: Options(receiveTimeout: const Duration(seconds: 30)),
     );
 
@@ -58,10 +47,7 @@ class OutgoingPdf {
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
     if (vendorId.trim().isEmpty) return {};
 
-    final response = await _dio.get(
-      '$vendorBaseUrl$vendorId',
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    final response = await _dio.get('/vendors/exact-name/$vendorId');
 
     final dynamic decoded = response.data;
 
@@ -93,7 +79,7 @@ class OutgoingPdf {
 
     pw.MemoryImage? logoImage;
     try {
-      logoImage = await _tryLoadLogoImage('assets/bestmummy.png');
+      logoImage = await _tryLoadLogoImage('assets/bestmummy.jpg');
     } catch (_) {
       logoImage = null;
     }
@@ -491,8 +477,11 @@ class OutgoingPdf {
     );
 
     final output = await getTemporaryDirectory();
-    final filename =
-        'outgoing_${outgoingData['randomId']?.toString() ?? outgoingId}.pdf';
+    final safeId = (outgoingData['randomId'] ?? outgoingId)
+        .toString()
+        .replaceAll('/', '_');
+
+    final filename = 'outgoing_$safeId.pdf';
     final file = File('${output.path}/$filename');
     await file.writeAsBytes(await pdf.save());
     return file;

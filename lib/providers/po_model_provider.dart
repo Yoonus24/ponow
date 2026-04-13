@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 import '../models/po.dart';
 
 class POModalProvider with ChangeNotifier {
@@ -136,17 +137,8 @@ class POModalProvider with ChangeNotifier {
 
     final pendingTotalQty = pendingCount * pendingQty;
 
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: "http://192.168.29.184:8000/purchasetestapi",
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
-      ),
-    );
-
     try {
-      final response = await dio.get(
+      final response = await DioClient.dio.get(
         "/purchaseorders/items/totals",
         queryParameters: {
           "pendingTotalQuantity": pendingTotalQty,
@@ -267,18 +259,8 @@ class POModalProvider with ChangeNotifier {
     String purchaseOrderId,
     List<Map<String, dynamic>> items,
   ) async {
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: "http://192.168.29.184:8000/purchasetestapi",
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 15),
-        headers: {"Content-Type": "application/json"},
-      ),
-    );
-
     try {
-      final response = await dio.patch(
+      final response = await DioClient.dio.patch(
         "/purchaseorders/$purchaseOrderId/items",
         data: {"items": items},
       );
@@ -287,6 +269,9 @@ class POModalProvider with ChangeNotifier {
         return true;
       }
 
+      return false;
+    } on DioException catch (e) {
+      debugPrint("Dio error: ${e.response?.data}");
       return false;
     } catch (e) {
       debugPrint("Error sending update: $e");

@@ -1,7 +1,7 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/po.dart';
 import '../models/po_template.dart';
@@ -11,9 +11,7 @@ class TemplateProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
 
-  final String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-  final Dio _dio = Dio();
-
+  Dio get _dio => DioClient.dio;
   List<POTemplate> get templates => _templates;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -47,7 +45,7 @@ class TemplateProvider extends ChangeNotifier {
       }
 
       final response = await _dio.get(
-        '$baseUrl/purchaseorders/templates',
+        '/purchaseorder-templates/',
         queryParameters: queryParams,
       );
 
@@ -64,7 +62,7 @@ class TemplateProvider extends ChangeNotifier {
           _templates.addAll(newTemplates);
         }
 
-        // 🔥 pagination control
+        // pagination control
         if (newTemplates.length < _limit) {
           _hasMore = false;
         } else {
@@ -96,11 +94,17 @@ class TemplateProvider extends ChangeNotifier {
     try {
       final template = POTemplate.fromPO(po, templateName);
 
+      print("🌍 API CALL → /purchaseorder-templates");
+      print("📤 REQUEST DATA: ${template.toJson()}");
+
       final response = await _dio.post(
-        '$baseUrl/purchaseorders/templates',
-        data: json.encode(template.toJson()),
+        '/purchaseorder-templates/',
+        data: template.toJson(), // ✅ FIXED
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
+
+      print("✅ RESPONSE STATUS: ${response.statusCode}");
+      print("📥 RESPONSE DATA: ${response.data}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchTemplates();
@@ -109,10 +113,10 @@ class TemplateProvider extends ChangeNotifier {
         throw Exception('Failed to create template');
       }
     } catch (e) {
+      print("❌ CREATE TEMPLATE ERROR: $e");
+
       if (e is DioException) {
         final backendMessage = e.response?.data?['detail'];
-
-        // ✅ THIS is what your dialog needs
         throw Exception(backendMessage ?? "Failed to create template");
       }
 
@@ -129,7 +133,7 @@ class TemplateProvider extends ChangeNotifier {
 
     try {
       final response = await _dio.post(
-        '$baseUrl/purchaseorders/templates/$templateId/create-order',
+        '/purchaseorder-templates/$templateId/create-order',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -157,7 +161,7 @@ class TemplateProvider extends ChangeNotifier {
 
     try {
       final response = await _dio.patch(
-        '$baseUrl/purchaseorders/templates/$templateId/$action',
+        '/purchaseorder-templates/$templateId/$action',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
@@ -189,7 +193,7 @@ class TemplateProvider extends ChangeNotifier {
   Future<bool> deleteTemplate(String templateId) async {
     try {
       final response = await _dio.delete(
-        '$baseUrl/purchaseorders/templates/$templateId',
+        '/purchaseorder-templates/$templateId',
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 

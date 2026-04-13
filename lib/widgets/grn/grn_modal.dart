@@ -1,10 +1,12 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously, unused_element, invalid_use_of_visible_for_testing_member, library_private_types_in_public_api
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_Calculator.dart';
 import '../../providers/ap_invoice_provider.dart';
@@ -588,7 +590,6 @@ class _GRNModalState extends State<GRNModal> {
       if (finalRound > 2.0) finalRound = 2.0;
       if (finalRound < -2.0) finalRound = -2.0;
 
-      /// ✅🔥 IMPORTANT FIX: SEND FULL TAX DATA + TAX %
       final itemUpdates =
           grn.itemDetails?.map((item) {
             final taxAmount = item.taxAmount ?? 0.0;
@@ -596,8 +597,6 @@ class _GRNModalState extends State<GRNModal> {
             final cgst = item.cgst ?? 0.0;
             final igst = item.igst ?? 0.0;
             final totalPrice = item.totalPrice ?? 0.0;
-
-            /// fallback safety
             final finalPrice = item.finalPrice ?? (totalPrice + taxAmount);
 
             print("🧾 SENDING ITEM:");
@@ -605,28 +604,25 @@ class _GRNModalState extends State<GRNModal> {
             print("taxAmount => $taxAmount");
             print("sgst => $sgst");
             print("cgst => $cgst");
+            print("igst => $igst");
+            print("totalPrice => $totalPrice");
             print("finalPrice => $finalPrice");
-            print("tax % => ${item.purchasetaxName}");
+            print("taxPercentage => ${item.taxPercentage}");
 
             return ItemDetail(
               itemId: item.itemId,
-
-              // discounts
               befTaxDiscount: item.befTaxDiscount ?? 0.0,
               afTaxDiscount: item.afTaxDiscount ?? 0.0,
-
-              // expiry
               expiryDate: item.expiryDate,
 
-              purchasetaxName: item.taxPercentage ?? 0.0,
+              // ✅ FIXED FIELD
+              taxPercentage: item.taxPercentage ?? 0.0,
 
-              /// tax values
               taxAmount: taxAmount,
               sgst: sgst,
               cgst: cgst,
               igst: igst,
 
-              /// price
               totalPrice: totalPrice,
               finalPrice: finalPrice,
             );
@@ -637,6 +633,37 @@ class _GRNModalState extends State<GRNModal> {
         throw Exception("No items to convert");
       }
 
+      /// 🔥 FULL DEBUG
+      print("========== FINAL API CALL ==========");
+      print("GRN ID => ${grn.grnId}");
+      print("Discount => ${grn.discountPrice}");
+      print("RoundOff => $finalRound");
+      print("ITEM COUNT => ${itemUpdates.length}");
+
+      for (var item in itemUpdates) {
+        print("------ ITEM START ------");
+
+        print("itemId => ${item.itemId}");
+        print("befTaxDiscount => ${item.befTaxDiscount}");
+        print("afTaxDiscount => ${item.afTaxDiscount}");
+
+        print("taxPercentage => ${item.taxPercentage}");
+
+        print("taxAmount => ${item.taxAmount}");
+        print("sgst => ${item.sgst}");
+        print("cgst => ${item.cgst}");
+        print("igst => ${item.igst}");
+
+        print("totalPrice => ${item.totalPrice}");
+        print("finalPrice => ${item.finalPrice}");
+
+        print("expiryDate => ${item.expiryDate}");
+
+        print("------ ITEM END ------");
+      }
+
+      print("====================================");
+
       final result = await context
           .read<GRNProvider>()
           .convertGrnToApAndOutgoing(
@@ -645,6 +672,8 @@ class _GRNModalState extends State<GRNModal> {
             roundOffAdjustment: finalRound,
             itemUpdates: itemUpdates,
           );
+
+      print("✅ API RESULT => $result");
 
       if (result['success'] == true && context.mounted) {
         Navigator.of(context).pop();
@@ -667,6 +696,13 @@ class _GRNModalState extends State<GRNModal> {
         throw Exception(result['error'] ?? 'Conversion failed');
       }
     } catch (e) {
+      print("❌ ERROR => $e");
+
+      if (e is DioException) {
+        print("❌ STATUS CODE => ${e.response?.statusCode}");
+        print("❌ RESPONSE DATA => ${e.response?.data}");
+      }
+
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -751,7 +787,7 @@ class _GRNModalState extends State<GRNModal> {
   double _getColumnWidth(String column) {
     switch (column) {
       case 'Item Name':
-        return 140;
+        return 150;
       case 'UOM':
         return 70;
       case 'Expiry Date':
@@ -803,6 +839,10 @@ class _GRNModalState extends State<GRNModal> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
+    bool canConvert = permission.hasEditAction("grns", "convert_to_ap");
+    bool canRevert = permission.hasEditAction("grns", "revert_to_po");
+    bool canReturn = permission.hasEditAction("grns", "return_grn");
     final size = MediaQuery.of(context).size;
     return Dialog(
       backgroundColor: Colors.white,
@@ -956,18 +996,36 @@ class _GRNModalState extends State<GRNModal> {
                                       Container(
                                         height: _headerHeight,
                                         width: itemNameWidth,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                        ),
-                                        child: const Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            'Item Name',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
+                                        child: Row(
+                                          children: [
+                                            // S.NO
+                                            SizedBox(
+                                              width: 40,
+                                              child: Center(
+                                                child: Text(
+                                                  "S.No",
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                          ),
+
+                                            // ITEM NAME
+                                            Expanded(
+                                              child: Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: Text(
+                                                  'Item Name',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     Expanded(
@@ -1032,51 +1090,68 @@ class _GRNModalState extends State<GRNModal> {
                                         Container(
                                           width: itemNameWidth,
                                           child: Column(
-                                            children: (grn.itemDetails ?? [])
-                                                .asMap()
-                                                .entries
-                                                .map((entry) {
-                                                  final item = entry.value;
-                                                  return Container(
-                                                    height: _rowHeight,
-                                                    width: itemNameWidth,
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                        ),
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          bottom: 8,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      border: Border(
-                                                        bottom: BorderSide(
-                                                          color: Colors
-                                                              .grey
-                                                              .shade300,
-                                                        ),
-                                                      ),
+                                            children: (grn.itemDetails ?? []).asMap().entries.map((
+                                              entry,
+                                            ) {
+                                              final item = entry.value;
+                                              return Container(
+                                                height: _rowHeight,
+                                                width: itemNameWidth,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
                                                     ),
-                                                    child: Align(
-                                                      alignment:
-                                                          _getColumnAlignment(
-                                                            'Item Name',
+                                                margin: const EdgeInsets.only(
+                                                  bottom: 8,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  border: Border(
+                                                    bottom: BorderSide(
+                                                      color:
+                                                          Colors.grey.shade300,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: Align(
+                                                  alignment:
+                                                      _getColumnAlignment(
+                                                        'Item Name',
+                                                      ),
+                                                  child: Row(
+                                                    children: [
+                                                      SizedBox(
+                                                        width: 30,
+                                                        child: Center(
+                                                          child: Text(
+                                                            "${entry.key + 1}",
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 12,
+                                                                ),
                                                           ),
-                                                      child: Text(
-                                                        item.itemName ?? '',
-                                                        maxLines: 2,
-                                                        softWrap: true,
-                                                        overflow: TextOverflow
-                                                            .visible,
-                                                        style: const TextStyle(
-                                                          fontSize: 13,
-                                                          height: 1.1,
                                                         ),
                                                       ),
-                                                    ),
-                                                  );
-                                                })
-                                                .toList(),
+
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.itemName ?? '',
+                                                          maxLines:
+                                                              4, // ✅ max 4 lines
+                                                          overflow: TextOverflow
+                                                              .ellipsis, // ✅ after 4 lines show ...
+                                                          softWrap: true,
+                                                          style: const TextStyle(
+                                                            fontSize: 13,
+                                                            height:
+                                                                0.95, // ✅ reduce line height to fit more lines
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
                                           ),
                                         ),
 
@@ -1340,14 +1415,16 @@ class _GRNModalState extends State<GRNModal> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     GestureDetector(
-                      onTap: () => _convertGrnToPo(context),
+                      onTap: canRevert
+                          ? () => _convertGrnToPo(context)
+                          : null, // 🔥 disable
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.orange,
+                          color: canRevert ? Colors.orange : Colors.grey,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Text(
@@ -1355,7 +1432,6 @@ class _GRNModalState extends State<GRNModal> {
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -1376,23 +1452,24 @@ class _GRNModalState extends State<GRNModal> {
                     ),
 
                     const SizedBox(width: 16),
-
                     ValueListenableBuilder<bool>(
                       valueListenable: isConverting,
                       builder: (_, converting, __) {
                         return GestureDetector(
-                          onTap: converting
-                              ? null
-                              : () => _convertToAP(context),
+                          onTap: (canConvert && !converting)
+                              ? () => _convertToAP(context)
+                              : null,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 20,
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: converting
-                                  ? Colors.blueAccent.withOpacity(0.7)
-                                  : Colors.blueAccent,
+                              color: canConvert
+                                  ? (converting
+                                        ? Colors.blueAccent.withOpacity(0.7)
+                                        : Colors.blueAccent)
+                                  : Colors.grey,
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: converting
@@ -1409,7 +1486,6 @@ class _GRNModalState extends State<GRNModal> {
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 14,
                                     ),
                                   ),
                           ),

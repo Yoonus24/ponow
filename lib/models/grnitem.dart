@@ -289,7 +289,11 @@ class ItemDetails {
       sgst: json['sgst'] != null ? (json['sgst']).toDouble() : null,
       cgst: json['cgst'] != null ? (json['cgst']).toDouble() : null,
       igst: json['igst'] != null ? (json['igst']).toDouble() : null,
-      reason: json['reason'],
+      reason:
+          (json['returnHistory'] != null &&
+              (json['returnHistory'] as List).isNotEmpty)
+          ? json['returnHistory'].last['reason'] ?? "N/A"
+          : "N/A",
     );
   }
 

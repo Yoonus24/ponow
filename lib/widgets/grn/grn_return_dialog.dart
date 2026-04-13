@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import '../../models/grn.dart';
 import '../../providers/grn_provider.dart';
@@ -129,6 +130,20 @@ class _GRNModalState extends State<GRNReturn> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
+
+    final canReturnGRN = permission.hasEditAction('grns', 'return_grn');
+
+    // 🔥 BLOCK FULL SCREEN
+    // if (permission.permissions.isEmpty) {
+    //   return const Scaffold(
+    //     body: Center(child: Text("Loading permissions...")),
+    //   );
+    // }
+
+    // if (!canReturnGRN) {
+    //   return Scaffold(body: Center(child: Text("You don't have permission")));
+    // }
     return Scaffold(
       backgroundColor: Colors.white,
       body: Padding(
@@ -211,7 +226,7 @@ class _GRNModalState extends State<GRNReturn> {
                                       optionsBuilder:
                                           (TextEditingValue textEditingValue) {
                                             if (textEditingValue.text.isEmpty) {
-                                              return reasons; 
+                                              return reasons;
                                             }
 
                                             return reasons.where(
@@ -430,7 +445,9 @@ class _GRNModalState extends State<GRNReturn> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     ElevatedButton(
-                                      onPressed: isSpecificQuantityReturn
+                                      onPressed:
+                                          (!canReturnGRN ||
+                                              isSpecificQuantityReturn)
                                           ? null
                                           : () {
                                               if (isReturnAllEnabled) {
@@ -972,9 +989,11 @@ class _GRNModalState extends State<GRNReturn> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  _buildSubmitButton(),
-                  const SizedBox(width: 12),
-                  _buildCancelButton(),
+                  if (canReturnGRN) ...[
+                    _buildSubmitButton(),
+                    const SizedBox(width: 12),
+                    _buildCancelButton(),
+                  ],
                 ],
               ),
             ),
@@ -1092,7 +1111,7 @@ class _GRNModalState extends State<GRNReturn> {
           return Autocomplete<String>(
             optionsBuilder: (TextEditingValue textEditingValue) {
               if (textEditingValue.text.isEmpty) {
-                return returnReasons; 
+                return returnReasons;
               }
 
               return returnReasons
@@ -1183,6 +1202,13 @@ class _GRNModalState extends State<GRNReturn> {
   }
 
   Widget _buildSubmitButton() {
+    final permission = context.watch<PermissionProvider>(); // 🔥 ADD THIS
+
+    final canReturnGRN = permission.hasEditAction(
+      'grns',
+      'return_grn',
+    ); // 🔥 ADD THIS
+
     return ValueListenableBuilder<String?>(
       valueListenable: scenarioNotifier,
       builder: (context, scenario, _) {
@@ -1199,6 +1225,7 @@ class _GRNModalState extends State<GRNReturn> {
                       valueListenable: _isSubmitting,
                       builder: (context, submitting, _) {
                         final isDisabled =
+                            !canReturnGRN || // 🔥 PERMISSION CHECK
                             scenario == null ||
                             returnDate == null ||
                             (scenario == 'partial' &&
@@ -1266,6 +1293,14 @@ class _GRNModalState extends State<GRNReturn> {
   }
 
   Future<void> _submitReturn() async {
+    final permission = context.read<PermissionProvider>();
+
+    if (!permission.hasEditAction('grns', 'return_grn')) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("No permission")));
+      return;
+    }
     if (scenarioNotifier.value == null || returnDateNotifier.value == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1547,13 +1582,13 @@ class _GRNModalState extends State<GRNReturn> {
                 entry.value.itemId != null &&
                 entry.value.itemId!.isNotEmpty &&
                 _isValidObjectId(entry.value.itemId!),
-          ) 
+          )
           .map((entry) {
             final index = entry.key;
             final item = entry.value;
 
             return {
-              'itemId': item.itemId, 
+              'itemId': item.itemId,
               'nos': item.nos,
               'eachQuantity': item.eachQuantity,
               'returnReason': itemReasonsNotifier.value[index] ?? '',

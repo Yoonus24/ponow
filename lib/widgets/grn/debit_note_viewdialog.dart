@@ -16,7 +16,7 @@ class DebitNoteViewDialog extends StatefulWidget {
 class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
   late ScrollController _leftVertical;
   late ScrollController _rightVertical;
-
+  final ValueNotifier<bool> _pdfLoading = ValueNotifier(false);
   late ScrollController _rightHorizontal;
 
   bool _syncing = false;
@@ -28,7 +28,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
     _leftVertical = ScrollController();
     _rightVertical = ScrollController();
 
-    _rightHorizontal = ScrollController(); 
+    _rightHorizontal = ScrollController();
 
     _leftVertical.addListener(() {
       if (_syncing) return;
@@ -49,7 +49,8 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
   void dispose() {
     _leftVertical.dispose();
     _rightVertical.dispose();
-    _rightHorizontal.dispose(); 
+    _pdfLoading.dispose();
+    _rightHorizontal.dispose();
     super.dispose();
   }
 
@@ -89,7 +90,6 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
     );
   }
 
-  
   Widget _buildStickyHeader(DebitCreditNote grn, GRN grns) {
     return Container(
       width: double.infinity,
@@ -109,19 +109,39 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-                onPressed: () async {
-                  try {
-                    final pdfService = GRNDebitPdf();
-                    final pdfFile = await pdfService.generateGrnPdf(
-                      grn.grnId ?? "",
-                    );
+              ValueListenableBuilder<bool>(
+                valueListenable: _pdfLoading,
+                builder: (context, isLoading, _) {
+                  return IconButton(
+                    icon: isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.picture_as_pdf, color: Colors.white),
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            _pdfLoading.value = true;
 
-                    await Printing.layoutPdf(
-                      onLayout: (_) => pdfFile.readAsBytesSync(),
-                    );
-                  } catch (e) {}
+                            try {
+                              final pdfService = GRNDebitPdf();
+
+                              await pdfService.generateAndOpenDebit(
+                                context,
+                                widget.grn.grnId ?? "",
+                              );
+                            } catch (e) {
+                              print("PDF ERROR: $e");
+                            } finally {
+                              _pdfLoading.value = false;
+                            }
+                          },
+                  );
                 },
               ),
             ],
@@ -229,8 +249,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                                     item.itemName ?? "N/A",
                                     maxLines: 2,
                                     softWrap: true,
-                                    overflow: TextOverflow
-                                        .visible, 
+                                    overflow: TextOverflow.visible,
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                 ),
@@ -327,7 +346,6 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
       child: Text(v, overflow: TextOverflow.ellipsis),
     );
   }
-
 
   Widget _buildSummarySection(DebitCreditNote grn) {
     double totalWithoutTax = grn.itemDetails.fold(

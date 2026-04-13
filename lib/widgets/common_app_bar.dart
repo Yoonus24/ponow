@@ -1,4 +1,8 @@
+// ignore_for_file: use_build_context_synchronously, avoid_print
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/auth_service.dart';
 import 'package:purchaseorders2/services/session_service.dart';
 
@@ -56,10 +60,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ]
           : [
-              IconButton(
-                icon: const Icon(Icons.logout, color: Colors.white),
-                tooltip: "Logout",
-                onPressed: () async {
+              GestureDetector(
+                onTap: () async {
                   final confirm = await showDialog<bool>(
                     context: context,
                     builder: (context) => AlertDialog(
@@ -112,6 +114,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
                   if (confirm != true) return;
 
+                  // 🔄 Loading dialog
                   if (context.mounted) {
                     showDialog(
                       context: context,
@@ -163,11 +166,10 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
                   await AuthService.logout();
                   SessionService.stop();
+
                   if (context.mounted) {
-                    // Close the loading dialog
                     Navigator.pop(context);
 
-                    // Navigate to login screen
                     Navigator.pushNamedAndRemoveUntil(
                       context,
                       '/login',
@@ -175,6 +177,24 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                     );
                   }
                 },
+
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.logout, color: Colors.white, size: 22),
+                      SizedBox(height: 2),
+                      Text(
+                        "Logout",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10, // 👈 small text
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
     );

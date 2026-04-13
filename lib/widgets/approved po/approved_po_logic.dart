@@ -943,7 +943,12 @@ class ApprovedPOLogic {
   }
 
   Future<void> convertPoToGRN(BuildContext context) async {
-    if (isSaving.value) return;
+    debugPrint("🟢 convertPoToGRN() CALLED");
+
+    if (isSaving.value) {
+      debugPrint("⛔ Already saving, skipping...");
+      return;
+    }
 
     final poProvider = Provider.of<POProvider>(context, listen: false);
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
@@ -953,20 +958,26 @@ class ApprovedPOLogic {
 
       debugPrint("=========== GRN CONVERSION START ===========");
 
+      /// VALIDATION
+      debugPrint("🔍 Validating form...");
       if (!validateForm()) {
+        debugPrint("❌ Form validation failed");
         isSaving.value = false;
         return;
       }
 
+      debugPrint("🔍 Validating expiry dates...");
       final isExpiryValid = validateExpiryDatesBasedOnReceived(po.items);
 
       if (!isExpiryValid) {
+        debugPrint("❌ Expiry validation failed");
         showTopError("Expiry date required for received items");
         isSaving.value = false;
         return;
       }
 
       /// SHOW LOADER
+      debugPrint("⏳ Showing loader...");
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -974,10 +985,18 @@ class ApprovedPOLogic {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
+      /// NORMALIZE
+      debugPrint("⚙️ Normalizing items...");
       normalizeBeforeApi();
 
       /// PREPARE ITEMS
+      debugPrint("📦 Preparing received items...");
       final List<Item> receivedItems = po.items.map((item) {
+        debugPrint("➡️ Item: ${item.itemName}");
+        debugPrint("   Qty: ${item.receivedQuantity}");
+        debugPrint("   BefTax: ${item.befTaxDiscount}");
+        debugPrint("   AfTax: ${item.afTaxDiscount}");
+
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
           befTaxDiscount: item.befTaxDiscount ?? 0,
@@ -988,7 +1007,8 @@ class ApprovedPOLogic {
         );
       }).toList();
 
-      /// PARSE INVOICE DATE
+      /// PARSE DATE
+      debugPrint("📅 Parsing invoice date...");
       final pickedDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
@@ -1004,7 +1024,10 @@ class ApprovedPOLogic {
         now.second,
       );
 
-      /// 🚀 STEP 1: CREATE GRN
+      debugPrint("📅 Final Invoice Date: $parsedInvoiceDate");
+
+      /// API CALL
+      debugPrint("🚀 Calling updatePoDetails API...");
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
@@ -1014,30 +1037,27 @@ class ApprovedPOLogic {
         roundOffAdjustment: roundOffAmount.value,
       );
 
+      debugPrint("📥 API RESPONSE: $response");
+
       if (response["grnCreated"] != true) {
+        debugPrint("❌ GRN creation failed");
         throw Exception("GRN creation failed");
       }
 
       final String grnId = response["grnId"];
       debugPrint("✅ GRN CREATED: $grnId");
 
-      // await poProvider.convertPoToGrn(
-      //   context,
-      //   po,
-      //   grnId,
-      //   po.totalOrderAmount ?? 0,
-      //   0,
-      //   roundOffAdjustment: roundOffAmount.value,
-      // );
-
       debugPrint("✅ GRN UPDATED WITH FREIGHT");
 
-      /// CLOSE LOADER + DIALOG
+      /// CLOSE LOADER
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop(); // loader
-        Navigator.of(context).pop(); // ApprovedPO dialog
+        debugPrint("🔒 Closing loader & dialog...");
+        Navigator.of(context, rootNavigator: true).pop();
+        Navigator.of(context).pop();
       }
 
+      /// REFRESH
+      debugPrint("🔄 Refreshing PO & GRN list...");
       Future.microtask(() {
         poProvider.fetchPOsWithFilters(
           status: "Approved,PartiallyReceived",
@@ -1047,8 +1067,9 @@ class ApprovedPOLogic {
         grnProvider.fetchFilteredGRNs();
       });
 
-      /// SUCCESS MESSAGE
+      /// SUCCESS
       if (context.mounted) {
+        debugPrint("🎉 Showing success message");
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("PO converted to GRN successfully!"),
@@ -1063,6 +1084,7 @@ class ApprovedPOLogic {
       debugPrintStack(stackTrace: stack);
 
       if (context.mounted) {
+        debugPrint("🔒 Closing loader due to error...");
         Navigator.of(context, rootNavigator: true).pop();
       }
 
@@ -1073,6 +1095,7 @@ class ApprovedPOLogic {
         ),
       );
     } finally {
+      debugPrint("♻️ Reset isSaving");
       isSaving.value = false;
     }
   }
@@ -1157,21 +1180,29 @@ class ApprovedPOLogic {
 
   String getOrderedItemValue(Item item, String column) {
     switch (column) {
+      case 'Count':
+        return (item.count ?? 0).toStringAsFixed(2);
+
       case 'Qty':
         return (item.poQuantity ?? 0).toStringAsFixed(2);
 
       case 'Tax%':
-        return ((item.taxPercentage ?? 0)).toStringAsFixed(2);
+        return (item.taxPercentage ?? 0).toStringAsFixed(2);
+
+      case 'Price':
+        return (item.newPrice ?? 0).toStringAsFixed(2);
 
       case 'Total Price':
-        return (item.poQuantitypendingTotalPrice ?? 0).toStringAsFixed(2);
+        return (item.pendingTotalPrice ?? 0).toStringAsFixed(2);
 
       case 'Final':
-        return (item.poQuantitypendingFinalPrice ?? 0).toStringAsFixed(2);
+        return (item.pendingFinalPrice ?? 0).toStringAsFixed(2);
 
       case 'BefTax':
+        return (item.befTaxDiscount ?? 0).toStringAsFixed(2);
+
       case 'AfTax':
-        return (item.poQuantityDiscountAmount ?? 0).toStringAsFixed(2);
+        return (item.afTaxDiscount ?? 0).toStringAsFixed(2);
 
       case 'Total':
         return (item.poQuantity ?? 0).toStringAsFixed(2);

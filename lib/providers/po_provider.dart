@@ -1,4 +1,4 @@
-// ignore_for_file: unnecessary_non_null_assertion, unnecessary_null_comparison, dead_null_aware_expression, avoid_print, use_build_context_synchronously
+// ignore_for_file: prefer_final_fields, unnecessary_non_null_assertion, unnecessary_null_comparison, dead_null_aware_expression, avoid_print, use_build_context_synchronously
 
 import 'dart:async';
 import 'package:dio/dio.dart';
@@ -19,8 +19,6 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 
 class POProvider extends ChangeNotifier {
   // ==================== CONFIGURATION ====================
-  // static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-
   final Dio _dio = DioClient.dio;
 
   // ==================== STATE VARIABLES ====================
@@ -480,6 +478,7 @@ class POProvider extends ChangeNotifier {
 
     _isFetching = true;
     _isVendorLoading = true;
+    notifyListeners(); // 🔥 UI loading start
 
     try {
       final response = await _dio.get(
@@ -493,10 +492,12 @@ class POProvider extends ChangeNotifier {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
+
         final newVendorNames = data
             .map<String>((vendor) => vendor['vendorName'] ?? '')
             .where((name) => name.isNotEmpty)
             .toList();
+
         final newVendors = data.map<Vendor>((vendor) {
           return Vendor(
             vendorId: vendor['vendorId'] ?? '',
@@ -521,9 +522,8 @@ class POProvider extends ChangeNotifier {
       debugPrint('❌ fetchingVendors error: $e');
     } finally {
       _isFetching = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
+      _isVendorLoading = false;
+      notifyListeners();
     }
   }
 
@@ -533,6 +533,7 @@ class POProvider extends ChangeNotifier {
     int limit = 100,
     bool append = false,
   }) async {
+    // ✅ cache optimization
     if (vendorCache.isNotEmpty && vendorName.isEmpty && !append) {
       return vendorCache;
     }
@@ -540,13 +541,21 @@ class POProvider extends ChangeNotifier {
     try {
       _isFetching = true;
       _isVendorLoading = true;
+      notifyListeners();
 
-      final url =
-          '/vendors/vendor-names/?vendor_name=${Uri.encodeComponent(vendorName)}&skip=$skip&limit=$limit';
-      final response = await _dio.get(url);
+      // ✅ FIX: use queryParameters instead of manual URL
+      final response = await _dio.get(
+        '/vendors/vendor-names/',
+        queryParameters: {
+          if (vendorName.isNotEmpty) "vendor_name": vendorName, // 🔥 key fix
+          "skip": skip,
+          "limit": limit,
+        },
+      );
 
       if (response.statusCode == 200 && response.data is List) {
-        final data = response.data as List;
+        final List data = response.data;
+
         final fetchedVendors = data.map<VendorAll>((vendor) {
           return VendorAll(
             vendorId: vendor['vendorId'] ?? '',
@@ -564,28 +573,34 @@ class POProvider extends ChangeNotifier {
           );
         }).toList();
 
+        // ✅ cache store
         if (vendorName.isEmpty && !append) {
           vendorCache = fetchedVendors;
           vendorsLoaded = true;
         }
 
+        // ✅ list update
         if (!append) {
           _vendorAllList = fetchedVendors;
         } else {
           _vendorAllList.addAll(fetchedVendors);
         }
 
+        // ✅ pagination
         _hasMore = fetchedVendors.length >= limit;
+
         notifyListeners();
         return fetchedVendors;
       }
+
       return [];
     } catch (e) {
-      debugPrint("Error fetching all vendors: $e");
+      debugPrint("❌ Error fetching all vendors: $e");
       return [];
     } finally {
       _isFetching = false;
       _isVendorLoading = false;
+      notifyListeners();
     }
   }
 
@@ -948,55 +963,55 @@ class POProvider extends ChangeNotifier {
     await _dio.put('/purchaseorders/$id', data: {"poStatus": "Pending"});
   }
 
-  Future<void> convertGrnPo(String poId, PO po) async {
-    try {
-      final pendingItems = po.items
-          .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
-          .toList();
+  // Future<void> convertGrnPo(String poId, PO po) async {
+  //   try {
+  //     final pendingItems = po.items
+  //         .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
+  //         .toList();
 
-      if (pendingItems.isEmpty) {
-        debugPrint("⚠️ No pending items to receive");
-        return;
-      }
+  //     if (pendingItems.isEmpty) {
+  //       debugPrint("⚠️ No pending items to receive");
+  //       return;
+  //     }
 
-      final response = await _dio.patch(
-        '/purchaseorders/receivedupdates/$poId',
-        data: {
-          'items': pendingItems
-              .map(
-                (item) => {
-                  'itemId': item.itemId,
-                  'receivedQuantity': item.receivedQuantity,
-                  'expiryDate': item.expiryDate,
-                },
-              )
-              .toList(),
-        },
-      );
+  //     final response = await _dio.patch(
+  //       '/purchaseorders/receivedupdates/$poId',
+  //       data: {
+  //         'items': pendingItems
+  //             .map(
+  //               (item) => {
+  //                 'itemId': item.itemId,
+  //                 'receivedQuantity': item.receivedQuantity,
+  //                 'expiryDate': item.expiryDate,
+  //               },
+  //             )
+  //             .toList(),
+  //       },
+  //     );
 
-      if (response.statusCode == 200) {
-        final PO? updatedPo = await fetchPOById(poId);
-        final bool allItemsReceived =
-            updatedPo?.items.every(
-              (item) => (item.pendingTotalQuantity ?? 0) <= 0,
-            ) ??
-            false;
-        final String newStatus = allItemsReceived
-            ? 'GRNConverted'
-            : 'PartiallyReceived';
+  //     if (response.statusCode == 200) {
+  //       final PO? updatedPo = await fetchPOById(poId);
+  //       final bool allItemsReceived =
+  //           updatedPo?.items.every(
+  //             (item) => (item.pendingTotalQuantity ?? 0) <= 0,
+  //           ) ??
+  //           false;
+  //       final String newStatus = allItemsReceived
+  //           ? 'GRNConverted'
+  //           : 'PartiallyReceived';
 
-        await _dio.patch(
-          '/purchaseorders/$poId',
-          data: {'poStatus': newStatus},
-        );
+  //       await _dio.patch(
+  //         '/purchaseorders/$poId',
+  //         data: {'poStatus': newStatus},
+  //       );
 
-        await applyCurrentFilters();
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint("❌ convertGrnPo error: $e");
-    }
-  }
+  //       await applyCurrentFilters();
+  //       notifyListeners();
+  //     }
+  //   } catch (e) {
+  //     debugPrint("❌ convertGrnPo error: $e");
+  //   }
+  // }
 
   Future<void> updatePO(PO po) async {
     _setLoadingState(true);
@@ -1083,21 +1098,43 @@ class POProvider extends ChangeNotifier {
     double? totalFreightAmount,
     double? totalFreightTaxAmount,
   }) async {
+    debugPrint("🟢 updatePoDetails() CALLED");
+    debugPrint("📌 PO ID: $poId");
+
     try {
+      /// FORMAT DATE
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
 
+      debugPrint("📅 Invoice Date (formatted): $formattedInvoiceDate");
+      debugPrint("🧾 Invoice No: $invoiceNumber");
+
+      /// FIND PO
+      debugPrint("🔍 Finding PO in local list...");
       final PO po = _pos.firstWhere(
         (p) => p.purchaseOrderId == poId,
         orElse: () => throw Exception("PO not found"),
       );
+      debugPrint("✅ PO found: ${po.randomId}");
 
+      /// PREPARE ITEMS
+      debugPrint("📦 Preparing items for API...");
       final receivedItems = items.map((item) => item.copyWith()).toList();
+
       final itemsList = receivedItems.map((item) {
         String? formattedExpiryDate;
+
         if (item.expiryDate != null && item.expiryDate!.isNotEmpty) {
           formattedExpiryDate = _normalizeDate(item.expiryDate);
         }
+
+        debugPrint("➡️ Item: ${item.itemName}");
+        debugPrint("   ID: ${item.itemId}");
+        debugPrint("   Received Qty: ${item.receivedQuantity}");
+        debugPrint("   BefTax: ${item.befTaxDiscount}");
+        debugPrint("   AfTax: ${item.afTaxDiscount}");
+        debugPrint("   Expiry: $formattedExpiryDate");
+
         return {
           "itemId": item.itemId,
           "receivedQuantity": item.receivedQuantity ?? 0,
@@ -1108,6 +1145,7 @@ class POProvider extends ChangeNotifier {
         };
       }).toList();
 
+      /// BUILD BODY
       final Map<String, dynamic> body = {
         "items": itemsList,
         "invoiceNo": invoiceNumber,
@@ -1123,21 +1161,38 @@ class POProvider extends ChangeNotifier {
       debugPrint("=========== UPDATE PO API PAYLOAD ===========");
       debugPrint(body.toString());
 
+      /// API CALL
+      debugPrint("🌐 Calling API: PATCH /purchaseorders/receivedupdates/$poId");
       final response = await _dio.patch(
         '/purchaseorders/receivedupdates/$poId',
         data: body,
       );
 
+      debugPrint("📡 Status Code: ${response.statusCode}");
+
       if (response.statusCode != 200) {
+        debugPrint("❌ API FAILED: ${response.data}");
         throw Exception(response.data?["detail"] ?? "PO update failed");
       }
 
       debugPrint("=========== UPDATE PO RESPONSE ===========");
       debugPrint(response.data.toString());
 
+      /// CHECK GRN
+      debugPrint("🔎 GRN Created: ${response.data["grnCreated"]}");
+      debugPrint("🆔 GRN ID: ${response.data["grnId"]}");
+
+      /// STOCK CHECK
+      if (response.data["stockUpdate"] != null) {
+        debugPrint("📦 Stock Update: ${response.data["stockUpdate"]}");
+      }
+
+      debugPrint("✅ updatePoDetails SUCCESS");
+
       return response.data;
-    } catch (e) {
-      debugPrint("updatePoDetails failed: $e");
+    } catch (e, stack) {
+      debugPrint("❌ updatePoDetails FAILED: $e");
+      debugPrintStack(stackTrace: stack);
       throw Exception("updatePoDetails failed: $e");
     }
   }

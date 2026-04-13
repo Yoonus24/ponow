@@ -311,13 +311,17 @@ class DebitCreditNote {
       grnId: grn.grnId ?? '',
       vendorName: grn.vendorName ?? 'Unknown',
       itemDetails: (grn.itemDetails ?? []).map((grnItem) {
-        String reason =
-            grn.comments?.trim() ??
-            (grnItem.returnHistory?.isNotEmpty == true
-                ? grnItem.returnHistory![0]['reason'] as String? ?? ''
-                : '');
+        String reason = '';
 
-        reason = reason.isEmpty ? 'No reason provided' : reason;
+        if (grnItem.returnHistory != null &&
+            grnItem.returnHistory!.isNotEmpty) {
+          reason = grnItem.returnHistory!.last['reason'] ?? '';
+        }
+
+        if (reason.trim().isEmpty) {
+          reason = 'No reason provided';
+        }
+
         return ItemDetails(
           itemId: grnItem.itemId ?? '',
           itemName: grnItem.itemName ?? 'N/A',

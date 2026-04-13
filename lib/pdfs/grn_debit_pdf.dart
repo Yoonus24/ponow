@@ -1,32 +1,19 @@
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRNDebitPdf {
-  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-  static const String businessUrl =
-      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
-  static const String vendorUrl =
-      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
-
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
-
   // ================= FETCH GRN =================
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
-    final response = await _dio.get(
-      '$baseUrl/grns/$grnId',
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    final response = await DioClient.dio.get('/grns/$grnId');
+
     if (response.statusCode == 200) {
       return response.data is Map<String, dynamic> ? response.data : {};
     } else {
@@ -36,10 +23,8 @@ class GRNDebitPdf {
 
   // ================= FETCH BUSINESS =================
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await _dio.get(
-      businessUrl,
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    final response = await DioClient.dio.get('/pobusiness/');
+
     if (response.statusCode == 200) {
       final List<dynamic> data = response.data is List ? response.data : [];
       return data.isNotEmpty ? data.first : {};
@@ -51,20 +36,23 @@ class GRNDebitPdf {
   // ================= FETCH VENDOR =================
   Future<Map<String, dynamic>> fetchVendorsDetails({String? vendorName}) async {
     try {
-      final response = await _dio.get(
-        vendorUrl,
-        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      final response = await DioClient.dio.get(
+        '/vendors/exact-name/',
+        queryParameters: {"vendorName": vendorName},
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data is List ? response.data : [];
+
         final vendor = data.firstWhere(
           (v) =>
               v['vendorName']?.toString().toLowerCase() ==
               vendorName?.toLowerCase(),
           orElse: () => _fallbackVendor(vendorName),
         );
+
         return Map<String, dynamic>.from(vendor);
       }
+
       return _fallbackVendor(vendorName);
     } catch (_) {
       return _fallbackVendor(vendorName);
@@ -84,7 +72,7 @@ class GRNDebitPdf {
 
   // ================= LOAD LOGO =================
   Future<pw.MemoryImage> _loadLogoImage() async {
-    final data = await rootBundle.load('assets/bestmummy.png');
+    final data = await rootBundle.load('assets/bestmummy.jpg');
     return pw.MemoryImage(data.buffer.asUint8List());
   }
 
@@ -161,14 +149,12 @@ class GRNDebitPdf {
                 ],
               ),
 
-              pw.SizedBox(height: 10),
-
               // ===== BUSINESS INFO RIGHT =====
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.end,
+                mainAxisAlignment: pw.MainAxisAlignment.center,
                 children: [
                   pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Text(
                         businessData['companyName'] ?? '',
@@ -328,9 +314,14 @@ class GRNDebitPdf {
     );
 
     final output = await getTemporaryDirectory();
-    final file = File(
-      "${output.path}/DebitNote_${grnData['randomId'] ?? grnId}.pdf",
+
+    final safeFileName = (grnData['randomId'] ?? grnId).toString().replaceAll(
+      '/',
+      '_',
     );
+
+    final file = File("${output.path}/DebitNote_$safeFileName.pdf");
+
     await file.writeAsBytes(await pdf.save());
     return file;
   }
@@ -374,6 +365,27 @@ class GRNDebitPdf {
         ),
       ],
     );
+  }
+
+  Future<void> generateAndOpenDebit(BuildContext context, String grnId) async {
+    try {
+      print("📄 Generating Debit PDF...");
+
+      final file = await generateGrnPdf(grnId);
+
+      print("✅ PDF generated: ${file.path}");
+
+      await OpenFilex.open(file.path);
+    } catch (e) {
+      print("❌ Debit PDF Error: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Failed to open Debit PDF"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   List<pw.TableRow> _buildDebitItemRows(List<dynamic> items) {

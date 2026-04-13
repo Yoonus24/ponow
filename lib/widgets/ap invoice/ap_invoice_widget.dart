@@ -98,14 +98,17 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
             children: [
               // Invoice No
               Expanded(
-                child: Text(
-                  "Invoice No: ${apinvoice.randomId ?? "N/A"}",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                child: Expanded(
+                  child: Text(
+                    "Invoice No: ${apinvoice.randomId ?? "N/A"}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2, 
+                    softWrap: true, 
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
 

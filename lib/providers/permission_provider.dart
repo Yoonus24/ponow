@@ -7,7 +7,6 @@ class PermissionProvider extends ChangeNotifier {
 
   Map<String, dynamic> get permissions => _permissions;
 
-  /// 🔹 Load from SharedPreferences
   Future<void> loadPermissions() async {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString('permissions');
@@ -19,16 +18,30 @@ class PermissionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 🔹 Main checker
   bool hasPermission(String module, String submodule, String action) {
     try {
-      return _permissions[module]?[submodule]?[action] == true;
+      if (module == 'yenerp') {
+        return _permissions[module]?[submodule]?[action] == true;
+      }
+      return _permissions['yenerp']?[module]?[action] == true;
     } catch (e) {
       return false;
     }
   }
 
-  /// 🔹 Clear on logout
+  bool hasEditAction(String module, String action) {
+    try {
+      final moduleData = _permissions['yenerp']?[module];
+
+      final hasEdit = moduleData?['edit'] == true;
+      final hasAction = moduleData?['edit_actions']?[action] == true;
+
+      return hasEdit && hasAction;
+    } catch (e) {
+      return false;
+    }
+  }
+
   void clear() {
     _permissions = {};
     notifyListeners();

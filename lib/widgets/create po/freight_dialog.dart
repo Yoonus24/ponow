@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/freight_name_model.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import '../../widgets/numeric_Calculator.dart';
 
@@ -43,6 +44,9 @@ class _FreightDialogState extends State<FreightDialog> {
   final ScrollController _leftVertical = ScrollController();
   final ScrollController _rightVertical = ScrollController();
   final ScrollController _horizontal = ScrollController();
+  bool canAddFreight = false;
+  bool canEditFreight = false;
+  bool canDeleteFreight = false;
 
   InputDecoration _buildFieldDecoration(
     String label, {
@@ -118,6 +122,52 @@ class _FreightDialogState extends State<FreightDialog> {
       } catch (e) {
         debugPrint("❌ Failed to load freight data: $e");
       }
+    });
+  }
+
+  void _showTopError(String message) {
+    final overlayState = Overlay.of(context, rootOverlay: true);
+
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 60,
+        left: 20,
+        right: 20,
+        child: Material(
+          elevation: 10,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlayState.insert(overlayEntry);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (overlayEntry.mounted) overlayEntry.remove();
     });
   }
 
@@ -215,6 +265,10 @@ class _FreightDialogState extends State<FreightDialog> {
   }
 
   void _addToTemporaryList() {
+    if (!canAddFreight) {
+      _showTopError("No permission to add freight");
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final provider = context.read<POProvider>();
@@ -225,18 +279,14 @@ class _FreightDialogState extends State<FreightDialog> {
     );
 
     if (selected.id.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a freight name")),
-      );
+      _showTopError("Please select a freight name");
       return;
     }
 
     final amount = double.tryParse(_amountController.text) ?? 0;
 
     if (amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid amount")),
-      );
+      _showTopError("Please enter a valid amount");
       return;
     }
 
@@ -303,10 +353,12 @@ class _FreightDialogState extends State<FreightDialog> {
   }
 
   Future<void> _submitAll() async {
+    if (!canAddFreight) {
+      _showTopError("No permission to add freight");
+      return;
+    }
     if (_temporaryFreights.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("No freights to save")));
+      _showTopError("No freights to save");
       return;
     }
 
@@ -323,9 +375,7 @@ class _FreightDialogState extends State<FreightDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error saving: $e")));
+        _showTopError("Error saving: $e");
       }
     } finally {
       _isSaving.value = false;
@@ -510,16 +560,32 @@ class _FreightDialogState extends State<FreightDialog> {
                                       _buildActionButton(
                                         icon: Icons.edit,
                                         color: Colors.blueAccent,
-                                        onPressed: () =>
-                                            _editTemporaryFreight(f),
+                                        onPressed: () {
+                                          if (!canEditFreight) {
+                                            _showTopError(
+                                              "No permission to edit freight",
+                                            );
+                                            return;
+                                          }
+
+                                          _editTemporaryFreight(f);
+                                        },
                                         isMobile: isMobile,
                                       ),
                                       SizedBox(width: isMobile ? 2 : 4),
                                       _buildActionButton(
                                         icon: Icons.delete,
                                         color: Colors.red,
-                                        onPressed: () =>
-                                            _removeTemporaryFreight(index),
+                                        onPressed: () {
+                                          if (!canDeleteFreight) {
+                                            _showTopError(
+                                              "No permission to delete freight",
+                                            );
+                                            return;
+                                          }
+
+                                          _removeTemporaryFreight(index);
+                                        },
                                         isMobile: isMobile,
                                       ),
                                     ],
@@ -673,6 +739,11 @@ class _FreightDialogState extends State<FreightDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
+
+    canAddFreight = permission.hasPermission("yenerp", "freight", "add");
+    canEditFreight = permission.hasPermission("yenerp", "freight", "edit");
+    canDeleteFreight = permission.hasPermission("yenerp", "freight", "delete");
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     Widget twoCol(Widget a, Widget b) {

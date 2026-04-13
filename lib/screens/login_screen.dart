@@ -1,3 +1,5 @@
+// ignore_for_file: sized_box_for_whitespace, deprecated_member_use, avoid_print, use_build_context_synchronously
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -264,7 +266,7 @@ Future<void> _login() async {
                                 child: Container(
                                   height: 100,
                                   child: Image.asset(
-                                    'assets/bestmummy.png',
+                                    'assets/bestmummy.jpg',
                                     fit: BoxFit.contain,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Icon(

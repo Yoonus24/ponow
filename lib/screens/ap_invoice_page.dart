@@ -493,7 +493,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          "Invoice Type",
+                          "Invoice Type : ",
                           style: TextStyle(
                             fontSize: textSize,
                             fontWeight: FontWeight.w600,
@@ -505,7 +505,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                         _typeButtonCompact("Goods", selected),
                         const SizedBox(width: 6),
-                        _typeButtonCompact("Service", selected),
+                        // _typeButtonCompact("Service", selected),
                       ],
                     ),
                   ),
@@ -707,12 +707,12 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                       }).toList();
                                     }
 
-                                    if (selectedType == "Service") {
-                                      list = list.where((inv) {
-                                        return inv.itemDetails == null ||
-                                            inv.itemDetails!.isEmpty;
-                                      }).toList();
-                                    }
+                                    // if (selectedType == "Service") {
+                                    //   list = list.where((inv) {
+                                    //     return inv.itemDetails == null ||
+                                    //         inv.itemDetails!.isEmpty;
+                                    //   }).toList();
+                                    // }
                                     if (list.isEmpty) {
                                       return ListView(
                                         physics:

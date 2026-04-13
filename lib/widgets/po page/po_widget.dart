@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:purchaseorders2/widgets/po page/po_model.dart';
 import 'package:provider/provider.dart';
@@ -115,6 +116,13 @@ class _POWidgetState extends State<POWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
+
+    bool canEditPO = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_pending", // or approved based on your module
+      "edit",
+    );
     return Consumer<POProvider>(
       builder: (context, poProvider, child) {
         final updatedPO = poProvider.poList.firstWhere(
@@ -156,7 +164,6 @@ class _POWidgetState extends State<POWidget> {
                 ? Border.all(color: const Color(0xFF87CEEB), width: 2)
                 : Border.all(color: Colors.transparent),
           ),
-          // constraints: const BoxConstraints(maxWidth: 600, maxHeight: 400),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -174,21 +181,24 @@ class _POWidgetState extends State<POWidget> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(updatedPO.poStatus),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _getDisplayStatus(updatedPO),
-                            style: GoogleFonts.quicksand(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
+                        Flexible(
+                          // ✅ FIX: Added Flexible
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(updatedPO.poStatus),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _getDisplayStatus(updatedPO),
+                              style: GoogleFonts.quicksand(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ),
@@ -198,7 +208,19 @@ class _POWidgetState extends State<POWidget> {
                             color: Colors.white,
                             size: 20,
                           ),
-                          onPressed: () => _editPO(context, updatedPO),
+                          onPressed: () {
+                            if (!canEditPO) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("No permission to edit PO"),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                              return;
+                            }
+
+                            _editPO(context, updatedPO);
+                          },
                         ),
                       ],
                     ),
@@ -206,12 +228,15 @@ class _POWidgetState extends State<POWidget> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "PO No: ${updatedPO.randomId}",
-                          style: GoogleFonts.quicksand(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        Flexible(
+                          // ✅ FIX: Added Flexible
+                          child: Text(
+                            "PO No: ${updatedPO.randomId}",
+                            style: GoogleFonts.quicksand(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                         Text(
@@ -290,8 +315,7 @@ class _POWidgetState extends State<POWidget> {
     const double headerHeight = 48;
     const double itemNameWidth = 120;
 
-    final List<double> widths = [80, 80, 80, 80, 120, 120, 120, 120, 120, 120];
-
+    final List<double> widths = [60, 60, 60, 70, 90, 90, 90, 90, 100, 100];
     final rightTotalWidth = widths.fold<double>(0, (sum, w) => sum + w);
 
     return Column(
@@ -329,8 +353,8 @@ class _POWidgetState extends State<POWidget> {
                       _headerCell("Existing", widths[4]),
                       _headerCell("New", widths[5]),
                       _headerCell("Discount", widths[6]),
-                      _headerCell("Tax", widths[8]),
-                      _headerCell("Total Price", widths[9]),
+                      _headerCell("Tax", widths[7]),
+                      _headerCell("Total Price", widths[8]),
                       _headerCell("Final Price", widths[9]),
                     ],
                   ),
@@ -355,7 +379,6 @@ class _POWidgetState extends State<POWidget> {
                       child: Text(
                         item.itemName ?? "",
                         maxLines: 2,
-
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.black,
@@ -404,11 +427,10 @@ class _POWidgetState extends State<POWidget> {
                                       "0.00",
                                   widths[7],
                                 ),
-
                                 _dataCell(
                                   item.pendingTotalPrice?.toStringAsFixed(2) ??
                                       "0.00",
-                                  widths[9],
+                                  widths[8],
                                 ),
                                 _dataCell(
                                   item.pendingFinalPrice?.toStringAsFixed(2) ??
@@ -515,7 +537,7 @@ class _POWidgetState extends State<POWidget> {
       context: context,
       builder: (_) => PurchaseOrderDialog(
         key: UniqueKey(),
-        editingPO: fullPO, // ✅ FIXED
+        editingPO: fullPO,
         templateProvider: context.read<TemplateProvider>(),
       ),
     );

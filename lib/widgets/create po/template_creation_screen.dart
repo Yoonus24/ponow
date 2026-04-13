@@ -293,62 +293,92 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
   }
 
   Future<String?> _showTemplateNameDialog() async {
+    print("🟡 Opening Template Name Dialog");
+
     final controller = TextEditingController();
 
-    return showDialog<String>(
+    final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Template Name',
-          style: TextStyle(color: Colors.black),
-        ),
-        content: TextFormField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: Colors.black),
-          decoration: const InputDecoration(
-            labelText: 'Enter template name',
-            labelStyle: TextStyle(color: Colors.black),
-            hintStyle: TextStyle(color: Colors.grey),
-            border: OutlineInputBorder(),
-            enabledBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.grey),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.orange),
-            ),
+      builder: (context) {
+        print("📦 Dialog UI Built");
+
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Template Name',
+            style: TextStyle(color: Colors.black),
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Template name is required';
-            }
-            if (value.length < 3) {
-              return 'Template name must be at least 3 characters';
-            }
-            return null;
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'CANCEL',
-              style: TextStyle(color: Colors.black54),
+          content: TextFormField(
+            controller: controller,
+            autofocus: true,
+            style: const TextStyle(color: Colors.black),
+            decoration: const InputDecoration(
+              labelText: 'Enter template name',
+              labelStyle: TextStyle(color: Colors.black),
+              hintStyle: TextStyle(color: Colors.grey),
+              border: OutlineInputBorder(),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.orange),
+              ),
             ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty && controller.text.length >= 3) {
-                Navigator.pop(context, controller.text.trim());
-              }
+            onChanged: (value) {
+              print("✏️ User typing: $value");
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('SAVE', style: TextStyle(color: Colors.white)),
+            validator: (value) {
+              print("🔍 Validating input: $value");
+
+              if (value == null || value.isEmpty) {
+                print("❌ Validation failed: empty");
+                return 'Template name is required';
+              }
+              if (value.length < 3) {
+                print("❌ Validation failed: too short");
+                return 'Template name must be at least 3 characters';
+              }
+
+              print("✅ Validation success");
+              return null;
+            },
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                print("🚫 User cancelled dialog");
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'CANCEL',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                print("💾 Save button clicked");
+
+                final text = controller.text.trim();
+                print("📥 Entered Template Name: $text");
+
+                if (text.isNotEmpty && text.length >= 3) {
+                  print("✅ Valid input → Closing dialog with value");
+                  Navigator.pop(context, text);
+                } else {
+                  print("❌ Invalid input → Not closing dialog");
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('SAVE', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
     );
+
+    print("📤 Dialog closed. Result: $result");
+
+    return result;
   }
 
   void _showAddItemDialog(BuildContext context) async {

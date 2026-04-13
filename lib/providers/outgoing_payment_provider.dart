@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_final_fields
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -15,12 +17,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     _ensureDioInitialized();
   }
 
-  // Ensure DioClient is initialized
   Future<void> _ensureDioInitialized() async {
     await DioClient.init();
   }
 
-  // final String _baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
   List<Outgoing> _payments = [];
   List<Outgoing> _allPayments = [];
   List<GRN> _grnList = [];
@@ -684,7 +684,6 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   void dispose() {
     _vendorNamesNotifier.dispose();
     _invoiceNumbersNotifier.dispose();
-    // Remove dio.close() as DioClient manages the Dio instance
     super.dispose();
   }
 

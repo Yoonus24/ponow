@@ -50,8 +50,14 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     if (widget.poProvider.vendorCache.isNotEmpty) {
       _allVendors = widget.poProvider.vendorCache;
 
-      _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
-
+      if (_currentQuery.isEmpty) {
+        _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+      } else {
+        _displayedVendors.value = _allVendors
+            .where((v) => v.vendorName.toLowerCase().startsWith(_currentQuery))
+            .map((e) => e.vendorName)
+            .toList();
+      }
       return;
     }
 
@@ -66,7 +72,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
 
     _allVendors = fetched;
 
-    widget.poProvider.vendorCache = fetched; 
+    widget.poProvider.vendorCache = fetched;
 
     _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
 
@@ -74,7 +80,9 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
   }
 
   void _search(String query) {
-    final q = query.toLowerCase().trim();
+    _currentQuery = query.toLowerCase().trim(); // ✅ ADD THIS
+
+    final q = _currentQuery;
 
     if (q.isEmpty) {
       _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
@@ -82,7 +90,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     }
 
     _displayedVendors.value = _allVendors
-        .where((v) => v.vendorName.toLowerCase().contains(q))
+        .where((v) => v.vendorName.toLowerCase().startsWith(q))
         .map((e) => e.vendorName)
         .toList();
   }
@@ -123,15 +131,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
       builder: (context, vendorList, _) {
         return Autocomplete<String>(
           optionsBuilder: (value) {
-            final query = value.text.toLowerCase().trim();
-
-            if (query.isEmpty) {
-              return vendorList;
-            }
-
-            return vendorList.where(
-              (vendor) => vendor.toLowerCase().contains(query),
-            );
+            return vendorList;
           },
 
           onSelected: (name) {
@@ -165,7 +165,9 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                     onNotification: (scroll) {
                       if (scroll.metrics.pixels >=
                           scroll.metrics.maxScrollExtent - 50) {
-                        _loadMore();
+                        if (_currentQuery.isEmpty) {
+                          _loadMore();
+                        }
                       }
                       return false;
                     },
@@ -333,5 +335,3 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
     super.dispose();
   }
 }
-
-

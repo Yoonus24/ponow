@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/widgets/numeric_calculator.dart';
 import 'package:provider/provider.dart';
 import '../../providers/po_model_provider.dart';
@@ -731,6 +732,24 @@ class _POModalState extends State<POModal> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
+
+    bool canEdit = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_pending",
+      "edit",
+    );
+
+    bool canApprove = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_pending",
+      "approve",
+    );
+    bool canReject = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_pending",
+      "reject",
+    );
     final items = widget.po.items
         .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
         .toList();
@@ -827,12 +846,29 @@ class _POModalState extends State<POModal> {
                                             left: 6,
                                           ),
                                           color: Colors.grey[200],
-                                          child: const Text(
-                                            "Item Name",
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          child: const Row(
+                                            children: const [
+                                              SizedBox(
+                                                width: 30,
+                                                child: Text(
+                                                  "S.No",
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(width: 6),
+                                              Expanded(
+                                                child: Text(
+                                                  "Item Name",
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
                                         Expanded(
@@ -859,12 +895,29 @@ class _POModalState extends State<POModal> {
                                                           ),
                                                         ),
                                                       ),
-                                                  child: Text(
-                                                    item.itemName ?? '',
-
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                    ),
+                                                  child: Row(
+                                                    children: [
+                                                      SizedBox(
+                                                        width: 30,
+                                                        child: Text(
+                                                          "${index + 1}",
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 12,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      Expanded(
+                                                        child: Text(
+                                                          item.itemName ?? '',
+                                                          style:
+                                                              const TextStyle(
+                                                                fontSize: 12,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                                 ),
                                               );
@@ -972,7 +1025,7 @@ class _POModalState extends State<POModal> {
                                 const SizedBox(width: 12),
 
                                 ElevatedButton(
-                                  onPressed: isSaving.value
+                                  onPressed: (!canEdit || isSaving.value)
                                       ? null
                                       : () async {
                                           try {
@@ -984,7 +1037,6 @@ class _POModalState extends State<POModal> {
 
                                             final poProvider = context
                                                 .read<POProvider>();
-
                                             await poProvider
                                                 .fetchPendingPOsFromBackend(
                                                   clearExisting: true,
@@ -1029,81 +1081,99 @@ class _POModalState extends State<POModal> {
                                 if (widget.showApproveButton) ...[
                                   const SizedBox(width: 12),
                                   ElevatedButton(
-                                    onPressed: isApproving.value
-                                        ? null
-                                        : () async {
-                                            final errorMessage = context
-                                                .read<POModalProvider>()
-                                                .validateItems();
+                                    onPressed: () async {
+                                      if (!canApprove) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: const Text(
+                                              "You do not have permission to approve this order",
+                                            ),
+                                            backgroundColor: Colors.red,
 
-                                            if (errorMessage != null) {
-                                              final messenger =
-                                                  ScaffoldMessenger.of(context);
+                                            behavior: SnackBarBehavior
+                                                .floating, // 🔥 IMPORTANT
 
-                                              messenger.clearSnackBars();
+                                            margin: const EdgeInsets.only(
+                                              bottom:
+                                                  80, // 👈 adjust height (increase/decrease)
+                                              left: 16,
+                                              right: 16,
+                                            ),
 
-                                              messenger.showSnackBar(
-                                                SnackBar(
-                                                  behavior:
-                                                      SnackBarBehavior.floating,
-                                                  margin:
-                                                      const EdgeInsets.fromLTRB(
-                                                        20,
-                                                        0,
-                                                        20,
-                                                        70,
-                                                      ),
-                                                  backgroundColor: Colors.red,
-                                                  content: Text(errorMessage),
-                                                ),
-                                              );
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
 
-                                              return;
-                                            }
+                                            duration: const Duration(
+                                              seconds: 2,
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
 
-                                            final confirm = await showConfirmDialog(
-                                              context: context,
-                                              title: "Approve PO?",
-                                              message:
-                                                  "Are you sure you want to approve this purchase order?",
-                                              isApprove: true,
-                                            );
+                                      if (isApproving.value) return;
 
-                                            if (confirm != true) return;
+                                      final errorMessage = context
+                                          .read<POModalProvider>()
+                                          .validateItems();
 
-                                            try {
-                                              isApproving.value = true;
+                                      if (errorMessage != null) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(content: Text(errorMessage)),
+                                        );
+                                        return;
+                                      }
 
-                                              final poProvider =
-                                                  Provider.of<POProvider>(
-                                                    context,
-                                                    listen: false,
-                                                  );
+                                      final confirm = await showConfirmDialog(
+                                        context: context,
+                                        title: "Approve PO?",
+                                        message:
+                                            "Are you sure you want to approve this purchase order?",
+                                        isApprove: true,
+                                      );
 
-                                              if (poModalProvider.hasChanges) {
-                                                await poModalProvider
-                                                    .saveChangesDirect();
-                                              }
+                                      if (confirm != true) return;
 
-                                              await poProvider.approvePo(
-                                                widget.po.purchaseOrderId,
-                                              );
+                                      try {
+                                        isApproving.value = true;
 
-                                              poProvider.removeApprovedPO(
-                                                widget.po.purchaseOrderId,
-                                              );
+                                        final poProvider = context
+                                            .read<POProvider>();
 
-                                              if (context.mounted) {
-                                                Navigator.of(context).pop();
-                                              }
-                                            } finally {
-                                              isApproving.value = false;
-                                            }
-                                          },
+                                        if (poModalProvider.hasChanges) {
+                                          await poModalProvider
+                                              .saveChangesDirect();
+                                        }
+
+                                        await poProvider.approvePo(
+                                          widget.po.purchaseOrderId,
+                                        );
+
+                                        poProvider.removeApprovedPO(
+                                          widget.po.purchaseOrderId,
+                                        );
+
+                                        if (context.mounted) {
+                                          Navigator.of(context).pop();
+                                        }
+                                      } finally {
+                                        isApproving.value = false;
+                                      }
+                                    },
+
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blueAccent,
+                                      backgroundColor: canApprove
+                                          ? Colors.blueAccent
+                                          : Colors.grey, // 👈 grey look
                                       foregroundColor: Colors.white,
                                     ),
+
                                     child: ValueListenableBuilder<bool>(
                                       valueListenable: isApproving,
                                       builder: (_, saving, __) {
@@ -1135,6 +1205,36 @@ class _POModalState extends State<POModal> {
                                     onPressed: isRejecting.value
                                         ? null
                                         : () async {
+                                            if (!canReject) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: const Text(
+                                                    "You do not have permission to reject this order",
+                                                  ),
+                                                  backgroundColor: Colors.red,
+                                                  behavior:
+                                                      SnackBarBehavior.floating,
+                                                  margin: const EdgeInsets.only(
+                                                    bottom: 80,
+                                                    left: 16,
+                                                    right: 16,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  duration: const Duration(
+                                                    seconds: 2,
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
+
                                             final confirm = await showConfirmDialog(
                                               context: context,
                                               title: "Reject PO?",
@@ -1157,16 +1257,18 @@ class _POModalState extends State<POModal> {
                                               await poProvider.rejectPo(
                                                 widget.po.purchaseOrderId,
                                               );
-                                              // poProvider.fetchPOs();
 
-                                              if (context.mounted)
+                                              if (context.mounted) {
                                                 Navigator.of(context).pop();
+                                              }
                                             } finally {
                                               isRejecting.value = false;
                                             }
                                           },
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.redAccent,
+                                      backgroundColor: canReject
+                                          ? Colors.redAccent
+                                          : Colors.grey,
                                       foregroundColor: Colors.white,
                                     ),
                                     child: ValueListenableBuilder<bool>(

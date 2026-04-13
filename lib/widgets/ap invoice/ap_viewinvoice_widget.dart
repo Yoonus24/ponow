@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
-import 'package:purchaseorders2/widgets/ap invoice/ap_viewinvoice_modal.dart';
+import 'package:purchaseorders2/widgets/outgoing%20payment/ap_viewinvoice_modal.dart';
 
 class APViewInvoiceWidget extends StatefulWidget {
   final ApInvoice apinvoice;

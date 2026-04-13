@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/pending%20_outgoing_view_dialog.dart';
 import 'package:provider/provider.dart';
 import '../../providers/outgoing_payment_provider.dart';
@@ -353,8 +354,11 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     );
   }
 
-  // Multiple Payment Button
   Widget _buildMultiplePaymentButton(List<Outgoing> filteredPayments) {
+    final permission = context.read<PermissionProvider>();
+
+    final canPay = permission.hasPermission('outgoingpayment', '', 'edit');
+
     return ValueListenableBuilder<Set<int>>(
       valueListenable: _logic.selectedIndicesNotifier,
       builder: (context, selectedIndices, _) {
@@ -365,28 +369,35 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
               icon: Icon(
                 Icons.payments,
                 size: 22,
-                color: selectedIndices.length >= 2
-                    ? Colors.blueAccent
-                    : Colors.grey,
+                color: (!canPay || selectedIndices.length < 2)
+                    ? Colors.grey
+                    : Colors.blueAccent,
               ),
-              tooltip: selectedIndices.length >= 2
+
+              tooltip: !canPay
+                  ? 'No permission'
+                  : selectedIndices.length >= 2
                   ? 'Process Selected Payments'
                   : 'Select 2 or more items to enable',
-              onPressed: selectedIndices.length >= 2
-                  ? () {
+
+              onPressed: (!canPay || selectedIndices.length < 2)
+                  ? null
+                  : () {
                       final selectedPayments = selectedIndices
                           .map((index) => filteredPayments[index])
                           .toList();
+
                       _logic.showPaymentDialog(
                         context,
                         selectedPayments,
                         null,
                         true,
                       );
-                    }
-                  : null,
+                    },
             ),
+
             const SizedBox(width: 4),
+
             const Text('Multiple Pay', style: TextStyle(fontSize: 12)),
           ],
         );

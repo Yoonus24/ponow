@@ -16,10 +16,7 @@ class ImportProvider extends ChangeNotifier {
   String? get currentFileName => _currentFileName;
   List get importErrors => _importErrors;
 
-  // Remove local Dio instance - we'll use DioClient.dio instead
-  // Note: The base URL is already configured in DioClient, but we need the import endpoint
-  // The full URL will be: DioClient.baseUrl + "/poimport/import-items-csv"
-
+ 
   ImportProvider() {
     _ensureDioInitialized();
   }
@@ -47,16 +44,13 @@ class ImportProvider extends ChangeNotifier {
       _uploadStatus = "Uploading...";
       notifyListeners();
 
-      // Use DioClient.dio instead of local Dio instance
-      // Note: The full endpoint is /poimport/import-items-csv
+    
       final response = await DioClient.dio.post(
-        "/poimport/import-items-csv", // Path relative to DioClient.baseUrl
+        "/poimport/import-items-csv", 
         data: formData,
         options: Options(
-          // Increase timeout for file uploads since default is 10 seconds
           sendTimeout: const Duration(seconds: 60),
           receiveTimeout: const Duration(seconds: 60),
-          // Don't validate status strictly - we handle it ourselves
           validateStatus: (status) => status != null && status < 500,
         ),
         onSendProgress: (int sent, int total) {
@@ -143,7 +137,6 @@ class ImportProvider extends ChangeNotifier {
           errors = [errData?['message'] ?? "Invalid file format or data"];
         }
       } else if (e.response?.statusCode == 401) {
-        // Session expired - handled by DioClient interceptor
         errors = ["Session expired. Please login again."];
       } else if (e.response?.statusCode == 413) {
         errors = ["File is too large"];

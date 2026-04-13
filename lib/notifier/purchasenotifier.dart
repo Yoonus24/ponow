@@ -131,6 +131,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   late TextEditingController countryController = TextEditingController();
   late TextEditingController postalCodeController = TextEditingController();
   late TextEditingController gstNumberController = TextEditingController();
+  late TextEditingController termsAndConditionsController =
+      TextEditingController();
 
   String? selectedVendor;
   VendorAll? selectedVendorDetails;
@@ -958,9 +960,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   }
 
   Future<bool> submitPurchaseOrder(BuildContext context) async {
-    if (_disposed) {
-      return false;
-    }
+    if (_disposed) return false;
 
     try {
       if (selectedLocation == null || selectedLocation!.isEmpty) {
@@ -982,7 +982,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return false;
       }
 
-      final snapshot = {
+      // ✅ SNAPSHOT (LIST FIX)
+      final Map<String, dynamic> snapshot = {
         "vendorContact": _getControllerTextSafely(vendorContactController),
         "paymentTerms": _getControllerTextSafely(paymentTermsController),
         "billing": _getControllerTextSafely(billingController),
@@ -993,10 +994,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         ),
         "roundOff": _getControllerTextSafely(roundOffController),
         "overallDiscount": _getControllerTextSafely(overallDiscountController),
+
+        "termsandConditions": [
+          _getControllerTextSafely(termsAndConditionsController),
+        ],
       };
 
       await recalculateTotalsFromBackend();
-      await Future.delayed(Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 50));
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
@@ -1036,6 +1041,12 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         final updatedPO = editingPO!.copyWith(
           vendorName: selectedVendor,
           vendorContact: snapshot["vendorContact"],
+
+          // ✅ LIST FIX
+          termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
+              .map((e) => e.toString())
+              .toList(),
+
           orderedDate: formattedOrderDate,
           expectedDeliveryDate: formattedExpectedDate,
           location: selectedLocation,
@@ -1105,6 +1116,11 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         freights: freights,
         totalFreightAmount: totalFreightAmount,
         totalFreightTaxAmount: totalFreightTaxAmount,
+
+        // ✅ LIST FIX
+        termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
+            .map((e) => e.toString())
+            .toList(),
 
         isHoldOrder: calculatedFinalAmount > vendorDetails.creditLimit,
 

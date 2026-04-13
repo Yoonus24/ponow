@@ -2,34 +2,23 @@
 // ignore_for_file: unused_element
 
 import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class GRNPDF {
-  static const String baseUrl = 'http://192.168.29.184:8000/purchasetestapi';
-  static const String businessUrl =
-      'http://192.168.29.184:8000/purchasetestapi/pobusiness/';
-  static const String vendorBaseUrl =
-      'http://192.168.29.184:8000/purchasetestapi/vendors/exact-name/';
-
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ),
-  );
+  final Dio _dio = DioClient.dio;
+  static const String businessUrl = "/pobusiness/";
+  static const String vendorBaseUrl = "/vendors/exact-name/";
 
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
-    final uri = '$baseUrl/grns/$grnId';
-
-    final response = await _dio.get(
-      uri,
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    final response = await _dio.get('/grns/$grnId');
 
     final dynamic decoded = response.data;
 
@@ -41,11 +30,7 @@ class GRNPDF {
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await _dio.get(
-      businessUrl,
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
-
+    final response = await _dio.get('/pobusiness/');
     final List<dynamic> data = response.data;
 
     if (data.isNotEmpty && data.first is Map<String, dynamic>) {
@@ -58,10 +43,7 @@ class GRNPDF {
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
     if (vendorId.trim().isEmpty) return {};
 
-    final response = await _dio.get(
-      '$vendorBaseUrl$vendorId',
-      options: Options(receiveTimeout: const Duration(seconds: 30)),
-    );
+    final response = await _dio.get('/vendors/exact-name/$vendorId');
 
     final dynamic decoded = response.data;
 
@@ -93,7 +75,7 @@ class GRNPDF {
 
     pw.MemoryImage? logoImage;
     try {
-      logoImage = await _tryLoadLogoImage('assets/bestmummy.png');
+      logoImage = await _tryLoadLogoImage('assets/bestmummy.jpg');
     } catch (_) {
       logoImage = null;
     }
@@ -174,11 +156,9 @@ class GRNPDF {
                           ),
                           pw.SizedBox(height: 4),
                           pw.Text(
-                            businessData['companyName']?.toString() ?? '',
-                            style: pw.TextStyle(
-                              fontSize: 12,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
+                            (businessData['companyName'] ?? '')
+                                .toString()
+                                .replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
                           ),
                           pw.Text(
                             _joinNonEmpty([
@@ -435,10 +415,47 @@ class GRNPDF {
     );
 
     final output = await getTemporaryDirectory();
-    final filename = 'grn_${grnData['randomId']?.toString() ?? grnId}.pdf';
+    final safeId = (grnData['randomId'] ?? grnId).toString().replaceAll(
+      '/',
+      '_',
+    );
+
+    final filename = 'grn_$safeId.pdf';
     final file = File('${output.path}/$filename');
     await file.writeAsBytes(await pdf.save());
     return file;
+  }
+
+  Future<void> generateAndOpenGRN(BuildContext context, String grnId) async {
+    try {
+      debugPrint("📄 Start generating GRN PDF: $grnId");
+
+      /// STEP 1: Generate PDF
+      final file = await GRNPDF().generateGRNPdf(grnId);
+
+      debugPrint("✅ PDF generated at: ${file.path}");
+
+      /// STEP 2: Open PDF (IMPORTANT FIX)
+      final result = await OpenFilex.open(file.path);
+
+      debugPrint("📂 Open result: ${result.message}");
+
+      /// STEP 3: Handle open failure
+      if (result.type != ResultType.done) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to open PDF: ${result.message}")),
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ PDF Error: $e");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("PDF generation failed"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   double _getTaxPercentage(List<dynamic> items) {

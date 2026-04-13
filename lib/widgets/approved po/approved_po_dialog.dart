@@ -2,7 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/po.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_logic.dart';
 import 'package:purchaseorders2/widgets/create%20po/freight_dialog.dart';
@@ -199,6 +201,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
 
   @override
   Widget build(BuildContext context) {
+    final permission = context.watch<PermissionProvider>();
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.white,
@@ -635,15 +638,25 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildAddFreightButton() {
+    final permission = context.watch<PermissionProvider>();
+
+    bool canEditFreight = permission.hasPermission("yenerp", "freight", "edit");
     final hasFreight =
         _logic.po.freights != null && _logic.po.freights!.isNotEmpty;
 
     return SizedBox(
       height: 28,
       child: ElevatedButton(
-        onPressed: _openFreightDialog,
+        onPressed: () {
+          if (!canEditFreight) {
+            _logic.showTopError("No permission to edit freight");
+            return;
+          }
+
+          _openFreightDialog();
+        },
         style: ElevatedButton.styleFrom(
-          backgroundColor: hasFreight ? Colors.blueAccent : Colors.blueAccent,
+          backgroundColor: canEditFreight ? Colors.blueAccent : Colors.grey,
           foregroundColor: Colors.white,
         ),
         child: Text(
@@ -994,6 +1007,19 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildActionButtons() {
+    final permission = context.watch<PermissionProvider>();
+
+    bool canConvert = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_approved",
+      "approve",
+    );
+
+    bool canRevert = permission.hasPermission(
+      "yenerp",
+      "purchaseorders_approved",
+      "approve",
+    );
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(border: Border()),
@@ -1003,13 +1029,15 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           Expanded(
             child: ElevatedButton(
               onPressed: () {
-                print(
-                  "🔁 Revert PO button clicked for PO: ${widget.po.randomId}",
-                );
+                if (!canRevert) {
+                  _logic.showTopError("No permission to revert PO");
+                  return;
+                }
+
                 _logic.revertPO(context);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
+                backgroundColor: canRevert ? Colors.blueAccent : Colors.grey,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
@@ -1043,9 +1071,20 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               valueListenable: _logic.isSaving,
               builder: (context, saving, _) {
                 return ElevatedButton(
-                  onPressed: saving ? null : _showConvertToGRNConfirmation,
+                  onPressed: saving
+                      ? null
+                      : () {
+                          if (!canConvert) {
+                            _logic.showTopError("No permission to convert GRN");
+                            return;
+                          }
+
+                          _showConvertToGRNConfirmation();
+                        },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
+                    backgroundColor: canRevert
+                        ? Colors.blueAccent
+                        : Colors.grey,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                   ),

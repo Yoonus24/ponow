@@ -173,13 +173,25 @@ class ApprovedPOTable extends StatelessWidget {
   Widget _buildFixedItemColumn(List<Item> items) {
     return Column(
       children: [
-        SizedBox(
-          width: logic.getColumnWidth('Item'),
-          child: TableHeaderCell(
-            "Item Name",
-            width: logic.getColumnWidth('Item'),
-            alignment: Alignment.centerLeft,
-          ),
+        Row(
+          children: [
+            SizedBox(
+              width: 40,
+              child: TableHeaderCell(
+                "S.No",
+                width: 40,
+                alignment: Alignment.center,
+              ),
+            ),
+            SizedBox(
+              width: logic.getColumnWidth('Item') - 40,
+              child: TableHeaderCell(
+                "Item Name",
+                width: logic.getColumnWidth('Item') - 40,
+                alignment: Alignment.centerLeft,
+              ),
+            ),
+          ],
         ),
         Expanded(
           child: SingleChildScrollView(
@@ -188,28 +200,48 @@ class ApprovedPOTable extends StatelessWidget {
                 : logic.receivedLeftVertical,
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
-              children: items.map((item) {
+              children: items.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
                 return Container(
                   height: rowHeight,
                   color: Colors.white,
-                  child: Container(
-                    width: logic.getColumnWidth('Item'),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      item.itemName ?? "",
-                      maxLines: null,
-                      overflow: TextOverflow.visible,
-                      softWrap: true,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        height: 1,
+                  child: Row(
+                    children: [
+                      // S.NO
+                      SizedBox(
+                        width: 40,
+                        child: Center(
+                          child: Text(
+                            "${index + 1}",
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
                       ),
-                    ),
+
+                      // ITEM NAME
+                      SizedBox(
+                        width: logic.getColumnWidth('Item') - 40,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            item.itemName ?? "",
+                            maxLines: null,
+                            overflow: TextOverflow.visible,
+                            softWrap: true,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),
