@@ -110,10 +110,6 @@ class AuthService {
       final browserId = prefs.getString('browser_session_id');
       final token = prefs.getString('token');
 
-      print("🔄 PING START");
-      print("TOKEN: $token");
-      print("BROWSER ID: $browserId");
-
       await DioClient.dio.post(
         "/ping",
         options: Options(
@@ -124,8 +120,6 @@ class AuthService {
           },
         ),
       );
-
-      print("✅ PING SUCCESS");
     } catch (e) {
       // ❌ Do NOT logout here
       print("⚠️ Ping failed, ignoring: $e");

@@ -624,50 +624,54 @@ class POProvider extends ChangeNotifier {
 
   // ==================== PURCHASE ITEMS METHODS ====================
   Future<void> preloadAllPurchaseItems() async {
-    if (_isPreloadingItems || itemsLoaded) return; // ✅ FIX
+    if (_isPreloadingItems || itemsLoaded) return;
+
     _isPreloadingItems = true;
 
     try {
+      _purchaseItems.clear();
+
       int skip = 0;
       const int limit = 100;
       bool hasMore = true;
 
-      _purchaseItems.clear();
-
       while (hasMore) {
         final response = await _dio.get(
-          '/rawMaterials',
-          queryParameters: {'skip': skip.toString(), 'limit': limit.toString()},
+          '/rawMaterials/',
+          queryParameters: {"skip": skip, "limit": limit},
         );
 
-        if (response.statusCode != 200) break;
+        if (response.statusCode == 200) {
+          List<dynamic> data = [];
 
-        List<dynamic> data = [];
+          if (response.data is Map && response.data['items'] != null) {
+            data = response.data['items'];
+          } else if (response.data is List) {
+            data = response.data;
+          }
 
-        if (response.data is Map && response.data['items'] != null) {
-          data = response.data['items'];
-        } else if (response.data is List) {
-          data = response.data;
+          if (data.isEmpty) {
+            hasMore = false;
+            break;
+          }
+
+          final items = data
+              .map<PurchaseItem>((e) => PurchaseItem.fromJson(e))
+              .where((item) => item.itemName?.isNotEmpty ?? false)
+              .toList();
+
+          _purchaseItems.addAll(items);
+
+          skip += limit;
+        } else {
+          hasMore = false;
         }
-
-        final newItems = data
-            .map((e) => PurchaseItem.fromJson(e))
-            .where((i) => i.itemName?.isNotEmpty ?? false)
-            .toList();
-
-        _purchaseItems.addAll(newItems);
-
-        hasMore = newItems.length == limit;
-        skip += limit;
       }
 
-      _filteredPurchaseItems = _purchaseItems.map((i) => i.itemName!).toList();
-
-      itemsLoaded = true; // ✅ IMPORTANT
-
+      itemsLoaded = true; // IMPORTANT FIX
       notifyListeners();
     } catch (e) {
-      debugPrint("❌ preload error: $e");
+      debugPrint("Preload error: $e");
     } finally {
       _isPreloadingItems = false;
     }
@@ -728,8 +732,8 @@ class POProvider extends ChangeNotifier {
   }) async {
     try {
       final response = await _dio.post(
-        '/rawMaterials',
-        data: {"itemName": "", "skip": skip, "limit": limit},
+        '/rawMaterials/',
+        data: {"itemName": query, "skip": skip, "limit": limit},
       );
 
       if (response.statusCode == 200) {
@@ -1138,6 +1142,7 @@ class POProvider extends ChangeNotifier {
         return {
           "itemId": item.itemId,
           "receivedQuantity": item.receivedQuantity ?? 0,
+          "grnPrice": item.newPrice ?? 0.0,
           "damagedQuantity": 0.0,
           "befTaxDiscount": item.befTaxDiscount ?? 0.0,
           "afTaxDiscount": item.afTaxDiscount ?? 0.0,

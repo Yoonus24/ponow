@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:provider/provider.dart';
@@ -33,23 +35,31 @@ class _AddItemDialogState extends State<AddItemDialog> {
     "Percentage ( % )",
   );
   final ValueNotifier<bool> _refreshTrigger = ValueNotifier(false);
-  final ValueNotifier<bool> _loadingNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> _itemFieldLoadingNotifier = ValueNotifier(false);
 
+  final ValueNotifier<bool> _submitButtonLoadingNotifier = ValueNotifier(false);
   final Map<String, TextEditingController> _fieldControllers = {};
 
   final ValueNotifier<bool> _isBefTaxEnabled = ValueNotifier(true);
   final ValueNotifier<bool> _isAfTaxEnabled = ValueNotifier(true);
   final FocusNode _eachQtyFocusNode = FocusNode();
   final ValueNotifier<bool> _isEachQtyFocused = ValueNotifier(false);
+  final ValueNotifier<String?> _errorField = ValueNotifier(null);
+  final ValueNotifier<bool> _shakeTrigger = ValueNotifier(false);
   ValueNotifier<List<String>> _filteredItemOptions = ValueNotifier([]);
+
+  // Map to track validation errors for each field
+  final Map<String, ValueNotifier<bool>> _fieldHasError = {};
+  // Map to track shake triggers for each field
+  final Map<String, ValueNotifier<bool>> _fieldShakeTrigger = {};
 
   bool _itemsPreloaded = false;
 
   @override
   void initState() {
     super.initState();
-
     _initializeControllers();
+    _initializeErrorTrackers();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
@@ -65,10 +75,34 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-      if (!poProvider.itemsLoaded) {
-        await poProvider.preloadAllPurchaseItems();
+      _itemFieldLoadingNotifier.value = true;
+
+      try {
+        if (!poProvider.itemsLoaded) {
+          await poProvider.preloadAllPurchaseItems();
+        }
+      } finally {
+        if (mounted) {
+          _itemFieldLoadingNotifier.value = false;
+        }
       }
     });
+  }
+
+  void _initializeErrorTrackers() {
+    final fields = [
+      'item',
+      'count',
+      'eachQuantity',
+      'newPrice',
+      'befDiscount',
+      'afDiscount',
+    ];
+
+    for (String field in fields) {
+      _fieldHasError[field] = ValueNotifier(false);
+      _fieldShakeTrigger[field] = ValueNotifier(false);
+    }
   }
 
   @override
@@ -83,11 +117,20 @@ class _AddItemDialogState extends State<AddItemDialog> {
     _filteredItemOptions.dispose();
     _itemWiseDiscountMode.dispose();
     _refreshTrigger.dispose();
-    _loadingNotifier.dispose();
+    _itemFieldLoadingNotifier.dispose();
+    _submitButtonLoadingNotifier.dispose();
     _isBefTaxEnabled.dispose();
     _isAfTaxEnabled.dispose();
     _eachQtyFocusNode.dispose();
     _isEachQtyFocused.dispose();
+
+    // Dispose error trackers
+    for (var notifier in _fieldHasError.values) {
+      notifier.dispose();
+    }
+    for (var notifier in _fieldShakeTrigger.values) {
+      notifier.dispose();
+    }
 
     super.dispose();
   }
@@ -108,6 +151,12 @@ class _AddItemDialogState extends State<AddItemDialog> {
     _isBefTaxEnabled.value = true;
     _isAfTaxEnabled.value = true;
     _poNotifier.isOverallDisabledFromItem = false;
+
+    // Clear error states
+    for (var notifier in _fieldHasError.values) {
+      notifier.value = false;
+    }
+    _errorField.value = null;
   }
 
   void _initializeControllers() {
@@ -141,40 +190,54 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
     _fieldControllers['existingPrice']!.text = (item.existingPrice ?? 0)
         .toStringAsFixed(2);
+
     _fieldControllers['newPrice']!.text = (item.newPrice ?? 0).toStringAsFixed(
       2,
     );
+
     _fieldControllers['taxPercentage']!.text = (item.taxPercentage ?? 0)
         .toStringAsFixed(2);
 
-    final double befTaxDiscount = item.befTaxDiscount ?? 0.0;
-    final double afTaxDiscount = item.afTaxDiscount ?? 0.0;
+    /// 🔥 IMPORTANT FIX STARTS HERE
 
-    _fieldControllers['befTaxDiscount']!.text = befTaxDiscount.toStringAsFixed(
-      2,
-    );
-    _fieldControllers['afTaxDiscount']!.text = afTaxDiscount.toStringAsFixed(2);
-
-    notifier.itemController.text = item.itemName ?? '';
-    notifier.uomController.text = item.uom ?? '';
-
-    final String befTaxDiscountType =
+    final String befType =
         (item.befTaxDiscountType != null && item.befTaxDiscountType!.isNotEmpty)
         ? item.befTaxDiscountType!
         : "percentage";
 
-    final String afTaxDiscountType =
+    final String afType =
         (item.afTaxDiscountType != null && item.afTaxDiscountType!.isNotEmpty)
         ? item.afTaxDiscountType!
         : "percentage";
 
-    if (befTaxDiscountType == 'amount' || afTaxDiscountType == 'amount') {
+    final bool isAmountMode = befType == 'amount' || afType == 'amount';
+
+    if (isAmountMode) {
+      // ✅ Load ₹ values
+      _fieldControllers['befTaxDiscount']!.text =
+          (item.befTaxDiscountAmount ?? 0).toStringAsFixed(2);
+
+      _fieldControllers['afTaxDiscount']!.text = (item.afTaxDiscountAmount ?? 0)
+          .toStringAsFixed(2);
+
       _itemWiseDiscountMode.value = 'Amount ( ₹ )';
       notifier.itemWiseDiscountMode = DiscountMode.fixedAmount;
     } else {
+      // ✅ Load % values
+      _fieldControllers['befTaxDiscount']!.text = (item.befTaxDiscount ?? 0)
+          .toStringAsFixed(2);
+
+      _fieldControllers['afTaxDiscount']!.text = (item.afTaxDiscount ?? 0)
+          .toStringAsFixed(2);
+
       _itemWiseDiscountMode.value = 'Percentage ( % )';
       notifier.itemWiseDiscountMode = DiscountMode.percentage;
     }
+
+    /// 🔥 IMPORTANT FIX ENDS HERE
+
+    notifier.itemController.text = item.itemName ?? '';
+    notifier.uomController.text = item.uom ?? '';
 
     _updateTotalQuantity(notifier);
     _updateVariance(notifier);
@@ -184,16 +247,22 @@ class _AddItemDialogState extends State<AddItemDialog> {
       listen: false,
     );
 
-    if (befTaxDiscount > 0 || afTaxDiscount > 0) {
+    final double befVal =
+        double.tryParse(_fieldControllers['befTaxDiscount']!.text) ?? 0;
+
+    final double afVal =
+        double.tryParse(_fieldControllers['afTaxDiscount']!.text) ?? 0;
+
+    if (befVal > 0 || afVal > 0) {
       poNotifier.isOverallDisabledFromItem = true;
       poNotifier.isOverallDiscountActive = false;
 
-      if (befTaxDiscount > 0) {
+      if (befVal > 0) {
         _isBefTaxEnabled.value = true;
         _isAfTaxEnabled.value = false;
       }
 
-      if (afTaxDiscount > 0) {
+      if (afVal > 0) {
         _isAfTaxEnabled.value = true;
         _isBefTaxEnabled.value = false;
       }
@@ -201,6 +270,148 @@ class _AddItemDialogState extends State<AddItemDialog> {
       _isBefTaxEnabled.value = true;
       _isAfTaxEnabled.value = true;
     }
+  }
+
+  bool _validateInputs() {
+    // Clear all previous errors
+    for (var notifier in _fieldHasError.values) {
+      notifier.value = false;
+    }
+
+    final count = double.tryParse(_fieldControllers['count']!.text) ?? 0;
+    final qty = double.tryParse(_fieldControllers['eachQuantity']!.text) ?? 0;
+    final price = double.tryParse(_fieldControllers['newPrice']!.text) ?? 0;
+
+    final befVal =
+        double.tryParse(_fieldControllers['befTaxDiscount']!.text) ?? 0;
+    final afVal =
+        double.tryParse(_fieldControllers['afTaxDiscount']!.text) ?? 0;
+
+    final totalQty = count * qty;
+    final totalAmount = totalQty * price;
+
+    final isPercentage =
+        _poNotifier.itemWiseDiscountMode == DiscountMode.percentage;
+
+    bool isValid = true;
+    String errorField = "";
+    String errorMessage = "";
+
+    // ❌ NEGATIVE
+    if (count < 0) {
+      isValid = false;
+      errorField = "count";
+      errorMessage = "Negative values are not allowed";
+    } else if (qty < 0) {
+      isValid = false;
+      errorField = "eachQuantity";
+      errorMessage = "Negative values are not allowed";
+    } else if (price < 0) {
+      isValid = false;
+      errorField = "newPrice";
+      errorMessage = "Negative values are not allowed";
+    }
+    // ❌ ZERO
+    else if (count == 0) {
+      isValid = false;
+      errorField = "count";
+      errorMessage = "Count must be greater than 0";
+    } else if (qty == 0) {
+      isValid = false;
+      errorField = "eachQuantity";
+      errorMessage = "Quantity must be greater than 0";
+    } else if (price == 0) {
+      isValid = false;
+      errorField = "newPrice";
+      errorMessage = "Price must be greater than 0";
+    }
+    // ❌ DISCOUNT (ONLY ACTIVE FIELD)
+    else if (isPercentage) {
+      if (befVal > 0 && befVal >= 100) {
+        isValid = false;
+        errorField = "befDiscount";
+        errorMessage = "Before tax discount cannot be 100% or more";
+      } else if (afVal > 0 && afVal >= 100) {
+        isValid = false;
+        errorField = "afDiscount";
+        errorMessage = "After tax discount cannot be 100% or more";
+      }
+    } else {
+      if (befVal > 0 && befVal >= totalAmount) {
+        isValid = false;
+        errorField = "befDiscount";
+        errorMessage = "Before tax discount exceeds total amount";
+      } else if (afVal > 0 && afVal >= totalAmount) {
+        isValid = false;
+        errorField = "afDiscount";
+        errorMessage = "After tax discount exceeds total amount";
+      }
+    }
+
+    if (!isValid) {
+      if (_fieldHasError.containsKey(errorField)) {
+        _fieldHasError[errorField]!.value = true;
+      }
+
+      _errorField.value = errorField;
+
+      if (_fieldShakeTrigger.containsKey(errorField)) {
+        _fieldShakeTrigger[errorField]!.value = false;
+        Future.microtask(() => _fieldShakeTrigger[errorField]!.value = true);
+      }
+
+      _showRequiredFieldSnackBar(errorMessage);
+    } else {
+      _errorField.value = null;
+    }
+
+    return isValid;
+  }
+
+  void _showRequiredFieldSnackBar(String message, {GlobalKey? scrollKey}) {
+    if (!mounted) return;
+    final overlayState = Overlay.of(context, rootOverlay: true);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 60,
+        left: 20,
+        right: 20,
+        child: Material(
+          elevation: 10,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.orange[700]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.red,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlayState.insert(overlayEntry);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      if (overlayEntry.mounted) overlayEntry.remove();
+    });
   }
 
   void _initializeEditingData(PurchaseOrderNotifier notifier) {
@@ -223,6 +434,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
     String label, {
     bool isReadOnly = false,
     String? hint,
+    bool hasError = false,
   }) {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
@@ -233,7 +445,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       labelStyle: TextStyle(
         fontSize: isMobile ? 13 : 14,
-        color: Colors.grey.shade800,
+        color: hasError ? Colors.red.shade700 : Colors.grey.shade800,
       ),
 
       border: OutlineInputBorder(
@@ -243,15 +455,30 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
-        borderSide: BorderSide(color: Colors.grey.shade500),
+        borderSide: BorderSide(
+          color: hasError ? Colors.red.shade400 : Colors.grey.shade500,
+          width: hasError ? 2.0 : 1.0,
+        ),
       ),
 
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8.0),
         borderSide: BorderSide(
-          color: Color.fromARGB(255, 74, 122, 227),
-          width: 2.0,
+          color: hasError
+              ? Colors.red.shade700
+              : Color.fromARGB(255, 74, 122, 227),
+          width: hasError ? 2.0 : 2.0,
         ),
+      ),
+
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        borderSide: BorderSide(color: Colors.red.shade700, width: 2.0),
+      ),
+
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8.0),
+        borderSide: BorderSide(color: Colors.red.shade700, width: 2.0),
       ),
 
       contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
@@ -262,6 +489,9 @@ class _AddItemDialogState extends State<AddItemDialog> {
       suffixIconConstraints: BoxConstraints(minWidth: 48, minHeight: 40),
 
       errorStyle: TextStyle(fontSize: 12, color: Colors.red.shade700),
+      errorText: hasError
+          ? " "
+          : null, // Show error space but without text (text handled by snackbar)
     );
   }
 
@@ -279,6 +509,27 @@ class _AddItemDialogState extends State<AddItemDialog> {
         initialValue: double.tryParse(controller.text) ?? 0,
         onValueSelected: (value) {
           controller.text = value.toStringAsFixed(2);
+
+          if (type == "bef") {
+            _fieldHasError['befDiscount']!.value = false;
+          }
+          if (type == "aft") {
+            _fieldHasError['afDiscount']!.value = false;
+          }
+          if (type == "none") {
+            if (title.toLowerCase().contains("count") &&
+                _fieldHasError.containsKey('count')) {
+              _fieldHasError['count']!.value = false;
+            }
+            if (title.toLowerCase().contains("quantity") &&
+                _fieldHasError.containsKey('eachQuantity')) {
+              _fieldHasError['eachQuantity']!.value = false;
+            }
+            if (title.toLowerCase().contains("price") &&
+                _fieldHasError.containsKey('newPrice')) {
+              _fieldHasError['newPrice']!.value = false;
+            }
+          }
 
           if (type == "bef") {
             if (value > 0) {
@@ -364,6 +615,36 @@ class _AddItemDialogState extends State<AddItemDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildShakeWrapper({
+    required Widget child,
+    required ValueNotifier<bool> shakeTrigger,
+  }) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: shakeTrigger,
+      builder: (context, trigger, _) {
+        if (!trigger) return child;
+
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 450),
+          builder: (context, value, _) {
+            final double damping = (1 - value);
+            final double wave = sin(value * 20);
+            final double shakeValue = wave * 8 * damping;
+
+            return Transform.translate(
+              offset: Offset(shakeValue, 0),
+              child: child,
+            );
+          },
+          onEnd: () {
+            Future.microtask(() => shakeTrigger.value = false);
+          },
+        );
+      },
     );
   }
 
@@ -456,22 +737,58 @@ class _AddItemDialogState extends State<AddItemDialog> {
                               children: [
                                 Consumer<POProvider>(
                                   builder: (context, poProvider, child) {
-                                    return ItemAutocomplete(
-                                      controller: notifier.itemController,
-                                      notifier: notifier,
-                                      poProvider: poProvider,
-                                      onItemSelected: (selectedItemName) {
-                                        if (selectedItemName.isEmpty) {
-                                          _clearItemDetails();
-                                          notifier.setSelectedItem('');
-                                          return;
-                                        }
+                                    return _buildShakeWrapper(
+                                      shakeTrigger: _fieldShakeTrigger['item']!,
+                                      child: ValueListenableBuilder<bool>(
+                                        valueListenable:
+                                            _fieldHasError['item']!,
+                                        builder: (_, hasError, __) {
+                                          return ValueListenableBuilder<bool>(
+                                            valueListenable:
+                                                _itemFieldLoadingNotifier,
+                                            builder: (_, isLoading, __) {
+                                              return IgnorePointer(
+                                                ignoring: isLoading,
+                                                child: Opacity(
+                                                  opacity: isLoading ? 0.8 : 1,
+                                                  child: ItemAutocomplete(
+                                                    controller:
+                                                        notifier.itemController,
+                                                    notifier: notifier,
+                                                    poProvider: poProvider,
+                                                    hasError: hasError,
+                                                    isPreloading: isLoading,
+                                                    onItemSelected:
+                                                        (selectedItemName) {
+                                                          _fieldHasError['item']!
+                                                                  .value =
+                                                              false;
 
-                                        notifier.setSelectedItem(
-                                          selectedItemName,
-                                        );
-                                        _updateItemDetails(notifier);
-                                      },
+                                                          if (selectedItemName
+                                                              .isEmpty) {
+                                                            _clearItemDetails();
+                                                            notifier
+                                                                .setSelectedItem(
+                                                                  '',
+                                                                );
+                                                            return;
+                                                          }
+
+                                                          notifier
+                                                              .setSelectedItem(
+                                                                selectedItemName,
+                                                              );
+                                                          _updateItemDetails(
+                                                            notifier,
+                                                          );
+                                                        },
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
+                                      ),
                                     );
                                   },
                                 ),
@@ -491,51 +808,76 @@ class _AddItemDialogState extends State<AddItemDialog> {
                               ),
                             ),
                           ),
-
                           twoCol(
-                            TextFormField(
-                              controller: _fieldControllers['count'],
-                              readOnly: true,
-                              decoration: _buildFieldDecoration("Pkt Count *"),
-                              style: TextStyle(fontSize: isMobile ? 14 : 14),
-                              onTap: () {
-                                _openNumericCalculator(
-                                  title: "pkt Count",
-                                  type: "none",
-                                  controller: _fieldControllers['count']!,
-                                );
-                              },
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? "Enter count" : null,
+                            _buildShakeWrapper(
+                              shakeTrigger: _fieldShakeTrigger['count']!,
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _fieldHasError['count']!,
+                                builder: (_, hasError, __) {
+                                  return TextFormField(
+                                    controller: _fieldControllers['count'],
+                                    readOnly: true,
+                                    decoration: _buildFieldDecoration(
+                                      "Pkt Count *",
+                                      hasError: hasError,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: isMobile ? 14 : 14,
+                                    ),
+                                    onTap: () {
+                                      _openNumericCalculator(
+                                        title: "pkt Count",
+                                        type: "none",
+                                        controller: _fieldControllers['count']!,
+                                      );
+                                    },
+                                    validator: (v) => v == null || v.isEmpty
+                                        ? "Enter count"
+                                        : null,
+                                  );
+                                },
+                              ),
                             ),
 
                             ValueListenableBuilder<bool>(
                               valueListenable: _isEachQtyFocused,
                               builder: (context, isFocused, _) {
-                                return TextFormField(
-                                  controller: _fieldControllers['eachQuantity'],
-                                  focusNode: _eachQtyFocusNode,
-                                  readOnly: true,
-                                  decoration: _buildFieldDecoration(
-                                    isFocused
-                                        ? "Qty (Kg/Pcs/Nos) *"
-                                        : "Quantity *",
+                                return _buildShakeWrapper(
+                                  shakeTrigger:
+                                      _fieldShakeTrigger['eachQuantity']!,
+                                  child: ValueListenableBuilder<bool>(
+                                    valueListenable:
+                                        _fieldHasError['eachQuantity']!,
+                                    builder: (_, hasError, __) {
+                                      return TextFormField(
+                                        controller:
+                                            _fieldControllers['eachQuantity'],
+                                        focusNode: _eachQtyFocusNode,
+                                        readOnly: true,
+                                        decoration: _buildFieldDecoration(
+                                          isFocused
+                                              ? "Qty (Kg/Pcs/Nos) *"
+                                              : "Quantity *",
+                                          hasError: hasError,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: isMobile ? 14 : 14,
+                                        ),
+                                        onTap: () {
+                                          _eachQtyFocusNode.requestFocus();
+                                          _openNumericCalculator(
+                                            title: "Quantity",
+                                            type: "none",
+                                            controller:
+                                                _fieldControllers['eachQuantity']!,
+                                          );
+                                        },
+                                        validator: (v) => v == null || v.isEmpty
+                                            ? "Enter qty"
+                                            : null,
+                                      );
+                                    },
                                   ),
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 14 : 14,
-                                  ),
-                                  onTap: () {
-                                    _eachQtyFocusNode.requestFocus();
-                                    _openNumericCalculator(
-                                      title: "Quantity",
-                                      type: "none",
-                                      controller:
-                                          _fieldControllers['eachQuantity']!,
-                                    );
-                                  },
-                                  validator: (v) => v == null || v.isEmpty
-                                      ? "Enter qty"
-                                      : null,
                                 );
                               },
                             ),
@@ -567,20 +909,35 @@ class _AddItemDialogState extends State<AddItemDialog> {
                           SizedBox(height: isMobile ? 8 : 12),
 
                           twoCol(
-                            TextFormField(
-                              controller: _fieldControllers['newPrice'],
-                              readOnly: true,
-                              decoration: _buildFieldDecoration("Price *"),
-                              style: TextStyle(fontSize: isMobile ? 14 : 14),
-                              onTap: () {
-                                _openNumericCalculator(
-                                  title: "Price",
-                                  type: "none",
-                                  controller: _fieldControllers['newPrice']!,
-                                );
-                              },
-                              validator: (v) =>
-                                  v == null || v.isEmpty ? "Enter price" : null,
+                            _buildShakeWrapper(
+                              shakeTrigger: _fieldShakeTrigger['newPrice']!,
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _fieldHasError['newPrice']!,
+                                builder: (_, hasError, __) {
+                                  return TextFormField(
+                                    controller: _fieldControllers['newPrice'],
+                                    readOnly: true,
+                                    decoration: _buildFieldDecoration(
+                                      "Price *",
+                                      hasError: hasError,
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: isMobile ? 14 : 14,
+                                    ),
+                                    onTap: () {
+                                      _openNumericCalculator(
+                                        title: "Price",
+                                        type: "none",
+                                        controller:
+                                            _fieldControllers['newPrice']!,
+                                      );
+                                    },
+                                    validator: (v) => v == null || v.isEmpty
+                                        ? "Enter price"
+                                        : null,
+                                  );
+                                },
+                              ),
                             ),
 
                             TextFormField(
@@ -638,6 +995,13 @@ class _AddItemDialogState extends State<AddItemDialog> {
                                               "Percentage ( % )";
                                           notifier.itemWiseDiscountMode =
                                               DiscountMode.percentage;
+                                          // Clear discount error when mode changes
+                                          if (_fieldHasError.containsKey(
+                                            'discount',
+                                          )) {
+                                            _fieldHasError['discount']!.value =
+                                                false;
+                                          }
                                         },
                                       ),
                                       SizedBox(width: isMobile ? 4 : 8),
@@ -649,6 +1013,13 @@ class _AddItemDialogState extends State<AddItemDialog> {
                                               "Amount ( ₹ )";
                                           notifier.itemWiseDiscountMode =
                                               DiscountMode.fixedAmount;
+                                          // Clear discount error when mode changes
+                                          if (_fieldHasError.containsKey(
+                                            'discount',
+                                          )) {
+                                            _fieldHasError['discount']!.value =
+                                                false;
+                                          }
                                         },
                                       ),
                                     ],
@@ -661,6 +1032,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
                           SizedBox(height: isMobile ? 8 : 10),
 
                           twoCol(
+                            /// ✅ BEFORE TAX
                             ValueListenableBuilder<bool>(
                               valueListenable: _isBefTaxEnabled,
                               builder: (_, enabled, __) {
@@ -674,31 +1046,40 @@ class _AddItemDialogState extends State<AddItemDialog> {
                                     enabled &&
                                     !poNotifier.isOverallDiscountActive;
 
-                                return TextFormField(
-                                  controller:
-                                      _fieldControllers['befTaxDiscount'],
-                                  readOnly: true,
-                                  enabled: finalEnabled,
-                                  decoration: _buildFieldDecoration(
-                                    "Before Tax Discount",
+                                return _buildShakeWrapper(
+                                  shakeTrigger:
+                                      _fieldShakeTrigger['befDiscount']!, // ✅ FIX
+                                  child: ValueListenableBuilder<bool>(
+                                    valueListenable:
+                                        _fieldHasError['befDiscount']!, // ✅ FIX
+                                    builder: (_, hasError, __) {
+                                      return TextFormField(
+                                        controller:
+                                            _fieldControllers['befTaxDiscount'],
+                                        readOnly: true,
+                                        enabled: finalEnabled,
+                                        decoration: _buildFieldDecoration(
+                                          "Before Tax Discount",
+                                          hasError: hasError,
+                                        ),
+                                        onTap: finalEnabled
+                                            ? () {
+                                                _openNumericCalculator(
+                                                  title: "Before Tax Discount",
+                                                  controller:
+                                                      _fieldControllers['befTaxDiscount']!,
+                                                  type: "bef",
+                                                );
+                                              }
+                                            : null,
+                                      );
+                                    },
                                   ),
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 14 : 14,
-                                  ),
-                                  onTap: finalEnabled
-                                      ? () {
-                                          _openNumericCalculator(
-                                            title: "Before Tax Discount",
-                                            controller:
-                                                _fieldControllers['befTaxDiscount']!,
-                                            type: "bef",
-                                          );
-                                        }
-                                      : null,
                                 );
                               },
                             ),
 
+                            /// ✅ AFTER TAX
                             ValueListenableBuilder<bool>(
                               valueListenable: _isAfTaxEnabled,
                               builder: (_, enabled, __) {
@@ -712,27 +1093,35 @@ class _AddItemDialogState extends State<AddItemDialog> {
                                     enabled &&
                                     !poNotifier.isOverallDiscountActive;
 
-                                return TextFormField(
-                                  controller:
-                                      _fieldControllers['afTaxDiscount'],
-                                  readOnly: true,
-                                  enabled: finalEnabled,
-                                  decoration: _buildFieldDecoration(
-                                    "After Tax Discount",
+                                return _buildShakeWrapper(
+                                  shakeTrigger:
+                                      _fieldShakeTrigger['afDiscount']!, // ✅ FIX
+                                  child: ValueListenableBuilder<bool>(
+                                    valueListenable:
+                                        _fieldHasError['afDiscount']!, // ✅ FIX
+                                    builder: (_, hasError, __) {
+                                      return TextFormField(
+                                        controller:
+                                            _fieldControllers['afTaxDiscount'],
+                                        readOnly: true,
+                                        enabled: finalEnabled,
+                                        decoration: _buildFieldDecoration(
+                                          "After Tax Discount",
+                                          hasError: hasError,
+                                        ),
+                                        onTap: finalEnabled
+                                            ? () {
+                                                _openNumericCalculator(
+                                                  title: "After Tax Discount",
+                                                  controller:
+                                                      _fieldControllers['afTaxDiscount']!,
+                                                  type: "aft",
+                                                );
+                                              }
+                                            : null,
+                                      );
+                                    },
                                   ),
-                                  style: TextStyle(
-                                    fontSize: isMobile ? 14 : 14,
-                                  ),
-                                  onTap: finalEnabled
-                                      ? () {
-                                          _openNumericCalculator(
-                                            title: "After Tax Discount",
-                                            controller:
-                                                _fieldControllers['afTaxDiscount']!,
-                                            type: "aft",
-                                          );
-                                        }
-                                      : null,
                                 );
                               },
                             ),
@@ -776,7 +1165,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
                               SizedBox(width: isMobile ? 8 : 12),
 
                               ValueListenableBuilder<bool>(
-                                valueListenable: _loadingNotifier,
+                                valueListenable: _submitButtonLoadingNotifier,
                                 builder: (_, isLoading, __) {
                                   return ElevatedButton(
                                     onPressed: isLoading
@@ -845,8 +1234,16 @@ class _AddItemDialogState extends State<AddItemDialog> {
   }
 
   void _updateItemDetails(PurchaseOrderNotifier notifier) {
-    if (notifier.itemController.text.isEmpty) return;
+    if (notifier.itemController.text.trim().isEmpty) {
+      _fieldHasError['item']!.value = true;
 
+      _fieldShakeTrigger['item']!.value = false;
+      Future.microtask(() => _fieldShakeTrigger['item']!.value = true);
+
+      _showRequiredFieldSnackBar("Please select an item");
+
+      return;
+    }
     final selectedName = notifier.itemController.text;
 
     final selectedItem = notifier.purchaseItems.firstWhere(
@@ -975,10 +1372,19 @@ class _AddItemDialogState extends State<AddItemDialog> {
     print("=========== ADD / UPDATE ITEM START ===========");
 
     if (!_formKey.currentState!.validate()) return;
-    if (notifier.itemController.text.isEmpty) return;
+    if (notifier.itemController.text.trim().isEmpty) {
+      _fieldHasError['item']!.value = true;
 
-    _loadingNotifier.value = true;
+      _fieldShakeTrigger['item']!.value = false;
+      Future.microtask(() => _fieldShakeTrigger['item']!.value = true);
 
+      _showRequiredFieldSnackBar("Please select an item");
+
+      return;
+    }
+    if (!_validateInputs()) return;
+
+    _submitButtonLoadingNotifier.value = true;
     try {
       final double count =
           double.tryParse(_fieldControllers['count']!.text) ?? 0;
@@ -1147,7 +1553,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
-      _loadingNotifier.value = false;
+      _submitButtonLoadingNotifier.value = false;
       print("=========== ADD / UPDATE ITEM END ===========");
     }
   }

@@ -4,13 +4,20 @@ import 'package:purchaseorders2/models/outgoing.dart';
 import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/services/server_time_service.dart';
 import '../../providers/outgoing_payment_provider.dart';
 import 'package:intl/intl.dart';
 
 class PartialPaymentPage extends StatefulWidget {
   final String status;
-
-  const PartialPaymentPage({super.key, required this.status});
+  final DateTime? fromDate;
+  final DateTime? toDate;
+  const PartialPaymentPage({
+    super.key,
+    required this.status,
+    this.fromDate,
+    this.toDate,
+  });
 
   @override
   State<PartialPaymentPage> createState() => _PartialPaymentPageState();
@@ -30,9 +37,18 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   final ValueNotifier<bool> _loadingMoreNotifier = ValueNotifier(false);
   final ScrollController _verticalScrollController = ScrollController();
   bool _isLoading = false;
+  DateTime? _fromDate;
+  DateTime? _toDate;
+
+  // Column visibility and order management using ValueNotifier
+  final ValueNotifier<List<String>> _columnOrderNotifier = ValueNotifier([]);
+  final ValueNotifier<Map<String, bool>> _columnVisibilityNotifier =
+      ValueNotifier({});
+
   @override
   void initState() {
     super.initState();
+    _initializeColumnSettings();
     _verticalScrollController.addListener(() {
       if (_verticalScrollController.position.pixels >
           _verticalScrollController.position.maxScrollExtent - 200) {
@@ -45,6 +61,36 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     });
   }
 
+  void _initializeColumnSettings() {
+    _columnOrderNotifier.value = [
+      'No',
+      'Vendor Name',
+      'Invoice No',
+      'Invoice Date',
+      'Total Amount',
+      'Amount Paid',
+      'Payment Date',
+      'Discount',
+      'Payable Amount',
+      'View',
+      'PDF',
+    ];
+
+    _columnVisibilityNotifier.value = {
+      'No': true,
+      'View': true,
+      'PDF': true,
+      'Vendor Name': true,
+      'Invoice No': true,
+      'Invoice Date': true,
+      'Total Amount': true,
+      'Amount Paid': true,
+      'Payment Date': true,
+      'Discount': true,
+      'Payable Amount': true,
+    };
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -52,6 +98,8 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
     _isLoadingNotifier.dispose();
     _hasErrorNotifier.dispose();
     _errorMessageNotifier.dispose();
+    _columnOrderNotifier.dispose();
+    _columnVisibilityNotifier.dispose();
     _debounceTimer?.cancel();
     _searchFocusNode.dispose();
     _verticalScrollController.dispose();
@@ -95,7 +143,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
       await provider.fetchFilteredOutgoings(
         status: 'Partially Paid',
-        filterBy: 'invoiceDate',
+        filterBy: 'paymentDate',
         skip: _skip,
         limit: _limit,
       );
@@ -105,7 +153,19 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
       _filteredPaymentsNotifier.value = provider.payments
           .where((p) => p.status == 'Partially Paid')
+          .where((p) {
+            if (_fromDate == null || _toDate == null) return true;
+
+            final paymentDate = p.paymentDate;
+            if (paymentDate == null) return false;
+
+            return paymentDate.isAfter(
+                  _fromDate!.subtract(const Duration(days: 1)),
+                ) &&
+                paymentDate.isBefore(_toDate!.add(const Duration(days: 1)));
+          })
           .toList();
+
       _isLoadingNotifier.value = false;
       _hasErrorNotifier.value = provider.error.isNotEmpty;
       _errorMessageNotifier.value = provider.error;
@@ -131,14 +191,34 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
 
     await provider.fetchFilteredOutgoings(
       status: 'Partially Paid',
-      filterBy: 'invoiceDate',
+      filterBy: 'paymentDate',
       skip: _skip,
       limit: _limit,
     );
 
     _skip += _limit;
 
-    _filterPayments();
+    final query = _searchController.text.toLowerCase();
+
+    _filteredPaymentsNotifier.value = provider.payments
+        .where((p) => p.status == 'Partially Paid')
+        .where((p) {
+          if (_fromDate == null || _toDate == null) return true;
+
+          final paymentDate = p.paymentDate;
+          if (paymentDate == null) return false;
+
+          return paymentDate.isAfter(
+                _fromDate!.subtract(const Duration(days: 1)),
+              ) &&
+              paymentDate.isBefore(_toDate!.add(const Duration(days: 1)));
+        })
+        .where((payment) {
+          final vendor = payment.vendorName?.toLowerCase() ?? '';
+          final invoice = payment.invoiceNo?.toLowerCase() ?? '';
+          return vendor.contains(query) || invoice.contains(query);
+        })
+        .toList();
 
     _loadingMoreNotifier.value = false;
   }
@@ -168,399 +248,529 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       ? NumberFormat.currency(symbol: '', decimalDigits: 2).format(amount)
       : '0.00';
 
+  void _openColumnFilter() {
+    showDialog(
+      context: context,
+      builder: (context) => OutgoingColumnFilter(
+        allColumns: _columnOrderNotifier.value,
+        columnVisibility: _columnVisibilityNotifier.value,
+        onApply: (newOrder, newVisibility) {
+          _columnOrderNotifier.value = newOrder;
+          _columnVisibilityNotifier.value = newVisibility;
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<OutgoingPaymentProvider>();
     final Color headerColor = Colors.blueAccent;
-    final isSmallScreen = MediaQuery.of(context).size.width < 1000;
 
     return Scaffold(
       body: SafeArea(
-        child: ValueListenableBuilder<bool>(
-          valueListenable: _isLoadingNotifier,
-          builder: (context, isLoading, _) {
-            if (isLoading) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        child: Column(
+          children: [
+            // Header with search bar, date filter, and column filter icon (ALWAYS VISIBLE)
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: _buildSearchBar(),
+            ),
 
-            return ValueListenableBuilder<bool>(
-              valueListenable: _hasErrorNotifier,
-              builder: (context, hasError, _) {
-                if (hasError) {
-                  return ValueListenableBuilder<String>(
-                    valueListenable: _errorMessageNotifier,
-                    builder: (context, errorMessage, _) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 200),
-
-                          Center(
-                            child: Column(
-                              children: [
-                                /// 🔴 ICON
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.redAccent,
-                                  size: 40,
-                                ),
-
-                                const SizedBox(height: 12),
-
-                                /// ✅ CLEAN MESSAGE
-                                Text(
-                                  errorMessage.isNotEmpty
-                                      ? errorMessage
-                                      : "Something went wrong. Please try again.",
-                                  style: const TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+            // Body section with loader overlay
+            Expanded(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _hasErrorNotifier,
+                builder: (context, hasError, _) {
+                  if (hasError) {
+                    return ValueListenableBuilder<String>(
+                      valueListenable: _errorMessageNotifier,
+                      builder: (context, errorMessage, _) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 200),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline,
+                                    color: Colors.redAccent,
+                                    size: 40,
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
-
-                                const SizedBox(height: 14),
-
-                                /// 🔁 RETRY BUTTON
-                                ElevatedButton(
-                                  onPressed: _loadData,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                    foregroundColor: Colors.white,
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    errorMessage.isNotEmpty
+                                        ? errorMessage
+                                        : "Something went wrong. Please try again.",
+                                    style: const TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  child: const Text("Retry"),
-                                ),
-                              ],
+                                  const SizedBox(height: 14),
+                                  ElevatedButton(
+                                    onPressed: _loadData,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blueAccent,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text("Retry"),
+                                  ),
+                                ],
+                              ),
                             ),
+                          ],
+                        );
+                      },
+                    );
+                  }
+
+                  return ValueListenableBuilder<List<Outgoing>>(
+                    valueListenable: _filteredPaymentsNotifier,
+                    builder: (context, filteredList, _) {
+                      if (filteredList.isEmpty && !_isLoadingNotifier.value) {
+                        return const Center(
+                          child: Text(
+                            'No partial payments found.',
+                            style: TextStyle(fontSize: 17, color: Colors.grey),
+                          ),
+                        );
+                      }
+
+                      // Stack for table content + loader overlay
+                      return Stack(
+                        children: [
+                          // Table content
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: ValueListenableBuilder<List<String>>(
+                              valueListenable: _columnOrderNotifier,
+                              builder: (context, columnOrder, _) {
+                                return ValueListenableBuilder<
+                                  Map<String, bool>
+                                >(
+                                  valueListenable: _columnVisibilityNotifier,
+                                  builder: (context, columnVisibility, _) {
+                                    return SizedBox(
+                                      width: _calculateTotalWidth(
+                                        columnOrder,
+                                        columnVisibility,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // HEADER
+                                          Container(
+                                            margin: const EdgeInsets.only(
+                                              left: 16,
+                                              right: 16,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                            ),
+                                            height: 48,
+                                            decoration: BoxDecoration(
+                                              color: headerColor,
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                    topLeft: Radius.circular(4),
+                                                    topRight: Radius.circular(
+                                                      4,
+                                                    ),
+                                                  ),
+                                            ),
+                                            child: Row(
+                                              children: _buildHeaderRow(
+                                                columnOrder,
+                                                columnVisibility,
+                                              ),
+                                            ),
+                                          ),
+
+                                          // ROW LIST
+                                          Expanded(
+                                            child: filteredList.isEmpty
+                                                ? const Center(
+                                                    child: Text(
+                                                      'No partial payments found.',
+                                                      style: TextStyle(
+                                                        fontSize: 17,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : ValueListenableBuilder<bool>(
+                                                    valueListenable:
+                                                        _loadingMoreNotifier,
+                                                    builder: (_, loadingMore, __) {
+                                                      return ListView.builder(
+                                                        controller:
+                                                            _verticalScrollController,
+                                                        itemCount:
+                                                            filteredList
+                                                                .length +
+                                                            (loadingMore
+                                                                ? 1
+                                                                : 0),
+                                                        itemBuilder: (context, index) {
+                                                          if (index >=
+                                                              filteredList
+                                                                  .length) {
+                                                            return const Padding(
+                                                              padding:
+                                                                  EdgeInsets.all(
+                                                                    16,
+                                                                  ),
+                                                              child: Center(
+                                                                child:
+                                                                    CircularProgressIndicator(),
+                                                              ),
+                                                            );
+                                                          }
+
+                                                          final payment =
+                                                              filteredList[index];
+                                                          final serialNo =
+                                                              index + 1;
+
+                                                          return Container(
+                                                            margin:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      16,
+                                                                ),
+                                                            height: 56,
+                                                            padding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal:
+                                                                      16,
+                                                                ),
+                                                            decoration: BoxDecoration(
+                                                              color:
+                                                                  Colors.white,
+                                                              border: Border(
+                                                                bottom: BorderSide(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade300,
+                                                                  width: 0.5,
+                                                                ),
+                                                                left: BorderSide(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade300,
+                                                                  width: 0.5,
+                                                                ),
+                                                                right: BorderSide(
+                                                                  color: Colors
+                                                                      .grey
+                                                                      .shade300,
+                                                                  width: 0.5,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                            child: Row(
+                                                              children:
+                                                                  _buildDataRow(
+                                                                    payment,
+                                                                    serialNo,
+                                                                    provider,
+                                                                    index,
+                                                                    columnOrder,
+                                                                    columnVisibility,
+                                                                  ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      );
+                                                    },
+                                                  ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+
+                          // Loader overlay (only when loading)
+                          ValueListenableBuilder<bool>(
+                            valueListenable: _isLoadingNotifier,
+                            builder: (context, isLoading, _) {
+                              if (!isLoading) return const SizedBox.shrink();
+                              return Container(
+                                color: Colors.black.withOpacity(0.3),
+                                child: const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       );
                     },
                   );
-                }
-
-                return ValueListenableBuilder<List<Outgoing>>(
-                  valueListenable: _filteredPaymentsNotifier,
-                  builder: (context, filteredList, _) {
-                    if (filteredList.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No partial payments found.',
-                          style: TextStyle(fontSize: 17, color: Colors.grey),
-                        ),
-                      );
-                    }
-
-                    return Column(
-                      children: [
-                        // Header with search bar
-                        Container(
-                          color: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                'Partial Payment',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 5),
-                              Expanded(flex: 2, child: _buildSearchBar()),
-                            ],
-                          ),
-                        ),
-
-                        // FIXED: Horizontally scrollable table to fix overflow
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: 1200,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // HEADER
-                                  Container(
-                                    margin: const EdgeInsets.only(
-                                      left: 16,
-                                      right: 16,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: headerColor,
-                                      borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(4),
-                                        topRight: Radius.circular(4),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        _buildHeaderCell(
-                                          'No',
-                                          width: 50,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'View',
-                                          width: 70,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'PDF',
-                                          width: 70,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Vendor Name',
-                                          width: 150,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Invoice No',
-                                          width: 120,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Invoice Date',
-                                          width: 100,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Total Amount',
-                                          width: 110,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Amount Paid',
-                                          width: 110,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Payment Date',
-                                          width: 100,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Discount',
-                                          width: 90,
-                                          center: true,
-                                        ),
-                                        _buildHeaderCell(
-                                          'Payable Amount',
-                                          width: 120,
-                                          center: true,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // ROW LIST
-                                  Expanded(
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: _loadingMoreNotifier,
-                                      builder: (_, loadingMore, __) {
-                                        return ListView.builder(
-                                          controller: _verticalScrollController,
-                                          itemCount:
-                                              filteredList.length +
-                                              (loadingMore ? 1 : 0),
-                                          itemBuilder: (context, index) {
-                                            // Bottom loading spinner
-                                            if (index >= filteredList.length) {
-                                              return const Padding(
-                                                padding: EdgeInsets.all(16),
-                                                child: Center(
-                                                  child:
-                                                      CircularProgressIndicator(),
-                                                ),
-                                              );
-                                            }
-
-                                            final payment = filteredList[index];
-                                            final serialNo = index + 1;
-
-                                            return Container(
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                  ),
-                                              height: 56,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                border: Border(
-                                                  bottom: BorderSide(
-                                                    color: Colors.grey.shade300,
-                                                    width: 0.5,
-                                                  ),
-                                                  left: BorderSide(
-                                                    color: Colors.grey.shade300,
-                                                    width: 0.5,
-                                                  ),
-                                                  right: BorderSide(
-                                                    color: Colors.grey.shade300,
-                                                    width: 0.5,
-                                                  ),
-                                                ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  _buildCell(
-                                                    '$serialNo',
-                                                    width: 50,
-                                                    center: true,
-                                                  ),
-
-                                                  _buildIconCell(
-                                                    Icons.remove_red_eye,
-                                                    color: Colors.black87,
-                                                    onPressed: () =>
-                                                        showPaymentDetailsDialog(
-                                                          context,
-                                                          payment,
-                                                        ),
-                                                    width: 70,
-                                                  ),
-
-                                                  Container(
-                                                    width: 70,
-                                                    alignment: Alignment.center,
-                                                    child:
-                                                        provider.isPdfLoading(
-                                                          index,
-                                                        )
-                                                        ? const SizedBox(
-                                                            height: 18,
-                                                            width: 18,
-                                                            child:
-                                                                CircularProgressIndicator(
-                                                                  strokeWidth:
-                                                                      2,
-                                                                ),
-                                                          )
-                                                        : IconButton(
-                                                            icon: const Icon(
-                                                              Icons
-                                                                  .picture_as_pdf,
-                                                              color: Colors
-                                                                  .redAccent,
-                                                              size: 20,
-                                                            ),
-                                                            onPressed: () {
-                                                              context
-                                                                  .read<
-                                                                    OutgoingPaymentProvider
-                                                                  >()
-                                                                  .generatePdf(
-                                                                    index,
-                                                                    payment,
-                                                                  );
-                                                            },
-                                                            padding:
-                                                                EdgeInsets.zero,
-                                                            constraints:
-                                                                const BoxConstraints(
-                                                                  minWidth: 32,
-                                                                  minHeight: 32,
-                                                                ),
-                                                          ),
-                                                  ),
-
-                                                  _buildCell(
-                                                    payment.vendorName ?? 'N/A',
-                                                    width: 150,
-                                                    center: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    payment.invoiceNo ?? 'N/A',
-                                                    width: 120,
-                                                    center: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatDate(
-                                                      payment.invoiceDate,
-                                                    ),
-                                                    width: 100,
-                                                    center: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatCurrency(
-                                                      payment
-                                                          .totalPayableAmount,
-                                                    ),
-                                                    width: 110,
-                                                    center: true,
-                                                    isBold: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatCurrency(
-                                                      payment.totalPaidAmount,
-                                                    ),
-                                                    width: 110,
-                                                    center: true,
-                                                    isBold: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatDate(
-                                                      payment.paymentDate,
-                                                    ),
-                                                    width: 100,
-                                                    center: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatCurrency(
-                                                      payment.discountDetails,
-                                                    ),
-                                                    width: 90,
-                                                    center: true,
-                                                    isBold: true,
-                                                  ),
-
-                                                  _buildCell(
-                                                    _formatCurrency(
-                                                      payment.payableAmount,
-                                                    ),
-                                                    width: 120,
-                                                    center: true,
-                                                    isBold: true,
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            );
-          },
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  double _calculateTotalWidth(
+    List<String> columnOrder,
+    Map<String, bool> columnVisibility,
+  ) {
+    double totalWidth = 70; // padding
+    for (var column in columnOrder) {
+      if (columnVisibility[column] == true) {
+        switch (column) {
+          case 'No':
+            totalWidth += 50;
+            break;
+          case 'View':
+            totalWidth += 70;
+            break;
+          case 'PDF':
+            totalWidth += 70;
+            break;
+          case 'Vendor Name':
+            totalWidth += 150;
+            break;
+          case 'Invoice No':
+            totalWidth += 120;
+            break;
+          case 'Invoice Date':
+            totalWidth += 100;
+            break;
+          case 'Total Amount':
+            totalWidth += 110;
+            break;
+          case 'Amount Paid':
+            totalWidth += 110;
+            break;
+          case 'Payment Date':
+            totalWidth += 100;
+            break;
+          case 'Discount':
+            totalWidth += 130; // was 110
+            break;
+
+          case 'Payable Amount':
+            totalWidth += 180; // was 140
+            break;
+        }
+      }
+    }
+    return totalWidth;
+  }
+
+  List<Widget> _buildHeaderRow(
+    List<String> columnOrder,
+    Map<String, bool> columnVisibility,
+  ) {
+    List<Widget> headers = [];
+
+    for (var column in columnOrder) {
+      if (columnVisibility[column] == true) {
+        switch (column) {
+          case 'No':
+            headers.add(_buildHeaderCell('No', width: 50, center: true));
+            break;
+
+          case 'View':
+            headers.add(_buildHeaderCell('View', width: 70, center: true));
+            break;
+
+          case 'PDF':
+            headers.add(_buildHeaderCell('PDF', width: 70, center: true));
+            break;
+
+          case 'Vendor Name':
+            headers.add(_buildHeaderCell('Vendor Name', width: 150));
+            break;
+
+          case 'Invoice No':
+            headers.add(_buildHeaderCell('Invoice No', width: 120));
+            break;
+
+          case 'Invoice Date':
+            headers.add(_buildHeaderCell('Invoice Date', width: 100));
+            break;
+
+          case 'Total Amount':
+            headers.add(
+              _buildHeaderCell('Total Amount', width: 110, center: true),
+            );
+            break;
+
+          case 'Amount Paid':
+            headers.add(
+              _buildHeaderCell('Amount Paid', width: 110, center: true),
+            );
+            break;
+
+          case 'Payment Date':
+            headers.add(_buildHeaderCell('Payment Date', width: 100));
+            break;
+
+          case 'Discount':
+            headers.add(_buildHeaderCell('Discount', width: 130, center: true));
+            break;
+
+          case 'Payable Amount':
+            headers.add(
+              _buildHeaderCell('Payable Amount', width: 180, center: true),
+            );
+            break;
+        }
+      }
+    }
+
+    return headers;
+  }
+
+  List<Widget> _buildDataRow(
+    Outgoing payment,
+    int serialNo,
+    OutgoingPaymentProvider provider,
+    int index,
+    List<String> columnOrder,
+    Map<String, bool> columnVisibility,
+  ) {
+    List<Widget> cells = [];
+
+    for (var column in columnOrder) {
+      if (columnVisibility[column] == true) {
+        switch (column) {
+          case 'No':
+            cells.add(_buildCell('$serialNo', width: 50, center: true));
+            break;
+          case 'View':
+            cells.add(
+              _buildIconCell(
+                Icons.remove_red_eye,
+                color: Colors.black87,
+                onPressed: () => showPaymentDetailsDialog(context, payment),
+                width: 70,
+              ),
+            );
+            break;
+          case 'PDF':
+            cells.add(
+              Container(
+                width: 70,
+                alignment: Alignment.center,
+                child: provider.isPdfLoading(index)
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton(
+                        icon: const Icon(
+                          Icons.picture_as_pdf,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          context.read<OutgoingPaymentProvider>().generatePdf(
+                            index,
+                            payment,
+                          );
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
+              ),
+            );
+            break;
+          case 'Vendor Name':
+            cells.add(
+              _buildCell(payment.vendorName ?? 'N/A', width: 150, center: true),
+            );
+            break;
+          case 'Invoice No':
+            cells.add(
+              _buildCell(payment.invoiceNo ?? 'N/A', width: 120, center: true),
+            );
+            break;
+          case 'Invoice Date':
+            cells.add(
+              _buildCell(
+                _formatDate(payment.invoiceDate),
+                width: 100,
+                center: true,
+              ),
+            );
+            break;
+          case 'Total Amount':
+            cells.add(
+              _buildCell(
+                _formatCurrency(payment.totalPayableAmount),
+                width: 110,
+                center: true,
+                isBold: true,
+              ),
+            );
+            break;
+          case 'Amount Paid':
+            cells.add(
+              _buildCell(
+                _formatCurrency(payment.totalPaidAmount),
+                width: 110,
+                center: true,
+                isBold: true,
+              ),
+            );
+            break;
+          case 'Payment Date':
+            cells.add(
+              _buildCell(
+                _formatDate(payment.paymentDate),
+                width: 100,
+                center: true,
+              ),
+            );
+            break;
+          case 'Discount':
+            cells.add(
+              _buildCell(
+                _formatCurrency(payment.discountDetails),
+                width: 130,
+                center: true,
+                isBold: true,
+              ),
+            );
+            break;
+
+          case 'Payable Amount':
+            cells.add(
+              _buildCell(
+                _formatCurrency(payment.payableAmount),
+                width: 180,
+                center: true,
+                isBold: true,
+              ),
+            );
+            break;
+        }
+      }
+    }
+
+    return cells;
   }
 
   // Header cell builder
@@ -634,7 +844,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
   }
 
   Widget _buildSearchBar() {
-    // FIXED: Use consumer to avoid unnecessary rebuilds
     return Consumer<OutgoingPaymentProvider>(
       builder: (context, provider, child) {
         final suggestions = provider.payments
@@ -644,89 +853,209 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
             .toSet()
             .toList();
 
-        return RawAutocomplete<String>(
-          textEditingController: _searchController,
-          focusNode: _searchFocusNode,
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            if (textEditingValue.text.isEmpty) return suggestions;
-            return suggestions.where(
-              (option) => option.toLowerCase().contains(
-                textEditingValue.text.toLowerCase(),
-              ),
-            );
-          },
-          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              maxLines: 1,
-              textAlignVertical: TextAlignVertical.center,
-              decoration: InputDecoration(
-                hintText: 'Search vendor or invoice',
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 20),
-                        onPressed: () {
-                          controller.clear();
-                          _onSearchChanged();
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: Colors.grey),
-                ),
-                filled: true,
-                fillColor: Colors.grey[50],
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                constraints: const BoxConstraints(minHeight: 44, maxHeight: 48),
-              ),
-              style: const TextStyle(fontSize: 13),
-              onChanged: (_) => _onSearchChanged(),
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                color: Colors.white,
-                elevation: 8,
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxHeight: 200,
-                    maxWidth: 300,
-                  ),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (context, index) {
-                      final option = options.elementAt(index);
-                      return ListTile(
-                        tileColor: Colors.white,
-                        title: Text(
-                          option,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.black,
+        return Row(
+          children: [
+            /// 🔍 VENDOR SEARCH
+            Expanded(
+              child: RawAutocomplete<String>(
+                textEditingController: _searchController,
+                focusNode: _searchFocusNode,
+                optionsBuilder: (text) {
+                  if (text.text.isEmpty) return suggestions;
+                  return suggestions.where(
+                    (option) =>
+                        option.toLowerCase().contains(text.text.toLowerCase()),
+                  );
+                },
+                fieldViewBuilder:
+                    (context, controller, focusNode, onFieldSubmitted) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        style: const TextStyle(fontSize: 12),
+
+                        decoration: InputDecoration(
+                          hintText: 'Search vendor or invoice',
+
+                          suffix: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: controller,
+                            builder: (context, value, _) {
+                              if (value.text.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+
+                              return GestureDetector(
+                                onTap: () {
+                                  controller.clear();
+                                  _onSearchChanged();
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.only(
+                                    right: 0,
+                                    top: 0,
+                                    bottom: 0,
+                                    left: 4,
+                                  ),
+                                  child: Icon(
+                                    Icons.clear,
+                                    size: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Colors.grey),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                              color: Colors.grey,
+                              width: 1.2,
+                            ),
+                          ),
+
+                          filled: true,
+                          fillColor: Colors.grey[50],
+
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
                           ),
                         ),
-                        onTap: () {
-                          onSelected(option);
-                          _searchController.text = option;
-                          _onSearchChanged();
-                        },
+
+                        onChanged: (_) => _onSearchChanged(),
                       );
                     },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 8,
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 250,
+                        child: ListView(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          children: options.map((e) {
+                            return InkWell(
+                              onTap: () {
+                                onSelected(e);
+                                FocusScope.of(context).unfocus();
+                                _onSearchChanged();
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  e,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            /// 📅 DATE FILTER
+            Expanded(
+              child: InkWell(
+                onTap: () async {
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2000),
+                    lastDate: ServerTimeService.now,
+                  );
+
+                  if (picked != null) {
+                    _fromDate = picked.start;
+                    _toDate = picked.end;
+                    _loadData();
+                  }
+                },
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.grey[50],
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _fromDate != null && _toDate != null
+                              ? "${DateFormat('dd-MM').format(_fromDate!)} - ${DateFormat('dd-MM').format(_toDate!)}"
+                              : "Select Date ",
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (_fromDate != null && _toDate != null)
+                        GestureDetector(
+                          onTap: () {
+                            _fromDate = null;
+                            _toDate = null;
+                            _loadData();
+                          },
+                          child: const Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-            );
-          },
+            ),
+
+            const SizedBox(width: 10),
+
+            /// 🎯 COLUMN FILTER
+            Container(
+              height: 40,
+              width: 40,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey[50],
+              ),
+              child: IconButton(
+                onPressed: _openColumnFilter,
+                icon: const Icon(
+                  Icons.view_column,
+                  size: 20,
+                  color: Colors.blueAccent,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -780,7 +1109,6 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                   ),
                 ),
                 const Divider(),
-
                 _buildDetailRow('Vendor', payment.vendorName ?? 'N/A'),
                 _buildDetailRow('Invoice No', payment.invoiceNo ?? 'N/A'),
                 _buildDetailRow(
@@ -811,9 +1139,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                   'Remaining',
                   _formatCurrency(payment.payableAmount),
                 ),
-
                 const SizedBox(height: 16),
-
                 Center(
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
@@ -866,4 +1192,272 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
       ),
     );
   }
+}
+
+// OutgoingColumnFilter Widget
+class OutgoingColumnFilter extends StatefulWidget {
+  final List<String> allColumns;
+  final Map<String, bool> columnVisibility;
+  final Function(List<String>, Map<String, bool>) onApply;
+
+  const OutgoingColumnFilter({
+    super.key,
+    required this.allColumns,
+    required this.columnVisibility,
+    required this.onApply,
+  });
+
+  @override
+  State<OutgoingColumnFilter> createState() => _OutgoingColumnFilterState();
+}
+
+class _OutgoingColumnFilterState extends State<OutgoingColumnFilter> {
+  late ValueNotifier<ColumnManager> _columnNotifier;
+
+  @override
+  void initState() {
+    super.initState();
+    final columnVisibility = Map<String, bool>.from(widget.columnVisibility);
+    for (var column in widget.allColumns) {
+      columnVisibility.putIfAbsent(column, () => true);
+    }
+    _columnNotifier = ValueNotifier(
+      ColumnManager(List.from(widget.allColumns), columnVisibility),
+    );
+  }
+
+  @override
+  void dispose() {
+    _columnNotifier.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 500;
+
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: isSmallScreen ? screenWidth - 32 : 450,
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 550),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.filter_alt,
+                    color: Colors.blueAccent,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Column Filter',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, thickness: 1),
+            // Sub header with drag info
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.drag_indicator,
+                      size: 18,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Drag to reorder columns',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        final newManager = ColumnManager(
+                          List.from(_columnNotifier.value.columns),
+                          Map.from(_columnNotifier.value.columnVisibility),
+                        );
+                        for (var col in newManager.columns) {
+                          newManager.columnVisibility[col] = true;
+                        }
+                        _columnNotifier.value = newManager;
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Show All',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Column list
+            Expanded(
+              child: ValueListenableBuilder<ColumnManager>(
+                valueListenable: _columnNotifier,
+                builder: (context, manager, _) {
+                  return ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    buildDefaultDragHandles: false,
+                    onReorder: (int oldIndex, int newIndex) {
+                      final newManager = ColumnManager(
+                        List.from(manager.columns),
+                        Map.from(manager.columnVisibility),
+                      );
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final item = newManager.columns.removeAt(oldIndex);
+                      newManager.columns.insert(newIndex, item);
+                      _columnNotifier.value = newManager;
+                    },
+                    itemCount: manager.columns.length,
+                    itemBuilder: (context, index) {
+                      final column = manager.columns[index];
+                      final isVisible =
+                          manager.columnVisibility[column] ?? true;
+                      return Container(
+                        key: ValueKey(column),
+                        margin: const EdgeInsets.only(bottom: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                          ),
+                          leading: ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(
+                              Icons.drag_handle,
+                              color: Colors.grey,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            column,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isVisible
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: isVisible ? Colors.black87 : Colors.grey,
+                            ),
+                          ),
+                          trailing: Transform.scale(
+                            scale: 0.9,
+                            child: Checkbox(
+                              value: isVisible,
+                              activeColor: Colors.blueAccent,
+                              checkColor: Colors.white,
+                              side: BorderSide(color: Colors.grey.shade400),
+                              onChanged: (bool? value) {
+                                final newManager = ColumnManager(
+                                  List.from(manager.columns),
+                                  Map.from(manager.columnVisibility),
+                                );
+                                newManager.columnVisibility[column] =
+                                    value ?? true;
+                                _columnNotifier.value = newManager;
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1, thickness: 1),
+            // Action Buttons
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey.shade700,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      final manager = _columnNotifier.value;
+                      widget.onApply(manager.columns, manager.columnVisibility);
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                    ),
+                    child: const Text('Apply', style: TextStyle(fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ColumnManager {
+  final List<String> columns;
+  final Map<String, bool> columnVisibility;
+  ColumnManager(this.columns, this.columnVisibility);
 }

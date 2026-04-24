@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/ap.dart';
@@ -144,84 +143,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
     super.dispose();
   }
 
-  Future<void> _selectDate(BuildContext context, bool isFromDate) async {
-    DateTime serverDate;
-
-    try {
-      serverDate = ServerTimeService.now;
-    } catch (_) {
-      serverDate = DateTime.now();
-    }
-
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: serverDate,
-      firstDate: isFromDate
-          ? DateTime(2000)
-          : (_fromDateNotifier.value ?? DateTime(2000)),
-      lastDate: isFromDate ? (_toDateNotifier.value ?? serverDate) : serverDate,
-      selectableDayPredicate: (DateTime day) {
-        if (isFromDate && _toDateNotifier.value != null) {
-          return day.isBefore(_toDateNotifier.value!) ||
-              day.isAtSameMomentAs(_toDateNotifier.value!);
-        } else if (!isFromDate && _fromDateNotifier.value != null) {
-          return day.isAfter(_fromDateNotifier.value!) ||
-              day.isAtSameMomentAs(_fromDateNotifier.value!);
-        }
-        return true;
-      },
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color.fromARGB(255, 38, 89, 198),
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-            dialogBackgroundColor: Colors.white,
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color.fromARGB(255, 38, 89, 198),
-              ),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      final currentToDate = _toDateNotifier.value;
-      final currentFromDate = _fromDateNotifier.value;
-
-      if (isFromDate &&
-          currentToDate != null &&
-          picked.isAfter(currentToDate)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('From date cannot be after To date')),
-        );
-        return;
-      }
-
-      if (!isFromDate &&
-          currentFromDate != null &&
-          picked.isBefore(currentFromDate)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('To date cannot be before From date')),
-        );
-        return;
-      }
-
-      if (isFromDate) {
-        _fromDateNotifier.value = picked;
-      } else {
-        _toDateNotifier.value = picked;
-      }
-
-      await _fetchDataForStatus(_selectedStatusNotifier.value);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -230,7 +151,7 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(height: 80, child: _buildFilterButtons()),
+          _buildFilterButtons(),
           Expanded(
             child: ValueListenableBuilder<String>(
               valueListenable: _selectedStatusNotifier,
@@ -273,7 +194,7 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
 
   Widget _buildFilterButtons() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
       child: Center(
         child: ScrollConfiguration(
           behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
@@ -506,98 +427,6 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDateFilterButton(
-    String label,
-    bool isFromDate,
-    String uniqueId,
-    DateTime? date,
-  ) {
-    final baseWidth = 140.0;
-    final baseHeight = 45.0;
-    final displayText = date != null
-        ? '${label.split(' ')[0]}: ${date.day}/${date.month}/${date.year}'
-        : label;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4.0),
-      child: ValueListenableBuilder<Set<String>>(
-        valueListenable: _hoveredDateButtonsNotifier,
-        builder: (context, hoveredButtons, _) {
-          final isHovered = hoveredButtons.contains(uniqueId);
-          final currentWidth = isHovered ? baseWidth * 1.05 : baseWidth;
-          final currentHeight = isHovered ? baseHeight * 1.05 : baseHeight;
-
-          return MouseRegion(
-            onEnter: (_) {
-              _hoveredDateButtonsNotifier.value = {
-                ..._hoveredDateButtonsNotifier.value,
-                uniqueId,
-              };
-            },
-            onExit: (_) {
-              _hoveredDateButtonsNotifier.value = {
-                ..._hoveredDateButtonsNotifier.value,
-              }..remove(uniqueId);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: currentWidth,
-              height: currentHeight,
-              child: OutlinedButton(
-                onPressed: () => _selectDate(context, isFromDate),
-                style: OutlinedButton.styleFrom(
-                  backgroundColor: date != null
-                      ? const Color.fromARGB(255, 230, 240, 255)
-                      : Colors.white,
-                  foregroundColor: date != null
-                      ? const Color.fromARGB(255, 38, 89, 198)
-                      : const Color.fromARGB(255, 74, 122, 227),
-                  side: BorderSide(
-                    color: isHovered
-                        ? const Color.fromARGB(255, 38, 89, 198)
-                        : const Color.fromARGB(255, 74, 122, 227),
-                    width: 1.5,
-                  ),
-                  elevation: isHovered ? 4 : 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      isFromDate ? Icons.calendar_today : Icons.calendar_month,
-                      size: 16,
-                      color: date != null
-                          ? const Color.fromARGB(255, 38, 89, 198)
-                          : const Color.fromARGB(255, 74, 122, 227),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        displayText,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: date != null
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

@@ -128,15 +128,15 @@ class PurchaseOrderService {
         : 'N/A';
 
     final poDate =
-        (poData['poDate'] != null &&
-            poData['poDate'].toString().trim().isNotEmpty)
-        ? safeFormatDate(poData['poDate'].toString())
+        (poData['orderDate'] != null &&
+            poData['orderDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(poData['orderDate'].toString())
         : 'N/A';
 
     final dueDate =
-        (poData['dueDate'] != null &&
-            poData['dueDate'].toString().trim().isNotEmpty)
-        ? safeFormatDate(poData['dueDate'].toString())
+        (poData['expectedDeliveryDate'] != null &&
+            poData['expectedDeliveryDate'].toString().trim().isNotEmpty)
+        ? safeFormatDate(poData['expectedDeliveryDate'].toString())
         : 'N/A';
 
     final pendingOrderAmount = _safeNum(poData['pendingOrderAmount']);
@@ -283,10 +283,10 @@ class PurchaseOrderService {
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
                         'PO No: ${poData['poNumber']?.toString() ?? poData['randomId']?.toString() ?? 'PO0546'}\n'
-                        'PO Date: ${poData['poDate'] != null ? safeFormatDate(poData['poDate'].toString()) : poDate}\n'
-                        'Due Date: ${poData['dueDate'] != null ? safeFormatDate(poData['dueDate'].toString()) : dueDate}\n'
-                        'Payment Terms: ${poData['paymentTerms']?.toString() ?? '7 days'}\n'
-                        'Status: ${poData['status']?.toString() ?? 'Approved'}\n'
+                        'PO Date: $poDate\n'
+                        'Due Date: $dueDate\n'
+                        'Payment Terms: ${(poData['paymentTerms'] != null && poData['paymentTerms'].toString().trim().isNotEmpty) ? poData['paymentTerms'].toString() : '7 days'}\n'
+                        'Status: ${poData['poStatus']?.toString() ?? 'Approved'}\n'
                         'Currency: ${poData['currency']?.toString() ?? 'INR'}',
                         style: pw.TextStyle(fontSize: 9),
                       ),

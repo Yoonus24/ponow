@@ -1,3 +1,5 @@
+// ignore_for_file: file_names, library_private_types_in_public_api, must_be_immutable, prefer_interpolation_to_compose_strings, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -54,8 +56,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
         _textController.selection = TextSelection.collapsed(
           offset: formattedValue.length,
         );
-      }
-      else if (widget.controller?.text.isNotEmpty == true &&
+      } else if (widget.controller?.text.isNotEmpty == true &&
           widget.controller!.text != "0" &&
           widget.controller!.text != "0.00") {
         String text = widget.controller!.text;
@@ -68,8 +69,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
         _textController.selection = TextSelection.collapsed(
           offset: text.length,
         );
-      }
-      else {
+      } else {
         _textController.clear();
         _isNegativeNotifier.value = false;
         _isInitialValueNotifier.value = false;
@@ -206,8 +206,24 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     _focusNode.requestFocus();
   }
 
+  bool isLandscape(BuildContext context) {
+    return MediaQuery.of(context).size.width >
+        MediaQuery.of(context).size.height;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final landscape = isLandscape(context);
+
+    if (!landscape) {
+      return _buildPortraitMode(context);
+    }
+
+    return _buildLandscapeMode(context);
+  }
+
+  // ORIGINAL PORTRAIT MODE - NO CHANGES
+  Widget _buildPortraitMode(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Material(
@@ -237,9 +253,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
                   color: Colors.black87,
                 ),
               ),
-
               const SizedBox(height: 12),
-
               ValueListenableBuilder<bool>(
                 valueListenable: _isFocusedNotifier,
                 builder: (context, isFocused, child) {
@@ -294,16 +308,13 @@ class _NumericCalculatorState extends State<NumericCalculator> {
                   );
                 },
               ),
-
               const SizedBox(height: 18),
-
               _row(['1', '2', '3']),
               const SizedBox(height: 10),
               _row(['4', '5', '6']),
               const SizedBox(height: 10),
               _row(['7', '8', '9']),
               const SizedBox(height: 10),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -312,9 +323,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
                   _buildButton('-', onPressed: _toggleSign),
                 ],
               ),
-
               const SizedBox(height: 14),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -323,9 +332,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
                   _buildWideButton('⌫', _backspace),
                 ],
               ),
-
               const SizedBox(height: 16),
-
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -350,10 +357,155 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     );
   }
 
+  // COMPACT LANDSCAPE MODE - NO OVERFLOW
+  Widget _buildLandscapeMode(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.7,
+          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 450),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                blurRadius: 20,
+                color: Colors.black.withOpacity(0.28),
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.varianceName ?? 'Enter Value',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isFocusedNotifier,
+                  builder: (context, isFocused, child) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isFocused ? Colors.grey : Colors.grey.shade600,
+                          width: 1,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _focusNode,
+                        keyboardType: TextInputType.none,
+                        readOnly: true,
+                        showCursor: true,
+                        cursorColor: Colors.grey.shade800,
+                        cursorWidth: 1.5,
+                        cursorHeight: 24,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: '0',
+                          hintStyle: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^-?\d*\.?\d{0,2}'),
+                          ),
+                        ],
+                        enableInteractiveSelection: true,
+                        enableIMEPersonalizedLearning: false,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 10),
+                _landscapeRow(['1', '2', '3']),
+                const SizedBox(height: 6),
+                _landscapeRow(['4', '5', '6']),
+                const SizedBox(height: 6),
+                _landscapeRow(['7', '8', '9']),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _landscapeButton('.'),
+                    _landscapeButton('0'),
+                    _landscapeButton('-', onPressed: _toggleSign),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _landscapeWideButton('Clear', _clear),
+                    const SizedBox(width: 8),
+                    _landscapeWideButton('⌫', _backspace),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _landscapeActionButton(
+                      'Close',
+                      () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    _landscapeActionButton('Submit', () {
+                      final text = _textController.text;
+                      final value =
+                          double.tryParse(text.isEmpty ? '0' : text) ?? 0;
+                      widget.onValueSelected(value);
+                      Navigator.of(context).pop();
+                    }),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _row(List<String> values) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: values.map((e) => _buildButton(e)).toList(),
+    );
+  }
+
+  Widget _landscapeRow(List<String> values) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: values.map((e) => _landscapeButton(e)).toList(),
     );
   }
 
@@ -382,6 +534,38 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     );
   }
 
+  Widget _landscapeButton(String text, {VoidCallback? onPressed}) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: ElevatedButton(
+          onPressed: () {
+            if (onPressed != null) {
+              onPressed();
+            } else {
+              _appendToDisplay(text);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.grey.shade300,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            minimumSize: const Size(40, 36),
+            elevation: 2,
+            shadowColor: Colors.grey.shade400,
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildWideButton(String text, VoidCallback onPressed) {
     return ElevatedButton(
       onPressed: onPressed,
@@ -401,6 +585,32 @@ class _NumericCalculatorState extends State<NumericCalculator> {
     );
   }
 
+  Widget _landscapeWideButton(String text, VoidCallback onPressed) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.grey.shade300,
+            foregroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            minimumSize: const Size(60, 36),
+            elevation: 2,
+            shadowColor: Colors.grey.shade400,
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButton(String text, VoidCallback onPressed) {
     return ElevatedButton(
       onPressed: onPressed,
@@ -416,6 +626,32 @@ class _NumericCalculatorState extends State<NumericCalculator> {
       child: Text(
         text,
         style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Widget _landscapeActionButton(String text, VoidCallback onPressed) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            minimumSize: const Size(60, 36),
+            elevation: 2,
+            shadowColor: Colors.blue.shade200,
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          ),
+        ),
       ),
     );
   }

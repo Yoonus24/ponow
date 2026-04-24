@@ -38,11 +38,9 @@ class _POModalState extends State<POModal> {
   final ScrollController _leftVerticalController = ScrollController();
   final ScrollController _rightVerticalController = ScrollController();
   final ScrollController _rightHorizontalController = ScrollController();
-  final ValueNotifier<bool> isSaving = ValueNotifier(false);
-  final ValueNotifier<bool> isApproving = ValueNotifier(false);
-  final ValueNotifier<bool> isRejecting = ValueNotifier(false);
-  bool _initialized = false;
 
+  final ValueNotifier<bool> isProcessing = ValueNotifier(false);
+  String? activeAction;
   bool isTablet(BuildContext context) {
     final shortestSide = MediaQuery.of(context).size.shortestSide;
     return shortestSide >= 600;
@@ -106,10 +104,10 @@ class _POModalState extends State<POModal> {
     columnsNotifier = ValueNotifier<List<String>>([
       'Item Name',
       'UOM',
-      'Count',
-      'Each Qty',
+      'Pkt Count',
+      'Quantity',
       'Total Qty',
-      'New Price',
+      'Unit Price',
       'BeforeTaxDiscount',
       'AfterTaxDiscount',
       'Tax %',
@@ -124,10 +122,10 @@ class _POModalState extends State<POModal> {
     columnVisibilityNotifier = ValueNotifier<Map<String, bool>>({
       'Item Name': true,
       'UOM': true,
-      'Count': true,
-      'Each Qty': true,
+      'Pkt Count': true,
+      'Quantity': true,
       'Total Qty': true,
-      'New Price': true,
+      'Unit Price': true,
       'BeforeTaxDiscount': false,
       'AfterTaxDiscount': false,
       'Tax %': false,
@@ -173,9 +171,6 @@ class _POModalState extends State<POModal> {
     _leftVerticalController.dispose();
     _rightVerticalController.dispose();
     _rightHorizontalController.dispose();
-    isSaving.dispose();
-    isApproving.dispose();
-    isRejecting.dispose();
 
     super.dispose();
   }
@@ -514,7 +509,7 @@ class _POModalState extends State<POModal> {
           style: const TextStyle(fontSize: 12),
         );
 
-      case 'Count':
+      case 'Pkt Count':
         return TextFormField(
           controller: countControllers[index],
           readOnly: true,
@@ -557,7 +552,7 @@ class _POModalState extends State<POModal> {
           },
         );
 
-      case 'Each Qty':
+      case 'Quantity':
         return TextFormField(
           controller: eachQuantityControllers[index],
           readOnly: true,
@@ -607,7 +602,7 @@ class _POModalState extends State<POModal> {
           style: const TextStyle(fontSize: 12),
         );
 
-      case 'New Price':
+      case 'Unit Price':
         return TextFormField(
           controller: newPriceControllers[index],
           readOnly: true,
@@ -651,29 +646,21 @@ class _POModalState extends State<POModal> {
         );
 
       case 'BeforeTaxDiscount':
-        return TextField(
-          controller: befTaxDiscountControllers[index],
-          readOnly: true,
-          decoration: const InputDecoration(
-            hintText: 'Before Tax %',
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          ),
-          style: const TextStyle(fontSize: 12),
+        return Text(
+          befTaxDiscountControllers[index].text.isNotEmpty
+              ? befTaxDiscountControllers[index].text
+              : '0.00',
           textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12),
         );
 
       case 'AfterTaxDiscount':
-        return TextField(
-          controller: afTaxDiscountControllers[index],
-          readOnly: true,
-          decoration: const InputDecoration(
-            hintText: 'After Tax %',
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          ),
-          style: const TextStyle(fontSize: 12),
+        return Text(
+          afTaxDiscountControllers[index].text.isNotEmpty
+              ? afTaxDiscountControllers[index].text
+              : '0.00',
           textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12),
         );
 
       case 'Tax %':
@@ -753,7 +740,6 @@ class _POModalState extends State<POModal> {
     final items = widget.po.items
         .where((item) => (item.pendingTotalQuantity ?? 0) > 0)
         .toList();
-    final screenHeight = MediaQuery.of(context).size.height;
 
     return Dialog(
       insetPadding: EdgeInsets.zero,
@@ -781,522 +767,623 @@ class _POModalState extends State<POModal> {
                     builder: (context, poModalProvider, _) {
                       final po = poModalProvider.po;
 
-                      return Column(
+                      return Stack(
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'PO No: ${po.randomId}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4.0),
-                                      Text(
-                                        'Vendor: ${po.vendorName}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ],
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight,
                                   ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.filter_list, size: 20),
-                                  onPressed: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => ColumnFilterDialog(
-                                        columns: columns,
-                                        columnVisibility: columnVisibility,
-                                        onApply: _applyColumnFilter,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: 130,
-                                    child: Column(
-                                      children: [
-                                        Container(
-                                          height: 33,
-                                          alignment: Alignment.centerLeft,
-                                          padding: const EdgeInsets.only(
-                                            left: 6,
-                                          ),
-                                          color: Colors.grey[200],
-                                          child: const Row(
-                                            children: const [
-                                              SizedBox(
-                                                width: 30,
-                                                child: Text(
-                                                  "S.No",
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'PO No: ${po.randomId}',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 15,
+                                                    ),
                                                   ),
+                                                  const SizedBox(height: 4.0),
+                                                  Text(
+                                                    'Vendor: ${po.vendorName}',
+                                                    style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 15,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.filter_list,
+                                                size: 20,
+                                              ),
+                                              onPressed: isProcessing.value
+                                                  ? null
+                                                  : () {
+                                                      showDialog(
+                                                        context: context,
+                                                        builder: (context) =>
+                                                            ColumnFilterDialog(
+                                                              columns: columns,
+                                                              columnVisibility:
+                                                                  columnVisibility,
+                                                              onApply:
+                                                                  _applyColumnFilter,
+                                                            ),
+                                                      );
+                                                    },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        height:
+                                            MediaQuery.of(context).size.height *
+                                            0.55,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 130,
+                                                child: Column(
+                                                  children: [
+                                                    Container(
+                                                      height: 33,
+                                                      alignment:
+                                                          Alignment.centerLeft,
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            left: 6,
+                                                          ),
+                                                      color: Colors.grey[200],
+                                                      child: const Row(
+                                                        children: const [
+                                                          SizedBox(
+                                                            width: 30,
+                                                            child: Text(
+                                                              "S.No",
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          SizedBox(width: 6),
+                                                          Expanded(
+                                                            child: Text(
+                                                              "Item Name",
+                                                              style: TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    Expanded(
+                                                      child: ListView.builder(
+                                                        controller:
+                                                            _leftVerticalController,
+                                                        itemCount: items.length,
+                                                        itemBuilder: (context, index) {
+                                                          final item =
+                                                              items[index];
+                                                          return SizedBox(
+                                                            height: 55,
+                                                            child: Container(
+                                                              alignment: Alignment
+                                                                  .centerLeft,
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    left: 6,
+                                                                  ),
+                                                              decoration: const BoxDecoration(
+                                                                border: Border(
+                                                                  bottom: BorderSide(
+                                                                    color: Colors
+                                                                        .grey,
+                                                                    width: 0.5,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              child: Row(
+                                                                children: [
+                                                                  SizedBox(
+                                                                    width: 30,
+                                                                    child: Text(
+                                                                      "${index + 1}",
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(
+                                                                    width: 6,
+                                                                  ),
+                                                                  Expanded(
+                                                                    child: Text(
+                                                                      item.itemName ??
+                                                                          '',
+                                                                      style: const TextStyle(
+                                                                        fontSize:
+                                                                            12,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          );
+                                                        },
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
-                                              SizedBox(width: 6),
                                               Expanded(
-                                                child: Text(
-                                                  "Item Name",
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
+                                                child: SingleChildScrollView(
+                                                  controller:
+                                                      _rightHorizontalController,
+                                                  scrollDirection:
+                                                      Axis.horizontal,
+                                                  child: SizedBox(
+                                                    width:
+                                                        (rightColumns.length *
+                                                                110.0)
+                                                            .clamp(300.0, 1500),
+                                                    child: Column(
+                                                      children: [
+                                                        _buildHeaderRow(
+                                                          rightColumns,
+                                                        ),
+                                                        Expanded(
+                                                          child: ListView.builder(
+                                                            controller:
+                                                                _rightVerticalController,
+                                                            itemCount:
+                                                                items.length,
+                                                            itemBuilder:
+                                                                (
+                                                                  context,
+                                                                  index,
+                                                                ) {
+                                                                  return _buildItemRow(
+                                                                    items[index],
+                                                                    index,
+                                                                    rightColumns,
+                                                                    context,
+                                                                  );
+                                                                },
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                        Expanded(
-                                          child: ListView.builder(
-                                            controller: _leftVerticalController,
-                                            itemCount: items.length,
-                                            itemBuilder: (context, index) {
-                                              final item = items[index];
-                                              return SizedBox(
-                                                height: 55,
-                                                child: Container(
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                        left: 6,
-                                                      ),
-                                                  decoration:
-                                                      const BoxDecoration(
-                                                        border: Border(
-                                                          bottom: BorderSide(
-                                                            color: Colors.grey,
-                                                            width: 0.5,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                  child: Row(
-                                                    children: [
-                                                      SizedBox(
-                                                        width: 30,
-                                                        child: Text(
-                                                          "${index + 1}",
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 12,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      Expanded(
-                                                        child: Text(
-                                                          item.itemName ?? '',
-                                                          style:
-                                                              const TextStyle(
-                                                                fontSize: 12,
-                                                              ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                      ),
 
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      controller: _rightHorizontalController,
-                                      scrollDirection: Axis.horizontal,
-                                      child: SizedBox(
-                                        width: (rightColumns.length * 110.0)
-                                            .clamp(300.0, 1500),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 8.0,
+                                          horizontal: 12,
+                                        ),
                                         child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           children: [
-                                            _buildHeaderRow(rightColumns),
-                                            Expanded(
-                                              child: ListView.builder(
-                                                controller:
-                                                    _rightVerticalController,
-                                                itemCount: items.length,
-                                                itemBuilder: (context, index) {
-                                                  return _buildItemRow(
-                                                    items[index],
-                                                    index,
-                                                    rightColumns,
-                                                    context,
-                                                  );
-                                                },
+                                            const Divider(),
+                                            Text(
+                                              "Discount Amount: ${po.items.fold(0.0, (s, i) => s + (i.pendingDiscountAmount ?? 0)).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "SGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingSgst ?? 0)).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "Freight Amount: ${(po.totalFreightAmount ?? 0.0).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "Freight Tax: ${(po.totalFreightTaxAmount ?? 0.0).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "Round Off: ${(po.roundOffAdjustment ?? 0.0).toStringAsFixed(2)}",
+                                            ),
+                                            Text(
+                                              "Total Order Amount: ${getFinalTotalWithRoundOff().toStringAsFixed(2)}",
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
                                               ),
                                             ),
                                           ],
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
 
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8.0,
-                              horizontal: 12,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                const Divider(),
+                                      // Reduced spacing for mobile portrait
+                                      if (MediaQuery.of(context).orientation ==
+                                              Orientation.portrait &&
+                                          MediaQuery.of(context).size.width <
+                                              600)
+                                        const SizedBox(height: 8),
 
-                                Text(
-                                  "Discount Amount: ${po.items.fold(0.0, (s, i) => s + (i.pendingDiscountAmount ?? 0)).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "SGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingSgst ?? 0)).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "CGST: ${po.items.fold(0.0, (s, i) => s + (i.pendingCgst ?? 0)).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "Freight Amount: ${(po.totalFreightAmount ?? 0.0).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "Freight Tax: ${(po.totalFreightTaxAmount ?? 0.0).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "Round Off: ${(po.roundOffAdjustment ?? 0.0).toStringAsFixed(2)}",
-                                ),
-
-                                Text(
-                                  "Total Order Amount: ${getFinalTotalWithRoundOff().toStringAsFixed(2)}",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          Padding(
-                            padding: const EdgeInsets.all(12.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                ElevatedButton(
-                                  onPressed: () => Navigator.of(context).pop(),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: const Text('Close'),
-                                ),
-
-                                const SizedBox(width: 12),
-
-                                ElevatedButton(
-                                  onPressed: (!canEdit || isSaving.value)
-                                      ? null
-                                      : () async {
-                                          try {
-                                            isSaving.value = true;
-
-                                            await poModalProvider.saveChanges(
-                                              context,
-                                            );
-
-                                            final poProvider = context
-                                                .read<POProvider>();
-                                            await poProvider
-                                                .fetchPendingPOsFromBackend(
-                                                  clearExisting: true,
-                                                );
-
-                                            if (context.mounted) {
-                                              Navigator.of(context).pop();
-                                            }
-                                          } catch (e) {
-                                            debugPrint("Save failed: $e");
-                                          } finally {
-                                            isSaving.value = false;
-                                          }
-                                        },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.blueAccent,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  child: ValueListenableBuilder<bool>(
-                                    valueListenable: isSaving,
-                                    builder: (_, saving, __) {
-                                      return saving
-                                          ? const SizedBox(
-                                              height: 18,
-                                              width: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.end,
+                                          children: [
+                                            ElevatedButton(
+                                              onPressed: isProcessing.value
+                                                  ? null
+                                                  : () => Navigator.of(
+                                                      context,
+                                                    ).pop(),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.blueAccent,
+                                                foregroundColor: Colors.white,
                                               ),
-                                            )
-                                          : const Text(
-                                              'Save',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
+                                              child: const Text('Close'),
+                                            ),
+                                            const SizedBox(width: 12),
+
+                                            // SAVE BUTTON
+                                            ElevatedButton(
+                                              onPressed:
+                                                  (!canEdit ||
+                                                      isProcessing.value)
+                                                  ? null
+                                                  : () async {
+                                                      try {
+                                                        activeAction = 'save';
+                                                        isProcessing.value =
+                                                            true;
+
+                                                        final success =
+                                                            await poModalProvider
+                                                                .saveChanges(
+                                                                  context,
+                                                                );
+
+                                                        if (success) {
+                                                          final poProvider =
+                                                              context
+                                                                  .read<
+                                                                    POProvider
+                                                                  >();
+                                                          await poProvider
+                                                              .fetchPendingPOsFromBackend(
+                                                                clearExisting:
+                                                                    true,
+                                                              );
+
+                                                          if (context.mounted) {
+                                                            Navigator.of(
+                                                              context,
+                                                            ).pop();
+                                                          }
+                                                        }
+                                                      } catch (e) {
+                                                        debugPrint(
+                                                          "Save failed: $e",
+                                                        );
+                                                      } finally {
+                                                        isProcessing.value =
+                                                            false;
+                                                        activeAction = null;
+                                                      }
+                                                    },
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.blueAccent,
+                                                foregroundColor: Colors.white,
                                               ),
-                                            );
-                                    },
+                                              child: ValueListenableBuilder<bool>(
+                                                valueListenable: isProcessing,
+                                                builder: (_, saving, __) {
+                                                  return (saving &&
+                                                          activeAction ==
+                                                              'save')
+                                                      ? const SizedBox(
+                                                          height: 18,
+                                                          width: 18,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
+                                                        )
+                                                      : const Text(
+                                                          'Save',
+                                                          style: TextStyle(
+                                                            fontSize: 13,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                        );
+                                                },
+                                              ),
+                                            ),
+
+                                            if (widget.showApproveButton) ...[
+                                              const SizedBox(width: 12),
+
+                                              // APPROVE BUTTON
+                                              ElevatedButton(
+                                                onPressed: isProcessing.value
+                                                    ? null
+                                                    : () async {
+                                                        if (!canApprove) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                "You do not have permission to approve this order",
+                                                              ),
+                                                            ),
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        final errorMessage =
+                                                            context
+                                                                .read<
+                                                                  POModalProvider
+                                                                >()
+                                                                .validateItems();
+
+                                                        if (errorMessage !=
+                                                            null) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                errorMessage,
+                                                              ),
+                                                            ),
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        final confirm =
+                                                            await showConfirmDialog(
+                                                              context: context,
+                                                              title:
+                                                                  "Approve PO?",
+                                                              message:
+                                                                  "Are you sure you want to approve this purchase order?",
+                                                              isApprove: true,
+                                                            );
+
+                                                        if (confirm != true)
+                                                          return;
+
+                                                        try {
+                                                          isProcessing.value =
+                                                              true;
+                                                          activeAction =
+                                                              'approve';
+
+                                                          final poProvider =
+                                                              context
+                                                                  .read<
+                                                                    POProvider
+                                                                  >();
+
+                                                          if (poModalProvider
+                                                              .hasChanges) {
+                                                            await poModalProvider
+                                                                .saveChangesDirect();
+                                                          }
+
+                                                          await poProvider
+                                                              .approvePo(
+                                                                widget
+                                                                    .po
+                                                                    .purchaseOrderId,
+                                                              );
+
+                                                          poProvider
+                                                              .removeApprovedPO(
+                                                                widget
+                                                                    .po
+                                                                    .purchaseOrderId,
+                                                              );
+
+                                                          if (context.mounted) {
+                                                            Navigator.of(
+                                                              context,
+                                                            ).pop();
+                                                          }
+                                                        } finally {
+                                                          isProcessing.value =
+                                                              false;
+                                                          activeAction = null;
+                                                        }
+                                                      },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: canApprove
+                                                      ? Colors.blueAccent
+                                                      : Colors.grey,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child: ValueListenableBuilder<bool>(
+                                                  valueListenable: isProcessing,
+                                                  builder: (_, saving, __) {
+                                                    return (saving &&
+                                                            activeAction ==
+                                                                'approve')
+                                                        ? const SizedBox(
+                                                            height: 18,
+                                                            width: 18,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          )
+                                                        : const Text('Approve');
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+
+                                            if (widget.showRejectButton) ...[
+                                              const SizedBox(width: 12),
+
+                                              // REJECT BUTTON
+                                              ElevatedButton(
+                                                onPressed: isProcessing.value
+                                                    ? null
+                                                    : () async {
+                                                        if (!canReject) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                "You do not have permission to reject this order",
+                                                              ),
+                                                            ),
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        final confirm =
+                                                            await showConfirmDialog(
+                                                              context: context,
+                                                              title:
+                                                                  "Reject PO?",
+                                                              message:
+                                                                  "Are you sure you want to reject this purchase order?",
+                                                              isApprove: false,
+                                                            );
+
+                                                        if (confirm != true)
+                                                          return;
+
+                                                        try {
+                                                          isProcessing.value =
+                                                              true;
+                                                          activeAction =
+                                                              'reject';
+
+                                                          final poProvider =
+                                                              Provider.of<
+                                                                POProvider
+                                                              >(
+                                                                context,
+                                                                listen: false,
+                                                              );
+
+                                                          await poProvider.rejectPo(
+                                                            widget
+                                                                .po
+                                                                .purchaseOrderId,
+                                                          );
+
+                                                          if (context.mounted) {
+                                                            Navigator.of(
+                                                              context,
+                                                            ).pop();
+                                                          }
+                                                        } finally {
+                                                          isProcessing.value =
+                                                              false;
+                                                          activeAction = null;
+                                                        }
+                                                      },
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: canReject
+                                                      ? Colors.redAccent
+                                                      : Colors.grey,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child: ValueListenableBuilder<bool>(
+                                                  valueListenable: isProcessing,
+                                                  builder: (_, saving, __) {
+                                                    return (saving &&
+                                                            activeAction ==
+                                                                'reject')
+                                                        ? const SizedBox(
+                                                            height: 18,
+                                                            width: 18,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          )
+                                                        : const Text('Reject');
+                                                  },
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-
-                                if (widget.showApproveButton) ...[
-                                  const SizedBox(width: 12),
-                                  ElevatedButton(
-                                    onPressed: () async {
-                                      if (!canApprove) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: const Text(
-                                              "You do not have permission to approve this order",
-                                            ),
-                                            backgroundColor: Colors.red,
-
-                                            behavior: SnackBarBehavior
-                                                .floating, // 🔥 IMPORTANT
-
-                                            margin: const EdgeInsets.only(
-                                              bottom:
-                                                  80, // 👈 adjust height (increase/decrease)
-                                              left: 16,
-                                              right: 16,
-                                            ),
-
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-
-                                            duration: const Duration(
-                                              seconds: 2,
-                                            ),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      if (isApproving.value) return;
-
-                                      final errorMessage = context
-                                          .read<POModalProvider>()
-                                          .validateItems();
-
-                                      if (errorMessage != null) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(content: Text(errorMessage)),
-                                        );
-                                        return;
-                                      }
-
-                                      final confirm = await showConfirmDialog(
-                                        context: context,
-                                        title: "Approve PO?",
-                                        message:
-                                            "Are you sure you want to approve this purchase order?",
-                                        isApprove: true,
-                                      );
-
-                                      if (confirm != true) return;
-
-                                      try {
-                                        isApproving.value = true;
-
-                                        final poProvider = context
-                                            .read<POProvider>();
-
-                                        if (poModalProvider.hasChanges) {
-                                          await poModalProvider
-                                              .saveChangesDirect();
-                                        }
-
-                                        await poProvider.approvePo(
-                                          widget.po.purchaseOrderId,
-                                        );
-
-                                        poProvider.removeApprovedPO(
-                                          widget.po.purchaseOrderId,
-                                        );
-
-                                        if (context.mounted) {
-                                          Navigator.of(context).pop();
-                                        }
-                                      } finally {
-                                        isApproving.value = false;
-                                      }
-                                    },
-
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: canApprove
-                                          ? Colors.blueAccent
-                                          : Colors.grey, // 👈 grey look
-                                      foregroundColor: Colors.white,
-                                    ),
-
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: isApproving,
-                                      builder: (_, saving, __) {
-                                        return saving
-                                            ? const SizedBox(
-                                                height: 18,
-                                                width: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : const Text(
-                                                'Approve',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              );
-                                      },
+                              );
+                            },
+                          ),
+                          ValueListenableBuilder<bool>(
+                            valueListenable: isProcessing,
+                            builder: (_, loading, __) {
+                              if (!loading) return const SizedBox();
+                              return Positioned.fill(
+                                child: AbsorbPointer(
+                                  absorbing: true,
+                                  child: Container(
+                                    color: Colors.black.withOpacity(0.3),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(),
                                     ),
                                   ),
-                                ],
-
-                                if (widget.showRejectButton) ...[
-                                  const SizedBox(width: 12),
-                                  ElevatedButton(
-                                    onPressed: isRejecting.value
-                                        ? null
-                                        : () async {
-                                            if (!canReject) {
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: const Text(
-                                                    "You do not have permission to reject this order",
-                                                  ),
-                                                  backgroundColor: Colors.red,
-                                                  behavior:
-                                                      SnackBarBehavior.floating,
-                                                  margin: const EdgeInsets.only(
-                                                    bottom: 80,
-                                                    left: 16,
-                                                    right: 16,
-                                                  ),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                  ),
-                                                  duration: const Duration(
-                                                    seconds: 2,
-                                                  ),
-                                                ),
-                                              );
-                                              return;
-                                            }
-
-                                            final confirm = await showConfirmDialog(
-                                              context: context,
-                                              title: "Reject PO?",
-                                              message:
-                                                  "Are you sure you want to reject this purchase order?",
-                                              isApprove: false,
-                                            );
-
-                                            if (confirm != true) return;
-
-                                            try {
-                                              isRejecting.value = true;
-
-                                              final poProvider =
-                                                  Provider.of<POProvider>(
-                                                    context,
-                                                    listen: false,
-                                                  );
-
-                                              await poProvider.rejectPo(
-                                                widget.po.purchaseOrderId,
-                                              );
-
-                                              if (context.mounted) {
-                                                Navigator.of(context).pop();
-                                              }
-                                            } finally {
-                                              isRejecting.value = false;
-                                            }
-                                          },
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: canReject
-                                          ? Colors.redAccent
-                                          : Colors.grey,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: ValueListenableBuilder<bool>(
-                                      valueListenable: isRejecting,
-                                      builder: (_, saving, __) {
-                                        return saving
-                                            ? const SizedBox(
-                                                height: 18,
-                                                width: 18,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                      color: Colors.white,
-                                                    ),
-                                              )
-                                            : const Text(
-                                                'Reject',
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       );

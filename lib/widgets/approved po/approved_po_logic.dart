@@ -35,6 +35,7 @@ class ApprovedPOLogic {
   final Map<Item, double> originalBefTaxDiscount = {};
   final Map<Item, double> originalAfTaxDiscount = {};
   final Map<Item, double> originalOrderedQty = {};
+  final Map<Item, TextEditingController> priceControllersMap = {};
 
   final ValueNotifier<String> _invID = ValueNotifier<String>("");
   final ValueNotifier<String> formattedDate = ValueNotifier<String>("");
@@ -56,6 +57,8 @@ class ApprovedPOLogic {
   final ScrollController _orderedRightVertical = ScrollController();
   final ScrollController _receivedLeftVertical = ScrollController();
   final ScrollController _receivedRightVertical = ScrollController();
+  final ValueNotifier<bool> isSummaryDiscountActive = ValueNotifier(false);
+  final ValueNotifier<bool> isItemDiscountActive = ValueNotifier(false);
   static const double _rowHeight = 30.0;
   static const int _minVisibleRows = 7;
   bool isTablet = false;
@@ -65,22 +68,23 @@ class ApprovedPOLogic {
   double addedFreightAmount = 0.0;
   double addedFreightTaxAmount = 0.0;
 
-  final ValueNotifier<List<String>> sharedColumns =
-      ValueNotifier<List<String>>([
-        'Item',
-        'Count',
-        'Qty',
-        'UOM',
-        'Total',
-        'Received',
-        'Price',
-        'BefTax',
-        'AfTax',
-        'Expiry',
-        'Tax%',
-        'Total Price',
-        'Final',
-      ]);
+  final ValueNotifier<List<String>> sharedColumns = ValueNotifier<List<String>>(
+    [
+      'Item',
+      // 'Count',
+      'Qty',
+      'UOM',
+      'Total',
+      'Received',
+      'Price',
+      'BefTax',
+      'AfTax',
+      'Expiry',
+      'Tax%',
+      'Total Price',
+      'Final',
+    ],
+  );
 
   final ValueNotifier<Map<String, bool>> sharedColumnVisibility =
       ValueNotifier<Map<String, bool>>({});
@@ -185,47 +189,29 @@ class ApprovedPOLogic {
     for (final res in items) {
       final item = po.items.firstWhere((i) => i.itemId == res["itemId"]);
 
-      /// BEFORE TAX DISCOUNT
-      item.pendingBefTaxDiscountAmount =
-          (res["pendingBefTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
+      /// BEFORE TAX
+      item.befTaxDiscount = (res["befTaxDiscount"] as num?)?.toDouble() ?? 0.0;
 
-      /// AFTER TAX DISCOUNT
-      item.pendingAfTaxDiscountAmount =
-          (res["pendingAfTaxDiscountAmount"] as num?)?.toDouble() ?? 0.0;
+      /// AFTER TAX
+      item.afTaxDiscount = (res["afTaxDiscount"] as num?)?.toDouble() ?? 0.0;
 
-      /// TOTAL DISCOUNT
+      /// 🔥 IMPORTANT: UPDATE CONTROLLERS ALSO
+      befTaxControllers[item]?.text = item.befTaxDiscount!.toStringAsFixed(2);
+
+      afTaxControllers[item]?.text = item.afTaxDiscount!.toStringAsFixed(2);
+
+      /// OTHER FIELDS (keep your existing)
       item.pendingDiscountAmount =
           (res["pendingDiscountAmount"] as num?)?.toDouble() ?? 0.0;
 
-      /// TAX
       item.pendingTaxAmount =
           (res["pendingTaxAmount"] as num?)?.toDouble() ?? 0.0;
 
-      item.pendingSgst = (res["pendingSgst"] as num?)?.toDouble() ?? 0.0;
-
-      item.pendingCgst = (res["pendingCgst"] as num?)?.toDouble() ?? 0.0;
-
-      item.pendingIgst = (res["pendingIgst"] as num?)?.toDouble() ?? 0.0;
-
-      /// FINAL PRICE
       item.pendingFinalPrice =
           (res["pendingFinalPrice"] as num?)?.toDouble() ?? 0.0;
-
-      /// IMPORTANT FIX
-      /// Save discount percentages so GRN conversion works
-
-      item.befTaxDiscount =
-          (res["befTaxDiscount"] as num?)?.toDouble() ??
-          item.befTaxDiscount ??
-          0.0;
-
-      item.afTaxDiscount =
-          (res["afTaxDiscount"] as num?)?.toDouble() ??
-          item.afTaxDiscount ??
-          0.0;
     }
 
-    /// SUMMARY UPDATE
+    /// SUMMARY
     final summary = data["summary"] ?? {};
 
     po.pendingDiscountAmount =
@@ -237,8 +223,8 @@ class ApprovedPOLogic {
     po.totalOrderAmount =
         (summary["totalFinalAmount"] as num?)?.toDouble() ?? 0.0;
 
-    /// REFRESH UI
-    onUpdated();
+    /// 🔥 FORCE UI UPDATE
+    refreshUI();
   }
 
   Future<void> applyOverallDiscountViaAPI() async {
@@ -252,7 +238,6 @@ class ApprovedPOLogic {
     try {
       _approvedExtraDiscount = entered;
 
-      /// ✅ IMPORTANT FIX
       final double totalDiscount = _poBaseDiscount + entered;
 
       final response = await poProvider.calculateGrnOverallDiscount(
@@ -275,6 +260,10 @@ class ApprovedPOLogic {
         showTopError("Discount API failed");
         return;
       }
+
+      /// ✅ IMPORTANT (YOU MISSED THIS)
+      isSummaryDiscountActive.value = true;
+      isItemDiscountActive.value = false;
 
       _applyDiscountResponseToItems(response);
 
@@ -304,7 +293,8 @@ class ApprovedPOLogic {
   double get orderedSubTotal {
     return po.items.fold(
       0.0,
-      (sum, i) => sum + (i.poQuantitypendingTotalPrice ?? 0.0),
+      (sum, i) =>
+          sum + (i.poQuantitypendingTotalPrice ?? i.pendingTotalPrice ?? 0.0),
     );
   }
 
@@ -316,13 +306,17 @@ class ApprovedPOLogic {
   }
 
   double get orderedTaxAmount {
-    return po.items.fold(0.0, (sum, i) => sum + (i.poQuantityTaxAmount ?? 0.0));
+    return po.items.fold(
+      0.0,
+      (sum, i) => sum + (i.poQuantityTaxAmount ?? i.pendingTaxAmount ?? 0.0),
+    );
   }
 
   double get orderedFinalAmount {
     return po.items.fold(
       0.0,
-      (sum, i) => sum + (i.poQuantitypendingFinalPrice ?? 0.0),
+      (sum, i) =>
+          sum + (i.poQuantitypendingFinalPrice ?? i.pendingFinalPrice ?? 0.0),
     );
   }
 
@@ -588,6 +582,11 @@ class ApprovedPOLogic {
       pendingCountController[item] = TextEditingController(
         text: count.toStringAsFixed(2),
       );
+      for (var item in po.items) {
+        priceControllersMap[item] = TextEditingController(
+          text: (item.newPrice ?? 0.0).toStringAsFixed(2),
+        );
+      }
 
       eachQtyControllers[item] = TextEditingController(
         text: qty.toStringAsFixed(2),
@@ -601,6 +600,43 @@ class ApprovedPOLogic {
         text: (item.pendingAfTaxDiscountAmount ?? item.afTaxDiscountAmount ?? 0)
             .toStringAsFixed(2),
       );
+    }
+  }
+
+  void onPriceChanged(Item item, double newPrice) {
+    item.newPrice = newPrice;
+
+    // 🔥 IMPORTANT: recalc using API (same as discount flow)
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      await _recalculateAfterPriceChange();
+    });
+  }
+
+  Future<void> _recalculateAfterPriceChange() async {
+    try {
+      final response = await poProvider.calculateGrnOverallDiscount(
+        items: po.items.map((item) {
+          return {
+            "itemId": item.itemId,
+            "receivedQuantity": item.receivedQuantity ?? 0,
+            "grnPrice": item.newPrice, // ✅ UPDATED PRICE USED
+            "befTaxDiscount": item.befTaxDiscount ?? 0,
+            "afTaxDiscount": item.afTaxDiscount ?? 0,
+            "taxPercentage": item.taxPercentage ?? 0.0,
+            "taxType": item.taxType ?? "cgst_sgst",
+          };
+        }).toList(),
+        discountAmount: po.pendingDiscountAmount ?? 0,
+        discountType: isBefTaxDiscount.value ? "before" : "after",
+      );
+
+      if (response["success"] == true) {
+        _applyDiscountResponseToItems(response);
+        refreshUI();
+      }
+    } catch (e) {
+      showTopError("Price update failed: $e");
     }
   }
 
@@ -639,6 +675,7 @@ class ApprovedPOLogic {
     double? initialValue,
     required VoidCallback onValueSelected,
     bool isItemField = true,
+    Item? item, // ✅ NEW
   }) {
     suppressReceivedListener = true;
 
@@ -654,40 +691,49 @@ class ApprovedPOLogic {
 
           final formatted = value.toStringAsFixed(2);
 
+          /// 🔹 NON ITEM FIELD (discount etc)
           if (!isItemField) {
             controller.text = formatted;
-
             onValueSelected();
-
             suppressReceivedListener = false;
             return;
           }
-          final item = po.items.firstWhere(
-            (i) => receivedQtyController[i] == controller,
-          );
 
-          final double orderedQty = (item.poQuantity ?? 0) > 0
-              ? item.poQuantity!
-              : ((item.count ?? 1.0) * (item.eachQuantity ?? 0.0));
-
-          if (value > orderedQty) {
-            receivedQtyErrors.value = {
-              ...receivedQtyErrors.value,
-              item: "Cannot exceed ordered qty ($orderedQty)",
-            };
-
-            showTopError("Cannot exceed ordered qty ($orderedQty)");
+          /// 🔥 IMPORTANT FIX → no more firstWhere crash
+          if (item == null) {
+            suppressReceivedListener = false;
             return;
           }
 
-          final newMap = Map<Item, String?>.from(receivedQtyErrors.value);
-          newMap.remove(item);
-          receivedQtyErrors.value = newMap;
+          /// 🔹 RECEIVED QTY FIELD ONLY VALIDATION
+          if (receivedQtyController[item] == controller) {
+            final double orderedQty = (item.poQuantity ?? 0) > 0
+                ? item.poQuantity!
+                : ((item.count ?? 1.0) * (item.eachQuantity ?? 0.0));
 
-          item.receivedQuantity = value;
+            if (value > orderedQty) {
+              receivedQtyErrors.value = {
+                ...receivedQtyErrors.value,
+                item: "Cannot exceed ordered qty ($orderedQty)",
+              };
+
+              showTopError("Cannot exceed ordered qty ($orderedQty)");
+              return;
+            }
+
+            /// clear error
+            final newMap = Map<Item, String?>.from(receivedQtyErrors.value);
+            newMap.remove(item);
+            receivedQtyErrors.value = newMap;
+
+            item.receivedQuantity = value;
+            refreshUI();
+
+            updateQtyWhenReceivedChanges(item);
+          }
+
+          /// 🔹 COMMON UPDATE (PRICE / QTY)
           controller.text = formatted;
-
-          updateQtyWhenReceivedChanges(item);
 
           onValueSelected();
 
@@ -750,6 +796,55 @@ class ApprovedPOLogic {
     } else {
       item.count = 1.0;
       item.eachQuantity = receivedQty;
+    }
+  }
+
+  void onDiscountChanged({required bool isBefTax}) {
+    /// 🔥 Toggle mode
+    isBefTaxDiscount.value = isBefTax;
+
+    /// Reset opposite discount for ALL items
+    for (var item in po.items) {
+      if (isBefTax) {
+        item.afTaxDiscount = 0.0;
+        afTaxControllers[item]?.text = "0.00";
+      } else {
+        item.befTaxDiscount = 0.0;
+        befTaxControllers[item]?.text = "0.00";
+      }
+    }
+
+    _debounce?.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      await _recalculateAfterDiscountChange();
+    });
+  }
+
+  Future<void> _recalculateAfterDiscountChange() async {
+    try {
+      final response = await poProvider.calculateGrnOverallDiscount(
+        items: po.items.map((item) {
+          return {
+            "itemId": item.itemId,
+            "receivedQuantity": item.receivedQuantity ?? 0,
+            "grnPrice": item.newPrice,
+            "befTaxDiscount": item.befTaxDiscount ?? 0,
+            "afTaxDiscount": item.afTaxDiscount ?? 0,
+            "taxPercentage": item.taxPercentage ?? 0.0,
+            "taxType": item.taxType ?? "cgst_sgst",
+          };
+        }).toList(),
+        discountAmount: 0,
+        discountType: isBefTaxDiscount.value ? "before" : "after",
+      );
+
+      if (response["success"] == true) {
+        _applyDiscountResponseToItems(response);
+        refreshUI();
+      }
+    } catch (e) {
+      showTopError("Discount update failed: $e");
     }
   }
 
@@ -958,26 +1053,22 @@ class ApprovedPOLogic {
 
       debugPrint("=========== GRN CONVERSION START ===========");
 
-      /// VALIDATION
-      debugPrint("🔍 Validating form...");
+      /// ✅ VALIDATION
       if (!validateForm()) {
         debugPrint("❌ Form validation failed");
         isSaving.value = false;
         return;
       }
 
-      debugPrint("🔍 Validating expiry dates...");
       final isExpiryValid = validateExpiryDatesBasedOnReceived(po.items);
 
       if (!isExpiryValid) {
-        debugPrint("❌ Expiry validation failed");
         showTopError("Expiry date required for received items");
         isSaving.value = false;
         return;
       }
 
-      /// SHOW LOADER
-      debugPrint("⏳ Showing loader...");
+      /// ✅ SHOW LOADER
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -985,18 +1076,11 @@ class ApprovedPOLogic {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
-      /// NORMALIZE
-      debugPrint("⚙️ Normalizing items...");
+      /// ✅ NORMALIZE
       normalizeBeforeApi();
 
-      /// PREPARE ITEMS
-      debugPrint("📦 Preparing received items...");
+      /// ✅ PREPARE ITEMS
       final List<Item> receivedItems = po.items.map((item) {
-        debugPrint("➡️ Item: ${item.itemName}");
-        debugPrint("   Qty: ${item.receivedQuantity}");
-        debugPrint("   BefTax: ${item.befTaxDiscount}");
-        debugPrint("   AfTax: ${item.afTaxDiscount}");
-
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
           befTaxDiscount: item.befTaxDiscount ?? 0,
@@ -1007,8 +1091,7 @@ class ApprovedPOLogic {
         );
       }).toList();
 
-      /// PARSE DATE
-      debugPrint("📅 Parsing invoice date...");
+      /// ✅ PARSE DATE
       final pickedDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
@@ -1024,10 +1107,7 @@ class ApprovedPOLogic {
         now.second,
       );
 
-      debugPrint("📅 Final Invoice Date: $parsedInvoiceDate");
-
-      /// API CALL
-      debugPrint("🚀 Calling updatePoDetails API...");
+      /// ✅ API CALL
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
@@ -1037,27 +1117,30 @@ class ApprovedPOLogic {
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      debugPrint("📥 API RESPONSE: $response");
-
       if (response["grnCreated"] != true) {
-        debugPrint("❌ GRN creation failed");
         throw Exception("GRN creation failed");
       }
 
-      final String grnId = response["grnId"];
-      debugPrint("✅ GRN CREATED: $grnId");
+      /// 🔥 SAFE GRN NUMBER FETCH (IMPORTANT)
+      final String grnNumber =
+          response["grnRandomId"] ??
+          response["randomId"] ??
+          response["grnNumber"] ??
+          response["grnNo"] ??
+          response["grn_code"] ??
+          response["grnId"] ??
+          "N/A";
 
-      debugPrint("✅ GRN UPDATED WITH FREIGHT");
+      debugPrint("✅ GRN CREATED: $grnNumber");
+      debugPrint("FULL RESPONSE: $response");
+      debugPrint("GRN RANDOM ID: ${response["grnRandomId"]}");
 
-      /// CLOSE LOADER
+      /// ✅ CLOSE LOADER
       if (context.mounted) {
-        debugPrint("🔒 Closing loader & dialog...");
         Navigator.of(context, rootNavigator: true).pop();
-        Navigator.of(context).pop();
       }
 
-      /// REFRESH
-      debugPrint("🔄 Refreshing PO & GRN list...");
+      /// ✅ REFRESH DATA
       Future.microtask(() {
         poProvider.fetchPOsWithFilters(
           status: "Approved,PartiallyReceived",
@@ -1067,14 +1150,40 @@ class ApprovedPOLogic {
         grnProvider.fetchFilteredGRNs();
       });
 
-      /// SUCCESS
+      /// ✅ SUCCESS DIALOG
       if (context.mounted) {
-        debugPrint("🎉 Showing success message");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("PO converted to GRN successfully!"),
-            backgroundColor: Colors.green,
-          ),
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            return AlertDialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                "GRN Generated",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              content: Text(
+                "GRN has been generated successfully.\n\nGRN No: $grnNumber",
+                style: const TextStyle(fontSize: 15),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text("OK"),
+                ),
+              ],
+            );
+          },
         );
       }
 
@@ -1084,7 +1193,6 @@ class ApprovedPOLogic {
       debugPrintStack(stackTrace: stack);
 
       if (context.mounted) {
-        debugPrint("🔒 Closing loader due to error...");
         Navigator.of(context, rootNavigator: true).pop();
       }
 
@@ -1095,7 +1203,6 @@ class ApprovedPOLogic {
         ),
       );
     } finally {
-      debugPrint("♻️ Reset isSaving");
       isSaving.value = false;
     }
   }

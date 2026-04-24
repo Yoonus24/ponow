@@ -189,7 +189,7 @@ class POModalProvider with ChangeNotifier {
     return await _sendToBackend(_po.purchaseOrderId, payloadItems);
   }
 
-  Future<void> saveChanges(BuildContext context) async {
+  Future<bool> saveChanges(BuildContext context) async {
     final confirm =
         await showDialog<bool>(
           context: context,
@@ -224,7 +224,7 @@ class POModalProvider with ChangeNotifier {
         ) ??
         false;
 
-    if (!confirm) return;
+    if (!confirm) return false; // 🔥 IMPORTANT
 
     List<Map<String, dynamic>> payloadItems = _po.items.map((item) {
       return {
@@ -241,17 +241,19 @@ class POModalProvider with ChangeNotifier {
 
     bool success = await _sendToBackend(_po.purchaseOrderId, payloadItems);
 
-    if (!context.mounted) return;
+    if (!context.mounted) return false;
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Changes saved successfully!")),
       );
       notifyListeners();
+      return true; // ✅ SUCCESS
     } else {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Failed to save changes.")));
+      return false;
     }
   }
 

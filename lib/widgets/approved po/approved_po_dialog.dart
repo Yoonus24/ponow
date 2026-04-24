@@ -105,10 +105,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: () {
-                print("✅ User pressed CONFIRM");
                 Navigator.of(ctx).pop(true);
-                // print("⚙️ Calling convertPoToGRN()");
-                _logic.convertPoToGRN(context);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
@@ -671,10 +668,31 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     return ValueListenableBuilder<int>(
       valueListenable: _logic.uiRefresh,
       builder: (_, __, ___) {
-        final double orderedItemsFinal = _logic.po.items.fold<double>(
+        /// ✅ ORDERED SUBTOTAL (WITH FALLBACK)
+        final double orderedSubTotal = _logic.po.items.fold<double>(
           0.0,
-          (sum, i) => sum + ((i.poQuantitypendingFinalPrice ?? 0.0)),
+          (sum, i) =>
+              sum +
+              (i.poQuantitypendingTotalPrice ?? i.pendingTotalPrice ?? 0.0),
         );
+
+        /// ✅ ORDERED DISCOUNT (WITH FALLBACK)
+        final double orderedDiscount = _logic.po.items.fold<double>(
+          0.0,
+          (sum, i) =>
+              sum +
+              (i.poQuantityDiscountAmount ?? i.pendingDiscountAmount ?? 0.0),
+        );
+
+        /// ✅ ORDERED TAX (WITH FALLBACK)
+        final double orderedTax = _logic.po.items.fold<double>(
+          0.0,
+          (sum, i) =>
+              sum + (i.poQuantityTaxAmount ?? i.pendingTaxAmount ?? 0.0),
+        );
+
+        /// ✅ FINAL (ALREADY FIXED IN LOGIC)
+        final double orderedItemsFinal = _logic.orderedFinalAmount;
 
         final double orderedFinalWithExtras =
             orderedItemsFinal +
@@ -687,44 +705,25 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
             /// 🔹 SUB TOTAL
             _summaryRow(
               "Sub Total",
-              isOrdered
-                  ? _logic.po.items.fold<double>(
-                      0.0,
-                      (sum, i) =>
-                          sum + ((i.poQuantitypendingTotalPrice ?? 0.0)),
-                    )
-                  : _logic.receivedSubTotal,
+              isOrdered ? orderedSubTotal : _logic.receivedSubTotal,
             ),
 
             /// 🔹 DISCOUNT
             _summaryRow(
               isOrdered ? "Order Discount" : "Received Discount",
-              isOrdered
-                  ? _logic.po.items.fold<double>(
-                      0.0,
-                      (sum, i) => sum + ((i.poQuantityDiscountAmount ?? 0.0)),
-                    )
-                  : _logic.pendingDiscountFromItems,
+              isOrdered ? orderedDiscount : _logic.pendingDiscountFromItems,
             ),
 
             /// 🔹 FREIGHT
             _summaryRow("Freight", _logic.totalFreightAmount),
 
             /// 🔹 TAX
-            _summaryRow(
-              "Tax",
-              isOrdered
-                  ? _logic.po.items.fold<double>(
-                      0.0,
-                      (sum, i) => sum + ((i.poQuantityTaxAmount ?? 0.0)),
-                    )
-                  : _logic.itemTaxAmount,
-            ),
+            _summaryRow("Tax", isOrdered ? orderedTax : _logic.itemTaxAmount),
 
             /// 🔹 ROUND OFF
             _summaryRow("Round Off", _logic.roundOffAmount.value),
 
-            /// 🔹 FINAL AMOUNT ✅ FIXED
+            /// 🔹 FINAL AMOUNT
             _summaryRow(
               "Final Amount",
               isOrdered ? orderedFinalWithExtras : _logic.receivedFinalAmount,
@@ -767,167 +766,125 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          /// 🔹 DISCOUNT LABEL + ROW
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ValueListenableBuilder<bool>(
-                valueListenable: _logic.isBefTaxDiscount,
-                builder: (context, isBefTax, _) {
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _logic.isBefTaxDiscount.value = true,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isBefTax
-                                ? Colors.blueAccent
-                                : Colors.grey.shade200,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(4),
-                              bottomLeft: Radius.circular(4),
-                            ),
-                            border: Border.all(
-                              color: isBefTax
-                                  ? Colors.blueAccent
-                                  : Colors.grey.shade400,
-                            ),
-                          ),
-                          child: Text(
-                            'Bef Tax',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: isBefTax
-                                  ? Colors.white
-                                  : Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _logic.isBefTaxDiscount.value = false,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: !isBefTax
-                                ? Colors.green
-                                : Colors.grey.shade200,
-                            borderRadius: const BorderRadius.only(
-                              topRight: Radius.circular(4),
-                              bottomRight: Radius.circular(4),
-                            ),
-                            border: Border.all(
-                              color: !isBefTax
-                                  ? Colors.green
-                                  : Colors.grey.shade400,
-                            ),
-                          ),
-                          child: Text(
-                            'Af Tax',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: !isBefTax
-                                  ? Colors.white
-                                  : Colors.grey.shade700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              const SizedBox(width: 20), // 👈 adjust spacing here
+              /// 🏷️ LABEL
+              const Text(
+                "Discount :",
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
               ),
 
-              const SizedBox(width: 4),
-              SizedBox(
-                width: 70,
-                child: InkWell(
-                  onTap: () {
-                    _logic.showNumericCalculator(
-                      controller: _logic.discountInputController,
-                      varianceName: 'Enter Discount',
-                      onValueSelected: () {},
-                      isItemField: false,
-                    );
-                  },
-                  child: IgnorePointer(
-                    child: TextField(
-                      controller: _logic.discountInputController,
-                      readOnly: true,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 11),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                        border: OutlineInputBorder(
+              const SizedBox(width: 6),
+
+              /// 👉 RIGHT SIDE CONTENT
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    /// 🔥 TOGGLE SWITCH (Before / After Tax)
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _logic.isBefTaxDiscount,
+                      builder: (context, isBefTax, _) {
+                        return Row(
+                          children: [
+                            Text(
+                              isBefTax ? "Before Tax" : "After Tax",
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+
+                            Switch(
+                              value: !isBefTax,
+                              onChanged: (val) {
+                                _logic.isBefTaxDiscount.value = !val;
+                              },
+                              activeColor: Colors.blueAccent,
+                              activeTrackColor: Colors.blueAccent.withOpacity(
+                                0.4,
+                              ),
+                              inactiveThumbColor: Colors.grey,
+                              inactiveTrackColor: Colors.grey.shade300,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+
+                    const SizedBox(width: 6),
+
+                    /// 🔢 DISCOUNT INPUT
+                    SizedBox(
+                      width: 70,
+                      child: InkWell(
+                        onTap: () {
+                          _logic.showNumericCalculator(
+                            controller: _logic.discountInputController,
+                            varianceName: 'Enter Discount',
+                            onValueSelected: () {
+                              _logic.applyOverallDiscountViaAPI();
+                            },
+                            isItemField: false,
+                          );
+                        },
+                        child: IgnorePointer(
+                          child: TextField(
+                            controller: _logic.discountInputController,
+                            readOnly: true,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 11),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              hintText: 'Amount',
+                              hintStyle: const TextStyle(fontSize: 10),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 4),
+
+                    /// ❌ CLEAR BUTTON
+                    InkWell(
+                      onTap: () => _logic.clearDiscountFromAllItems(),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade400,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        hintText: 'Amount',
-                        hintStyle: const TextStyle(fontSize: 10),
+                        child: const Icon(
+                          Icons.clear,
+                          size: 14,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-
-              const SizedBox(width: 4),
-              ValueListenableBuilder<bool>(
-                valueListenable: _logic.isBefTaxDiscount,
-                builder: (context, isBefTax, _) {
-                  return InkWell(
-                    onTap: () => _logic.applyOverallDiscountViaAPI(),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: isBefTax ? Colors.blue : Colors.green,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(
-                        Icons.save,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const SizedBox(width: 4),
-              // ===== CLEAR ICON =====
-              ValueListenableBuilder<bool>(
-                valueListenable: _logic.isBefTaxDiscount,
-                builder: (context, isBefTax, _) {
-                  return InkWell(
-                    onTap: () => _logic.clearDiscountFromAllItems(),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade400,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(
-                        Icons.clear,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                  );
-                },
               ),
             ],
           ),
 
           const SizedBox(height: 6),
+
+          /// 🔢 ROUND OFF FIELD
           _buildRoundOffField(),
         ],
       ),

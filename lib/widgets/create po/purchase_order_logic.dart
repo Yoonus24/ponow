@@ -173,6 +173,7 @@ class PurchaseOrderLogic {
 
     if (vendorController.text.trim().isEmpty) {
       _clearVendorDetails();
+      notifier.clearSelectedVendor();
     }
   }
 

@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po_item.dart';
@@ -45,7 +47,7 @@ class TemplateProvider extends ChangeNotifier {
       }
 
       final response = await _dio.get(
-        '/purchaseorder-templates/',
+        '/purchaseorder-templates',
         queryParameters: queryParams,
       );
 
@@ -69,10 +71,27 @@ class TemplateProvider extends ChangeNotifier {
           _skip += _limit;
         }
       } else {
-        _error = 'Failed to load templates';
+        _error = "Failed to load templates";
       }
     } catch (e) {
-      _error = 'Error: $e';
+      if (e is DioException) {
+        if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
+          _error = "Request timed out. Please try again.";
+        } else if (e.type == DioExceptionType.connectionError) {
+          _error = "No internet connection. Please check your network.";
+        } else if (e.response != null) {
+          final backendMessage =
+              e.response?.data?['detail'] ?? e.response?.data?['message'];
+
+          _error = backendMessage ?? "Something went wrong. Please try again.";
+        } else {
+          _error = "Unable to connect to server. Please try again later.";
+        }
+      } else {
+        _error = "Unexpected error occurred. Please try again.";
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -98,8 +117,8 @@ class TemplateProvider extends ChangeNotifier {
       print("📤 REQUEST DATA: ${template.toJson()}");
 
       final response = await _dio.post(
-        '/purchaseorder-templates/',
-        data: template.toJson(), // ✅ FIXED
+        '/purchaseorder-templates',
+        data: template.toJson(), 
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 

@@ -279,10 +279,21 @@ class OutgoingPdf {
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
                         _joinNonEmpty([
-                          outgoingData['billingAddress']?.toString() ??
-                              'No.40, Kenikarai',
-                          outgoingData['shippingAddress']?.toString() ??
-                              'Ramanathapuram',
+                          (outgoingData['billingAddress'] != null &&
+                                  outgoingData['billingAddress']
+                                      .toString()
+                                      .trim()
+                                      .isNotEmpty)
+                              ? outgoingData['billingAddress'].toString()
+                              : 'No.40, Kenikarai',
+
+                          (outgoingData['shippingAddress'] != null &&
+                                  outgoingData['shippingAddress']
+                                      .toString()
+                                      .trim()
+                                      .isNotEmpty)
+                              ? outgoingData['shippingAddress'].toString()
+                              : 'Ramanathapuram',
                         ]),
                         style: pw.TextStyle(fontSize: 10),
                       ),

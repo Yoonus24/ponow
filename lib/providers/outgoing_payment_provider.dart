@@ -284,6 +284,15 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
 
         var fetched = data.map((e) => Outgoing.fromJson(e)).toList();
+        if (fromDate != null && toDate != null && filterBy == 'paymentDate') {
+          fetched = fetched.where((p) {
+            final date = p.paymentDate;
+            if (date == null) return false;
+
+            return date.isAfter(fromDate.subtract(const Duration(days: 1))) &&
+                date.isBefore(toDate.add(const Duration(days: 1)));
+          }).toList();
+        }
 
         /// LOCAL FILTER
         if (invoiceNo != null && invoiceNo.isNotEmpty) {
@@ -322,6 +331,49 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     }
 
     return _payments;
+  }
+
+  Future<List<Outgoing>> fetchByPaymentDate({
+    required DateTime fromDate,
+    required DateTime toDate,
+    String status = 'Fully Paid,Partially Paid',
+    int skip = 0,
+    int limit = 50,
+  }) async {
+    try {
+      final response = await DioClient.dio.get(
+        '/outgoingpayments',
+        queryParameters: {
+          'filterBy': 'paymentDate', // ✅ IMPORTANT
+          'fromDate': DateFormat('yyyy-MM-dd').format(fromDate),
+          'toDate': DateFormat('yyyy-MM-dd').format(toDate),
+          'status': status,
+          'skip': skip,
+          'limit': limit,
+        },
+        options: Options(validateStatus: (s) => (s ?? 500) < 500),
+      );
+
+      if (response.statusCode == 200) {
+        final raw = response.data;
+        final List<dynamic> data = raw is List ? raw : (raw['outgoings'] ?? []);
+
+        final fetched = data.map((e) => Outgoing.fromJson(e)).toList();
+
+        _payments = fetched;
+        notifyListeners();
+
+        return fetched;
+      } else {
+        _payments = [];
+        notifyListeners();
+        return [];
+      }
+    } catch (e) {
+      _payments = [];
+      notifyListeners();
+      return [];
+    }
   }
 
   Future<void> fetchAllOutgoings({DateTime? fromDate, DateTime? toDate}) async {

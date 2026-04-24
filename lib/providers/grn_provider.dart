@@ -84,9 +84,7 @@ class GRNProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _dio.get(
-        '/grns/getgrn/return-reasons', 
-      );
+      final response = await _dio.get('/grns/getgrn/return-reasons');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -112,15 +110,26 @@ class GRNProvider with ChangeNotifier {
   Future<void> generatePdf(GRN grn, BuildContext context) async {
     final id = grn.grnId ?? '';
 
+    print("🔥 PDF CLICKED");
+    print("🆔 GRN ID: $id");
+    print("🏪 Vendor Name (from UI): ${grn.vendorName}");
+
     _pdfLoadingMap[id] = true;
     notifyListeners();
 
     try {
       final service = GRNPDF();
+
+      print("🚀 Calling generateGRNPdf...");
+
       final pdfFile = await service.generateGRNPdf(id);
+
+      print("✅ PDF GENERATED SUCCESS");
 
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
     } catch (e) {
+      print("❌ PDF ERROR: $e");
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));

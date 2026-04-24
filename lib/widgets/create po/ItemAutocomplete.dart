@@ -14,6 +14,8 @@ class ItemAutocomplete extends StatefulWidget {
   final POProvider poProvider;
   final Function(String) onItemSelected;
   static const double _fieldHeight = 60;
+  final bool hasError;
+  final bool isPreloading;
 
   const ItemAutocomplete({
     super.key,
@@ -21,6 +23,8 @@ class ItemAutocomplete extends StatefulWidget {
     required this.notifier,
     required this.poProvider,
     required this.onItemSelected,
+    this.hasError = false,
+    this.isPreloading = false,
   });
 
   @override
@@ -55,18 +59,12 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     _isLoadingNotifier.value = true;
 
     try {
-      await widget.poProvider.preloadAllPurchaseItems();
-
-      if (_isDisposed) return;
-
       _allPurchaseItems = widget.poProvider.purchaseItems;
+
       _displayedItemsNotifier.value = _allPurchaseItems
           .map((e) => e.itemName ?? '')
           .toList();
-    } catch (e) {
-      if (_isDisposed) return;
     } finally {
-      if (_isDisposed) return;
       _isLoadingNotifier.value = false;
     }
   }
@@ -224,63 +222,77 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                 }
               });
 
-              return ValueListenableBuilder<bool>(
-                valueListenable: _isLoadingNotifier,
-                builder: (context, isLoading, _) {
-                  return ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: 60,
-                      maxHeight: 60,
+              final isLoading = widget.isPreloading;
+
+              return ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 60, maxHeight: 60),
+                child: TextFormField(
+                  controller: textEditingController,
+                  focusNode: focusNode,
+
+                  enabled: !isLoading,
+                  readOnly: isLoading,
+
+                  style: const TextStyle(fontSize: 14),
+
+                  decoration: InputDecoration(
+                    labelText: 'Select Item*',
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
+
+                    labelStyle: TextStyle(
+                      fontSize: 14,
+                      color: widget.hasError
+                          ? Colors.red.shade700
+                          : Colors.grey.shade800,
                     ),
-                    child: TextFormField(
-                      controller: textEditingController,
-                      focusNode: focusNode,
 
-                      enabled: !isLoading, // 👈 disable typing
-                      readOnly: isLoading, // 👈 extra safety
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                      borderSide: BorderSide(color: Colors.grey.shade500),
+                    ),
 
-                      style: const TextStyle(fontSize: 14),
-                      decoration: InputDecoration(
-                        labelText: 'Select Item*',
-                        floatingLabelBehavior: FloatingLabelBehavior.never,
-                        labelStyle: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade800,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                          borderSide: BorderSide(color: Colors.grey.shade500),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8.0),
-                          borderSide: BorderSide(color: Colors.grey.shade500),
-                        ),
-                        focusedBorder: const OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(8.0)),
-                          borderSide: BorderSide(
-                            color: Color.fromARGB(255, 74, 122, 227),
-                            width: 2.0,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 12,
-                        ),
-                        filled: true,
-                        fillColor: isLoading
-                            ? Colors
-                                  .grey
-                                  .shade200 
-                            : Colors.white,
-
-                        suffixIcon: _buildSuffixIcon(
-                          textEditingController,
-                          focusNode,
-                        ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                      borderSide: BorderSide(
+                        color: widget.hasError
+                            ? Colors.red.shade400
+                            : Colors.grey.shade500,
+                        width: widget.hasError ? 2 : 1,
                       ),
                     ),
-                  );
-                },
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8.0),
+                      borderSide: BorderSide(
+                        color: widget.hasError
+                            ? Colors.red.shade700
+                            : const Color.fromARGB(255, 74, 122, 227),
+                        width: 2,
+                      ),
+                    ),
+
+                    errorText: widget.hasError ? " " : null,
+
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
+                    ),
+
+                    filled: true,
+                    fillColor: isLoading ? Colors.grey.shade200 : Colors.white,
+
+                    suffixIcon: isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                              height: 16,
+                              width: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : _buildSuffixIcon(textEditingController, focusNode),
+                  ),
+                ),
               );
             },
 

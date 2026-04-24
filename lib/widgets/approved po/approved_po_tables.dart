@@ -398,6 +398,7 @@ class ApprovedPOTable extends StatelessWidget {
                   logic.showNumericCalculator(
                     controller: controller,
                     varianceName: 'Enter Received Quantity',
+                    item: item, 
                     onValueSelected: () {
                       logic.updateQtyWhenReceivedChanges(item);
                     },
@@ -440,54 +441,171 @@ class ApprovedPOTable extends StatelessWidget {
         );
 
       case 'Price':
-        return CustomTableCell(
-          text: item.newPrice?.toStringAsFixed(2) ?? '0.00',
+        final priceController = logic.priceControllersMap[item];
+
+        if (priceController == null) {
+          return Container(width: logic.getColumnWidth(column));
+        }
+
+        return Container(
           width: logic.getColumnWidth(column),
-          isEvenRow: isEvenRow,
-        );
+          color: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: InkWell(
+            onTap: () {
+              logic.showNumericCalculator(
+                controller: priceController,
+                varianceName: 'Enter Price',
+                item: item, // ✅ MUST
+                onValueSelected: () {
+                  final newPrice = double.tryParse(priceController.text) ?? 0.0;
 
+                  item.newPrice = newPrice;
+                  logic.onPriceChanged(item, newPrice);
+                },
+              );
+            },
+
+            child: IgnorePointer(
+              child: SizedBox(
+                height: rowHeight - 2,
+                child: TextField(
+                  controller: priceController,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.only(bottom: 2, top: 2),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.blue),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
       case 'BefTax':
-        if (befTaxController == null) {
+        final controller = logic.befTaxControllers[item];
+
+        if (controller == null) {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        return ValueListenableBuilder<TextEditingValue>(
-          valueListenable: befTaxController,
-          builder: (context, value, _) {
-            return Container(
-              width: logic.getColumnWidth(column),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: const BoxDecoration(color: Colors.white),
-              child: Text(
-                item.befTaxDiscount?.toStringAsFixed(2) ?? '0.00',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: Colors.black),
+        return ValueListenableBuilder<bool>(
+          valueListenable: logic.isBefTaxDiscount,
+          builder: (context, isBefTaxMode, _) {
+            final isDisabled = !isBefTaxMode;
+
+            return Opacity(
+              opacity: isDisabled ? 0.4 : 1, // 🔥 BLUR EFFECT
+              child: IgnorePointer(
+                ignoring: isDisabled, // 🔥 DISABLE TOUCH
+                child: Container(
+                  width: logic.getColumnWidth(column),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: InkWell(
+                    onTap: () {
+                      logic.onDiscountChanged(isBefTax: true);
+
+                      logic.showNumericCalculator(
+                        controller: controller,
+                        varianceName: 'Enter Before Tax Discount',
+                        item: item,
+                        onValueSelected: () {
+                          final value = double.tryParse(controller.text) ?? 0.0;
+                          item.befTaxDiscount = value;
+                        },
+                      );
+                    },
+                    child: IgnorePointer(
+                      child: SizedBox(
+                        height: rowHeight - 2,
+                        child: TextField(
+                          controller: controller,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.only(bottom: 2, top: 2),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },
         );
-
       case 'AfTax':
-        if (afTaxController == null) {
+        final controller = logic.afTaxControllers[item];
+
+        if (controller == null) {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        return ValueListenableBuilder<TextEditingValue>(
-          valueListenable: afTaxController,
-          builder: (context, value, _) {
-            return Container(
-              width: logic.getColumnWidth(column),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: const BoxDecoration(color: Colors.white),
-              child: Text(
-                item.afTaxDiscount?.toStringAsFixed(2) ?? '0.00',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: Colors.black),
+        return ValueListenableBuilder<bool>(
+          valueListenable: logic.isBefTaxDiscount,
+          builder: (context, isBefTaxMode, _) {
+            final isDisabled = isBefTaxMode;
+
+            return Opacity(
+              opacity: isDisabled ? 0.4 : 1, // 🔥 BLUR EFFECT
+              child: IgnorePointer(
+                ignoring: isDisabled,
+                child: Container(
+                  width: logic.getColumnWidth(column),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: InkWell(
+                    onTap: () {
+                      logic.onDiscountChanged(isBefTax: false);
+
+                      logic.showNumericCalculator(
+                        controller: controller,
+                        varianceName: 'Enter After Tax Discount',
+                        item: item,
+                        onValueSelected: () {
+                          final value = double.tryParse(controller.text) ?? 0.0;
+                          item.afTaxDiscount = value;
+                        },
+                      );
+                    },
+                    child: IgnorePointer(
+                      child: SizedBox(
+                        height: rowHeight - 2,
+                        child: TextField(
+                          controller: controller,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.only(bottom: 2, top: 2),
+                            enabledBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.grey),
+                            ),
+                            focusedBorder: UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.blue),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },
         );
-
       case 'Expiry':
         if (expiryController == null) {
           return Container(width: logic.getColumnWidth(column));

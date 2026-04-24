@@ -239,7 +239,11 @@ class _TemplateCreationScreenState extends State<TemplateCreationScreen> {
           content: Text('Template "$templateName" saved successfully'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
+          margin: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 20, // 👈 fix
+          ),
         ),
       );
 

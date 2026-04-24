@@ -67,31 +67,6 @@ class _GRNPageState extends State<GRNPage> {
     _selectedButton.addListener(_onStatusFilterChanged);
   }
 
-  // void _searchVendor(String query) {
-  //   final q = query.toLowerCase().trim();
-
-  //   if (q.isEmpty) {
-  //     setState(() {
-  //       _displayedVendors = List.from(_allVendors);
-  //     });
-  //     return;
-  //   }
-
-  //   setState(() {
-  //     _displayedVendors = _allVendors
-  //         .where((v) => v.toLowerCase().contains(q))
-  //         .toList();
-  //   });
-  // }
-
-  void _onVendorFilterChanged() {
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        _applyFilters();
-      }
-    });
-  }
 
   void _onDateFilterChanged() {
     _debounceTimer?.cancel();
@@ -420,7 +395,7 @@ class _GRNPageState extends State<GRNPage> {
   Widget _buildContent() {
     return Consumer<GRNProvider>(
       builder: (context, provider, _) {
-        // 🔥 SHOW LOADER WHEN FETCHING (FILTER / INITIAL / REFRESH)
+        //  SHOW LOADER WHEN FETCHING (FILTER / INITIAL / REFRESH)
         if (provider.isLoading && provider.grns.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -431,38 +406,24 @@ class _GRNPageState extends State<GRNPage> {
             children: [
               const SizedBox(height: 200),
               Center(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        color: Colors.redAccent,
-                        size: 40,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        provider.error ?? "Something went wrong",
-                        style: const TextStyle(
-                          color: Colors.black87,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-
-                      /// 🔁 Retry Button
-                      ElevatedButton(
-                        onPressed: _applyFilters,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text("Retry"),
-                      ),
-                    ],
-                  ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.redAccent,
+                      size: 40,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      provider.error ?? "Something went wrong",
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _applyFilters,
+                      child: const Text("Retry"),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -474,60 +435,44 @@ class _GRNPageState extends State<GRNPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             children: const [
               SizedBox(height: 200),
-              Center(
-                child: Text(
-                  "No GRNs found",
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ),
+              Center(child: Text("No GRNs found")),
             ],
           );
         }
 
-        return Stack(
-          children: [
-            // 🔥 MAIN GRID
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: GridViewWidget<GRN>(
-                items: provider.grns,
-                hasMore: provider.hasMore,
-                isLoading: provider.isLoadMore,
-                onLoadMore: () async {
-                  if (!provider.isLoading &&
-                      !provider.isLoadMore &&
-                      provider.hasMore) {
-                    await provider.fetchFilteredGRNs(
-                      status: _selectedButton.value == 'active'
-                          ? 'active'
-                          : 'returned',
-                      vendorName: _vendorNotifier.value.isNotEmpty
-                          ? _vendorNotifier.value
-                          : null,
-                      fromDate: _selectedDateRange?.start,
-                      toDate: _selectedDateRange?.end,
-                      skip: provider.grns.length,
-                      limit: provider.limit,
-                      loadMore: true,
-                    );
-                  }
-                },
-                itemBuilder: (context, index) {
-                  final grn = provider.grns[index];
-                  return _selectedButton.value == 'returned'
-                      ? GRNReturnWidget(grn: grn)
-                      : GRNWidget(grn: grn);
-                },
-              ),
-            ),
-
-            // 🔥 OVERLAY LOADER (WHEN FILTERING)
-            if (provider.isLoading)
-              Container(
-                color: Colors.white.withOpacity(0.6),
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-          ],
+        /// ✅ DATA
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: GridViewWidget<GRN>(
+            items: provider.grns,
+            hasMore: provider.hasMore,
+            isLoading: provider.isLoadMore,
+            onLoadMore: () async {
+              if (!provider.isLoading &&
+                  !provider.isLoadMore &&
+                  provider.hasMore) {
+                await provider.fetchFilteredGRNs(
+                  status: _selectedButton.value == 'active'
+                      ? 'active'
+                      : 'returned',
+                  vendorName: _vendorNotifier.value.isNotEmpty
+                      ? _vendorNotifier.value
+                      : null,
+                  fromDate: _selectedDateRange?.start,
+                  toDate: _selectedDateRange?.end,
+                  skip: provider.grns.length,
+                  limit: provider.limit,
+                  loadMore: true,
+                );
+              }
+            },
+            itemBuilder: (context, index) {
+              final grn = provider.grns[index];
+              return _selectedButton.value == 'returned'
+                  ? GRNReturnWidget(grn: grn)
+                  : GRNWidget(grn: grn);
+            },
+          ),
         );
       },
     );

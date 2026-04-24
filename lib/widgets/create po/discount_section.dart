@@ -454,7 +454,11 @@ class _DiscountSectionState extends State<DiscountSection> {
         content: Text(msg),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 85, left: 16, right: 16),
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).padding.bottom + 20, // 👈 reduced
+          left: 16,
+          right: 16,
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );

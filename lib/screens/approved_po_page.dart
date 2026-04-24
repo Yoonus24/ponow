@@ -86,29 +86,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     }
   }
 
-  // Future<void> _initializeData() async {
-  //   final provider = context.read<POProvider>();
-
-  //   isInitialized.value = false;
-
-  //   if (provider.pos.isEmpty && !provider.isLoading) {
-  //     await provider.fetchApprovedPOsOnly();
-  //   }
-
-  //   // ✅ FIX: LOAD ONLY ONCE
-  //   if (provider.vendorCache.isEmpty && !provider.vendorsLoaded) {
-  //     await provider.fetchingAllVendors(vendorName: '', skip: 0, limit: 5000);
-  //   }
-
-  //   // ✅ USE CACHE
-  //   final vendors = provider.vendorCache;
-
-  //   _allVendors = vendors.map((e) => e.vendorName).toList();
-  //   _displayedVendors = List.from(_allVendors);
-
-  //   isInitialized.value = true;
-  // }
-
   @override
   void dispose() {
     _vendorDebounce?.cancel();

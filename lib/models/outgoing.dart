@@ -68,11 +68,10 @@ class Outgoing {
   final String? apRandomId;
   final String? poRandomId;
   final double? hoCash;
-
+  final String? invoiceType; 
   final double? originalTotalPayableAmount;
   final double? totalPaidAmount;
   final double? paidAmount;
-
   final double? remainingPayableAmount;
   final List<PaymentHistory>? paymentHistory;
   final double? totalFreightAmount;
@@ -81,6 +80,7 @@ class Outgoing {
   Outgoing({
     required this.outgoingId,
     this.purchaseOrderId,
+    this.invoiceType, 
     this.invoiceId,
     this.grnId,
     this.vendorName,
@@ -156,6 +156,7 @@ class Outgoing {
     try {
       return Outgoing(
         outgoingId: _parseString(json['outgoingId'] ?? json['_id'])!,
+
         purchaseOrderId: _parseString(json['purchaseOrderId']),
         invoiceId: _parseString(json['invoiceId']),
         grnId: _parseString(json['grnId']),
@@ -217,6 +218,7 @@ class Outgoing {
         grnRandomId: _parseString(json['grnRandomId']),
         apRandomId: _parseString(json['apRandomId']),
         poRandomId: _parseString(json['poRandomId']),
+        invoiceType: _parseString(json['invoiceType']),
 
         originalTotalPayableAmount: (json['originalTotalPayableAmount'] as num?)
             ?.toDouble(),
@@ -244,7 +246,7 @@ class Outgoing {
       );
     } catch (e) {
       if (kDebugMode) {
-
+        print('Error parsing Outgoing: $e');
       }
       rethrow;
     }
@@ -360,6 +362,7 @@ class Outgoing {
       'grnRandomId': grnRandomId,
       'apRandomId': apRandomId,
       'poRandomId': poRandomId,
+      'invoiceType': invoiceType, // Added to JSON output
       'totalPaidAmount': totalPaidAmount,
       'remainingPayableAmount': remainingPayableAmount,
       'paymentHistory': paymentHistory?.map((e) => e.toJson()).toList(),
@@ -372,6 +375,7 @@ class Outgoing {
 
   Outgoing copyWith({
     String? status,
+    String? invoiceType, // Added invoiceType to copyWith
     double? remainingPayableAmount,
     double? totalPaidAmount,
     double? partialAmount,
@@ -444,6 +448,7 @@ class Outgoing {
       apRandomId: apRandomId,
       poRandomId: poRandomId,
       hoCash: hoCash,
+      invoiceType: invoiceType ?? this.invoiceType, // Added to copyWith
       totalPaidAmount: totalPaidAmount ?? this.totalPaidAmount,
       remainingPayableAmount:
           remainingPayableAmount ?? this.remainingPayableAmount,

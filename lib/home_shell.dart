@@ -172,6 +172,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         body: PageView(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
+          // physics: const BouncingScrollPhysics(),
           onPageChanged: (index) {
             _currentIndex.value = index;
 

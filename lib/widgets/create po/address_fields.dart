@@ -126,156 +126,7 @@ class AddressFields {
   static Widget buildShippingAddressField({
     required PurchaseOrderNotifier notifier,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4.0),
-      child: SizedBox(
-        height: 60,
-        child: Autocomplete<String>(
-          optionsBuilder: (TextEditingValue textEditingValue) {
-            final addresses = notifier.shippingAddress
-                .where(
-                  (e) => e.address.toLowerCase().contains(
-                    textEditingValue.text.trim().toLowerCase(),
-                  ),
-                )
-                .map((e) => e.address)
-                .toList();
-
-            return addresses;
-          },
-          onSelected: (selectedShippingAddress) {
-            final selectedShippingDetails = notifier.shippingAddress.firstWhere(
-              (e) => e.address == selectedShippingAddress,
-              orElse: () => ShippingAddress(shippingId: '', address: ''),
-            );
-
-            notifier.setSelectedshippingaddress(
-              selectedShippingDetails.shippingId,
-            );
-            notifier.shippingController.text = selectedShippingAddress;
-          },
-          fieldViewBuilder:
-              (context, textEditingController, focusNode, onFieldSubmitted) {
-                return TextFormField(
-                  controller: notifier.shippingController,
-                  focusNode: focusNode,
-                  readOnly: true,
-                  onTap: () {
-                    notifier.setSelectedshippingaddress('');
-                    focusNode.requestFocus();
-
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      textEditingController.text = '';
-                      textEditingController.selection =
-                          TextSelection.fromPosition(TextPosition(offset: 0));
-                    });
-                  },
-                  decoration: InputDecoration(
-                    labelText: 'Shipping Address',
-                    labelStyle: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                      borderSide: BorderSide(
-                        color: Color.fromARGB(255, 74, 122, 227),
-                        width: 2.0,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.fromLTRB(16, 18, 16, 10),
-                    isDense: false,
-                    filled: true,
-                    fillColor: Colors.white,
-                    suffixIcon: notifier.shippingController.text.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(
-                              Icons.clear,
-                              size: 20,
-                              color: Colors.grey[600],
-                            ),
-                            onPressed: () {
-                              notifier.shippingController.clear();
-                              notifier.setSelectedshippingaddress('');
-                              focusNode.requestFocus();
-
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                textEditingController.text = '';
-                                textEditingController.selection =
-                                    TextSelection.fromPosition(
-                                      TextPosition(offset: 0),
-                                    );
-                              });
-                            },
-                          )
-                        : null,
-                    errorStyle: TextStyle(fontSize: 12, color: Colors.red[700]),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a shipping address';
-                    }
-                    return null;
-                  },
-                );
-              },
-          optionsViewBuilder: (context, onSelected, options) {
-            return Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8.0),
-                color: Colors.white,
-                child: Container(
-                  width: 250,
-                  constraints: BoxConstraints(maxHeight: 200),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: options.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.all(16),
-                          child: Text(
-                            'No shipping addresses found',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.zero,
-                          itemCount: options.length,
-                          itemBuilder: (context, index) {
-                            final option = options.elementAt(index);
-                            return ListTile(
-                              title: Text(
-                                option,
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              onTap: () {
-                                onSelected(option);
-                                FocusScope.of(context).unfocus();
-                              },
-                            );
-                          },
-                        ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
+    return _ShippingAddressField(notifier: notifier);
   }
 
   static Widget buildBillingAddressField({
@@ -299,7 +150,7 @@ class AddressFields {
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8.0),
             borderSide: BorderSide(
-              color: Color.fromARGB(255, 74, 122, 227),
+              color: const Color.fromARGB(255, 74, 122, 227),
               width: 2.0,
             ),
           ),
@@ -324,6 +175,241 @@ class AddressFields {
             notifier.setSelectedbillingaddress(null);
           }
         },
+      ),
+    );
+  }
+}
+
+// Shipping Address Field with LocationDropdown behavior
+class _ShippingAddressField extends StatefulWidget {
+  final PurchaseOrderNotifier notifier;
+
+  const _ShippingAddressField({required this.notifier});
+
+  @override
+  State<_ShippingAddressField> createState() => _ShippingAddressFieldState();
+}
+
+class _ShippingAddressFieldState extends State<_ShippingAddressField> {
+  late final TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+  final LayerLink _layerLink = LayerLink();
+
+  List<ShippingAddress> _addresses = [];
+  List<ShippingAddress> _filteredAddresses = [];
+  bool _defaultSet = false;
+  OverlayEntry? _overlayEntry;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = TextEditingController(
+      text: widget.notifier.shippingController.text,
+    );
+
+    _controller.addListener(() {
+      if (_controller.text != widget.notifier.shippingController.text) {
+        widget.notifier.shippingController.text = _controller.text;
+      }
+    });
+
+    _focusNode.addListener(() {
+      widget.notifier.setLocationFocus(_focusNode.hasFocus);
+
+      if (!_focusNode.hasFocus) {
+        _removeOverlay();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    _removeOverlay();
+    super.dispose();
+  }
+
+  void _setDefaultIfNeeded() {
+    if (_addresses.isNotEmpty && !_defaultSet && _controller.text.isEmpty) {
+      final first = _addresses[0];
+      _controller.text = first.address;
+      widget.notifier.setSelectedshippingaddress(first.shippingId);
+      widget.notifier.shippingController.text = first.address;
+      _filteredAddresses = List.from(_addresses);
+      _defaultSet = true;
+    }
+  }
+
+  void _search(String value) {
+    final q = value.toLowerCase();
+
+    if (q.isEmpty) {
+      _filteredAddresses = List.from(_addresses);
+    } else {
+      _filteredAddresses = _addresses.where((address) {
+        return address.address.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    _showOverlay();
+  }
+
+  void _showOverlay() {
+    _removeOverlay();
+
+    final overlay = Overlay.of(context);
+
+    if (_filteredAddresses.isEmpty) return;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: MediaQuery.of(context).size.width,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          offset: const Offset(0, 60),
+          showWhenUnlinked: false,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _filteredAddresses.length,
+                itemBuilder: (_, i) {
+                  final address = _filteredAddresses[i];
+
+                  return ListTile(
+                    title: Text(address.address),
+                    onTap: () {
+                      final selectedText = address.address;
+
+                      widget.notifier.setSelectedshippingaddress(
+                        address.shippingId,
+                      );
+
+                      widget.notifier.shippingController.value =
+                          TextEditingValue(
+                            text: selectedText,
+                            selection: TextSelection.collapsed(
+                              offset: selectedText.length,
+                            ),
+                          );
+
+                      _controller.value = TextEditingValue(
+                        text: selectedText,
+                        selection: TextSelection.collapsed(
+                          offset: selectedText.length,
+                        ),
+                      );
+
+                      _removeOverlay();
+                      _focusNode.unfocus();
+                    },
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(_overlayEntry!);
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _addresses = widget.notifier.shippingAddress;
+
+    // Initialize filtered addresses if empty
+    if (_filteredAddresses.isEmpty && _addresses.isNotEmpty) {
+      _filteredAddresses = List.from(_addresses);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setDefaultIfNeeded();
+    });
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 60, maxHeight: 60),
+          child: TextFormField(
+            controller: _controller,
+            focusNode: _focusNode,
+            decoration: InputDecoration(
+              labelText: 'Shipping Address',
+              labelStyle: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                borderSide: BorderSide(
+                  color: const Color.fromARGB(255, 74, 122, 227),
+                  width: 2.0,
+                ),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+              isDense: false,
+              filled: true,
+              fillColor: Colors.white,
+              suffixIcon: _controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        size: 20,
+                        color: Colors.grey[600],
+                      ),
+                      onPressed: () {
+                        _controller.clear();
+                        widget.notifier.setSelectedshippingaddress('');
+                        widget.notifier.shippingController.clear();
+                        _filteredAddresses = List.from(_addresses);
+                        _showOverlay();
+                      },
+                    )
+                  : null,
+              errorStyle: TextStyle(fontSize: 12, color: Colors.red[700]),
+            ),
+            onTap: () {
+              _filteredAddresses = List.from(_addresses);
+              _showOverlay();
+            },
+            onChanged: (value) {
+              _search(value);
+
+              widget.notifier.setSelectedshippingaddress('');
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select a shipping address';
+              }
+              return null;
+            },
+          ),
+        ),
       ),
     );
   }

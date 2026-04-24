@@ -27,23 +27,23 @@ Future<void> main() async {
 
   GoogleFonts.config.allowRuntimeFetching = true;
 
-  /// 🔥 Server time init (optional)
+  /// Server time init (optional)
   try {
     await ServerTimeService.initialize();
   } catch (e) {
     print("⚠️ Server time init failed: $e");
   }
 
-  /// 🔥 Init Dio
+  /// Init Dio
   await DioClient.init();
 
-  /// 🔥 Get stored token
+  ///Get stored token
   final prefs = await SharedPreferences.getInstance();
   await prefs.reload();
 
   final token = prefs.getString('token');
 
-  /// ✅ SIMPLE AUTH CHECK (NO validateToken)
+  ///SIMPLE AUTH CHECK (NO validateToken)
   bool isAuthenticated = token != null;
 
   runApp(MyApp(isAuthenticated: isAuthenticated));
@@ -80,7 +80,7 @@ class MyApp extends StatelessWidget {
         navigatorKey: NavigationService.navigatorKey,
         debugShowCheckedModeBanner: false,
 
-        /// 🔥 Connectivity Banner Wrapper
+        ///Connectivity Banner Wrapper
         builder: (context, child) {
           final bottomInset = MediaQuery.of(context).padding.bottom;
 
@@ -158,7 +158,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        /// 🔥 ROUTES
+        ///ROUTES
         initialRoute: isAuthenticated ? '/home' : '/login',
 
         routes: {

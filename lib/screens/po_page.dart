@@ -48,7 +48,6 @@ class _POPageState extends State<POPage> {
           builder: (context, poProvider, _) {
             final pendingOrders = poProvider.pendingPOs;
 
-            print("UI DATA COUNT: ${pendingOrders.length}");
 
             // ✅ First loading
             if (poProvider.isLoading && pendingOrders.isEmpty) {

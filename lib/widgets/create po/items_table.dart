@@ -289,7 +289,7 @@ class _ItemsTableState extends State<ItemsTable> {
                                   child: Row(
                                     children: const [
                                       TableHeaderCell("Qty"),
-                                      TableHeaderCell("Count"),
+                                      TableHeaderCell("Pkt Count"),
                                       TableHeaderCell("UOM"),
                                       TableHeaderCell("Each Qty"),
                                       TableHeaderCell("Existing"),

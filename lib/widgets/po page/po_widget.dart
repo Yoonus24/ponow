@@ -347,7 +347,7 @@ class _POWidgetState extends State<POWidget> {
                   child: Row(
                     children: [
                       _headerCell("Qty", widths[0]),
-                      _headerCell("Count", widths[1]),
+                      _headerCell("Pkt Count", widths[1]),
                       _headerCell("UOM", widths[2]),
                       _headerCell("Total", widths[3]),
                       _headerCell("Existing", widths[4]),

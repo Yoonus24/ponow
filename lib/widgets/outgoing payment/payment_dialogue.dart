@@ -37,6 +37,38 @@ class PaymentDialog extends StatelessWidget {
         builder: (context) {
           return Consumer<PaymentDialogProvider>(
             builder: (context, provider, _) {
+              // Show full screen loader when submitting
+              if (provider.isSubmitting) {
+                return Dialog(
+                  backgroundColor: Colors.transparent,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: Colors.blueAccent,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Processing Payment...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return AlertDialog(
                 backgroundColor: Colors.white,
                 title: Text(
@@ -120,14 +152,15 @@ class PaymentDialog extends StatelessWidget {
         DropdownMenuItem(value: 'full', child: Text('Full Payment')),
         DropdownMenuItem(value: 'partial', child: Text('Partial Payment')),
       ],
-      onChanged: (value) {
-        provider.setPaymentType(value!);
-        if (value == 'full') {
-          provider.amountController.text = totalPayableAmount.toStringAsFixed(
-            2,
-          );
-        }
-      },
+      onChanged: provider.isSubmitting
+          ? null
+          : (value) {
+              provider.setPaymentType(value!);
+              if (value == 'full') {
+                provider.amountController.text = totalPayableAmount
+                    .toStringAsFixed(2);
+              }
+            },
       validator: (value) =>
           value == null ? 'Please select a payment type' : null,
     );
@@ -139,7 +172,7 @@ class PaymentDialog extends StatelessWidget {
   ) {
     final bool isFullPayment = provider.selectedPaymentType == 'full';
     return GestureDetector(
-      onTap: isFullPayment
+      onTap: isFullPayment || provider.isSubmitting
           ? null
           : () {
               showNumericCalculator(
@@ -170,10 +203,10 @@ class PaymentDialog extends StatelessWidget {
               );
             },
       child: AbsorbPointer(
-        absorbing: true,
+        absorbing: provider.isSubmitting || isFullPayment,
         child: TextFormField(
           controller: provider.amountController,
-          enabled: !isFullPayment,
+          enabled: !isFullPayment && !provider.isSubmitting,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
             labelText: 'Amount',
@@ -242,9 +275,11 @@ class PaymentDialog extends StatelessWidget {
         DropdownMenuItem(value: 'Cash', child: Text('Cash')),
         DropdownMenuItem(value: 'Bank', child: Text('Bank')),
       ],
-      onChanged: (value) {
-        provider.setPaymentMode(value!);
-      },
+      onChanged: provider.isSubmitting
+          ? null
+          : (value) {
+              provider.setPaymentMode(value!);
+            },
       validator: (value) =>
           value == null ? 'Please select a payment mode' : null,
     );
@@ -265,9 +300,11 @@ class PaymentDialog extends StatelessWidget {
                   style: const TextStyle(color: Colors.red),
                 ),
                 TextButton(
-                  onPressed: () {
-                    provider.fetchBanks();
-                  },
+                  onPressed: provider.isSubmitting
+                      ? null
+                      : () {
+                          provider.fetchBanks();
+                        },
                   child: const Text('Retry'),
                 ),
               ],
@@ -285,11 +322,11 @@ class PaymentDialog extends StatelessWidget {
                       ),
                     );
               },
-
-              onSelected: (String selection) {
-                provider.setBankName(selection);
-              },
-
+              onSelected: provider.isSubmitting
+                  ? null
+                  : (String selection) {
+                      provider.setBankName(selection);
+                    },
               fieldViewBuilder:
                   (
                     BuildContext context,
@@ -300,6 +337,7 @@ class PaymentDialog extends StatelessWidget {
                     return TextFormField(
                       controller: controller,
                       focusNode: focusNode,
+                      enabled: !provider.isSubmitting,
                       keyboardType: TextInputType.text,
                       decoration: InputDecoration(
                         labelText: 'Bank Name',
@@ -324,7 +362,6 @@ class PaymentDialog extends StatelessWidget {
                           : null,
                     );
                   },
-
               optionsViewBuilder:
                   (
                     BuildContext context,
@@ -350,7 +387,9 @@ class PaymentDialog extends StatelessWidget {
                                   option,
                                   style: const TextStyle(color: Colors.black),
                                 ),
-                                onTap: () => onSelected(option),
+                                onTap: provider.isSubmitting
+                                    ? null
+                                    : () => onSelected(option),
                               );
                             },
                           ),
@@ -384,9 +423,11 @@ class PaymentDialog extends StatelessWidget {
           DropdownMenuItem(value: 'imps', child: Text('IMPS')),
           DropdownMenuItem(value: 'upi', child: Text('UPI')),
         ],
-        onChanged: (value) {
-          provider.setBankPaymentMethod(value!);
-        },
+        onChanged: provider.isSubmitting
+            ? null
+            : (value) {
+                provider.setBankPaymentMethod(value!);
+              },
         validator: (value) =>
             value == null ? 'Please select a payment method' : null,
       ),
@@ -396,6 +437,7 @@ class PaymentDialog extends StatelessWidget {
       provider.selectedBankPaymentMethod == 'upi'
           ? TextFormField(
               controller: provider.transactionController,
+              enabled: !provider.isSubmitting,
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
                 labelText: 'UPI ID / Reference',
@@ -416,18 +458,22 @@ class PaymentDialog extends StatelessWidget {
                   : null,
             )
           : GestureDetector(
-              onTap: () {
-                showNumericCalculator(
-                  context: context,
-                  controller: provider.transactionController,
-                  varianceName: 'Enter Reference Number',
-                  onValueSelected: () {},
-                  fieldType: '',
-                );
-              },
+              onTap: provider.isSubmitting
+                  ? null
+                  : () {
+                      showNumericCalculator(
+                        context: context,
+                        controller: provider.transactionController,
+                        varianceName: 'Enter Reference Number',
+                        onValueSelected: () {},
+                        fieldType: '',
+                      );
+                    },
               child: AbsorbPointer(
+                absorbing: true,
                 child: TextFormField(
                   controller: provider.transactionController,
+                  enabled: !provider.isSubmitting,
                   decoration: InputDecoration(
                     labelText: provider.getTransactionLabel(),
                     border: OutlineInputBorder(
@@ -459,10 +505,12 @@ class PaymentDialog extends StatelessWidget {
     PaymentDialogProvider provider,
   ) {
     return OutlinedButton(
-      onPressed: () {
-        provider.resetFields();
-        Navigator.of(context).pop();
-      },
+      onPressed: provider.isSubmitting
+          ? null
+          : () {
+              provider.resetFields();
+              Navigator.of(context).pop();
+            },
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: Colors.blue),
         foregroundColor: Colors.blue,
@@ -520,7 +568,6 @@ class PaymentDialog extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 12),
-
                           Expanded(
                             child: ElevatedButton(
                               onPressed: () => Navigator.of(context).pop(true),
@@ -539,6 +586,7 @@ class PaymentDialog extends StatelessWidget {
 
                 if (shouldConfirm != true) return;
 
+                // Show full screen loader
                 provider.setSubmitting(true);
 
                 try {
@@ -581,7 +629,7 @@ class PaymentDialog extends StatelessWidget {
                   provider.resetFields();
 
                   if (context.mounted) {
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(); // Close the dialog
                   }
                 } finally {
                   provider.setSubmitting(false);
@@ -595,28 +643,16 @@ class PaymentDialog extends StatelessWidget {
             borderRadius: BorderRadius.circular(25),
           ),
         ),
-        child: provider.isSubmitting
-            ? const SizedBox(
-                height: 22,
-                width: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : Center(
-                child: Text(
-                  isBulkPayment ? 'Confirm Bulk Payment' : 'Confirm Payment',
-                  textAlign: TextAlign.center,
-                  softWrap: true,
-                  maxLines: 2,
-                  overflow: TextOverflow.visible,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+        child: Center(
+          child: Text(
+            isBulkPayment ? 'Confirm Bulk Payment' : 'Confirm Payment',
+            textAlign: TextAlign.center,
+            softWrap: true,
+            maxLines: 2,
+            overflow: TextOverflow.visible,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }

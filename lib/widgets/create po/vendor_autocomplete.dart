@@ -43,7 +43,10 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
   @override
   void initState() {
     super.initState();
-    _loadInitialVendors();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadInitialVendors();
+    });
   }
 
   Future<void> _loadInitialVendors() async {
@@ -284,6 +287,9 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                           onPressed: () {
                             textController.clear();
                             widget.controller.clear();
+                            widget.notifier.clearSelectedVendor();
+                            widget.notifier.selectedVendor = null;
+                            widget.notifier.selectedVendorDetails = null;
 
                             _currentQuery = '';
 

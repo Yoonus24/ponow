@@ -43,19 +43,23 @@ class GRNPDF {
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
     if (vendorId.trim().isEmpty) return {};
 
-    final response = await _dio.get('/vendors/exact-name/$vendorId');
+    try {
+      final response = await Dio().get(
+        'http://192.168.29.184:8000/purchasetestapi/vendors/$vendorId',
+      );
 
-    final dynamic decoded = response.data;
+      print("🟡 Vendor API HIT: $vendorId");
+      print("📦 Vendor Response: ${response.data}");
 
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+      if (response.data is Map<String, dynamic>) {
+        return response.data;
+      }
+
+      return {};
+    } catch (e) {
+      print("❌ Vendor API ERROR: $e");
+      return {};
     }
-
-    if (decoded is List && decoded.isNotEmpty) {
-      return Map<String, dynamic>.from(decoded.first);
-    }
-
-    return {};
   }
 
   Future<File> generateGRNPdf(String grnId) async {
@@ -241,16 +245,20 @@ class GRNPDF {
                       padding: pw.EdgeInsets.all(6),
                       child: pw.Text(
                         _joinNonEmpty([
-                          grnData['vendorName']?.toString(),
-                          'GSTIN: ${grnData['gstNumber'] ?? 'N/A'}',
-                          grnData['address']?.toString(),
-                          grnData['city']?.toString(),
-                          grnData['state']?.toString(),
-                          grnData['country']?.toString(),
-                          'Email: ${grnData['contactpersonEmail'] ?? 'Not Provided'}',
-                          'Phone: ${grnData['vendorContact'] ?? 'Not Provided'}',
+                          vendorData['vendorName'] ??
+                              grnData['vendorName'] ??
+                              'Unknown Vendor',
+
+                          'GSTIN: ${vendorData['gstNumber'] ?? 'N/A'}',
+
+                          'Address: ${vendorData['address'] ?? 'N/A'}',
+
+                          'City: ${vendorData['city'] ?? 'N/A'}',
+
+                          'State: ${vendorData['state'] ?? 'N/A'}',
+
+                          'Country: ${vendorData['country'] ?? 'India'}',
                         ], separator: '\n'),
-                        style: pw.TextStyle(fontSize: 10),
                       ),
                     ),
                     pw.Padding(
