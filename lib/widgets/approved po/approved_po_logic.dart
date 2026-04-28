@@ -1117,11 +1117,41 @@ class ApprovedPOLogic {
         roundOffAdjustment: roundOffAmount.value,
       );
 
+      /// ✅ GRN CREATED CHECK
       if (response["grnCreated"] != true) {
         throw Exception("GRN creation failed");
       }
 
-      /// 🔥 SAFE GRN NUMBER FETCH (IMPORTANT)
+      /// ✅ STOCK UPDATE CHECK
+      final stockUpdate = response["stockUpdate"];
+
+      if (stockUpdate != null) {
+        debugPrint("📦 STOCK UPDATE SUCCESS: $stockUpdate");
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("✅ Stock updated successfully"),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        debugPrint("❌ STOCK UPDATE FAILED OR NOT RETURNED");
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("❌ Stock update failed"),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
+      /// 🔥 SAFE GRN NUMBER FETCH
       final String grnNumber =
           response["grnRandomId"] ??
           response["randomId"] ??

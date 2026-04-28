@@ -623,59 +623,104 @@ class POProvider extends ChangeNotifier {
   }
 
   // ==================== PURCHASE ITEMS METHODS ====================
-  Future<void> preloadAllPurchaseItems() async {
-    if (_isPreloadingItems || itemsLoaded) return;
+  // Future<void> preloadAllPurchaseItems() async {
+  //   if (_isPreloadingItems || itemsLoaded) return;
 
-    _isPreloadingItems = true;
+  //   _isPreloadingItems = true;
 
-    try {
-      _purchaseItems.clear();
+  //   try {
+  //     _purchaseItems.clear();
 
-      int skip = 0;
-      const int limit = 100;
-      bool hasMore = true;
+  //     int skip = 0;
+  //     const int limit = 100;
+  //     bool hasMore = true;
 
-      while (hasMore) {
-        final response = await _dio.get(
-          '/rawMaterials/',
-          queryParameters: {"skip": skip, "limit": limit},
-        );
+  //     while (hasMore) {
+  //       debugPrint("Fetching rawMaterials -> skip=$skip, limit=$limit");
 
-        if (response.statusCode == 200) {
-          List<dynamic> data = [];
+  //       final response = await _dio.get(
+  //         '/rawMaterials/',
+  //         queryParameters: {"skip": skip, "limit": limit},
+  //       );
 
-          if (response.data is Map && response.data['items'] != null) {
-            data = response.data['items'];
-          } else if (response.data is List) {
-            data = response.data;
-          }
+  //       debugPrint("Status Code: ${response.statusCode}");
+  //       debugPrint("Response Type: ${response.data.runtimeType}");
+  //       debugPrint("Response Data: ${response.data}");
 
-          if (data.isEmpty) {
-            hasMore = false;
-            break;
-          }
+  //       if (response.statusCode == 200) {
+  //         List<dynamic> data = [];
 
-          final items = data
-              .map<PurchaseItem>((e) => PurchaseItem.fromJson(e))
-              .where((item) => item.itemName?.isNotEmpty ?? false)
-              .toList();
+  //         if (response.data is Map && response.data['items'] != null) {
+  //           debugPrint("Response is MAP with items key");
+  //           data = response.data['items'];
+  //         } else if (response.data is List) {
+  //           debugPrint("Response is LIST");
+  //           data = response.data;
+  //         } else {
+  //           debugPrint("Unexpected response structure");
+  //         }
 
-          _purchaseItems.addAll(items);
+  //         debugPrint("Fetched items count: ${data.length}");
 
-          skip += limit;
-        } else {
-          hasMore = false;
-        }
-      }
+  //         if (data.isEmpty) {
+  //           debugPrint("No more items found. Stopping preload.");
+  //           hasMore = false;
+  //           break;
+  //         }
 
-      itemsLoaded = true; // IMPORTANT FIX
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Preload error: $e");
-    } finally {
-      _isPreloadingItems = false;
-    }
-  }
+  //         final items = data
+  //             .map<PurchaseItem>((e) {
+  //               try {
+  //                 return PurchaseItem.fromJson(e);
+  //               } catch (parseError, stackTrace) {
+  //                 debugPrint("========== ITEM PARSE ERROR ==========");
+  //                 debugPrint("Parse Error: $parseError");
+  //                 debugPrint("Problematic Item: $e");
+  //                 debugPrint("StackTrace: $stackTrace");
+  //                 debugPrint("=====================================");
+  //                 rethrow;
+  //               }
+  //             })
+  //             .where((item) => item.itemName.isNotEmpty)
+  //             .toList();
+
+  //         debugPrint("Parsed valid items count: ${items.length}");
+
+  //         _purchaseItems.addAll(items);
+
+  //         skip += limit;
+  //       } else {
+  //         debugPrint(
+  //           "Non-200 response received. Stopping preload. Status: ${response.statusCode}",
+  //         );
+  //         hasMore = false;
+  //       }
+  //     }
+
+  //     itemsLoaded = true;
+  //     notifyListeners();
+
+  //     debugPrint(
+  //       "Preload completed successfully. Total items loaded: ${_purchaseItems.length}",
+  //     );
+  //   } catch (e, stackTrace) {
+  //     debugPrint("========== PRELOAD ERROR ==========");
+  //     debugPrint("Error Type: ${e.runtimeType}");
+  //     debugPrint("Error Message: $e");
+  //     debugPrint("StackTrace: $stackTrace");
+
+  //     if (e is DioException) {
+  //       debugPrint("Dio Status Code: ${e.response?.statusCode}");
+  //       debugPrint("Dio Response Data: ${e.response?.data}");
+  //       debugPrint("Request Path: ${e.requestOptions.path}");
+  //       debugPrint("Query Params: ${e.requestOptions.queryParameters}");
+  //     }
+
+  //     debugPrint("==================================");
+  //   } finally {
+  //     _isPreloadingItems = false;
+  //   }
+  // }
 
   Future<bool> fetchAllItems({
     int skip = 0,
@@ -731,30 +776,38 @@ class POProvider extends ChangeNotifier {
     bool append = false,
   }) async {
     try {
-      final response = await _dio.post(
+      final response = await _dio.get(
         '/rawMaterials/',
-        data: {"itemName": query, "skip": skip, "limit": limit},
+        queryParameters: {"itemName": query, "skip": skip, "limit": limit},
       );
 
-      if (response.statusCode == 200) {
-        final data = response.data['items'];
-        final items = data
-            .map<PurchaseItem>((e) => PurchaseItem.fromJson(e))
-            .toList();
+      List<dynamic> data = [];
 
-        if (!append) {
-          _purchaseItems = items;
-        } else {
-          _purchaseItems.addAll(items);
-        }
-
-        notifyListeners();
-        return items;
+      if (response.data is Map && response.data['items'] != null) {
+        data = response.data['items'];
+      } else if (response.data is List) {
+        data = response.data;
+      } else {
+        print("Unexpected response structure: ${response.data}");
+        return [];
       }
+
+      final items = data
+          .map<PurchaseItem>((e) => PurchaseItem.fromJson(e))
+          .toList();
+
+      if (!append) {
+        _purchaseItems = items;
+      } else {
+        _purchaseItems.addAll(items);
+      }
+
+      notifyListeners();
+      return items;
     } catch (e) {
       print("Search error: $e");
+      return [];
     }
-    return [];
   }
 
   // ==================== ADDRESS METHODS ====================
@@ -826,7 +879,7 @@ class POProvider extends ChangeNotifier {
         ),
       );
 
-      final response = await branchDio.get('/locations/');
+      final response = await branchDio.get('/devicecode/service-location/');
 
       if (response.statusCode == 200 && response.data is List) {
         _branches = (response.data as List)
@@ -1112,6 +1165,7 @@ class POProvider extends ChangeNotifier {
 
       debugPrint("📅 Invoice Date (formatted): $formattedInvoiceDate");
       debugPrint("🧾 Invoice No: $invoiceNumber");
+      debugPrint("🔄 Round Off Adjustment: ${roundOffAdjustment ?? 0.0}");
 
       /// FIND PO
       debugPrint("🔍 Finding PO in local list...");
@@ -1132,12 +1186,19 @@ class POProvider extends ChangeNotifier {
           formattedExpiryDate = _normalizeDate(item.expiryDate);
         }
 
-        debugPrint("➡️ Item: ${item.itemName}");
-        debugPrint("   ID: ${item.itemId}");
-        debugPrint("   Received Qty: ${item.receivedQuantity}");
-        debugPrint("   BefTax: ${item.befTaxDiscount}");
-        debugPrint("   AfTax: ${item.afTaxDiscount}");
-        debugPrint("   Expiry: $formattedExpiryDate");
+        debugPrint("=========== ITEM DEBUG START ===========");
+        debugPrint("➡️ Item Name: ${item.itemName}");
+        debugPrint("🆔 Item ID: ${item.itemId}");
+        debugPrint("🎯 Random ID: ${item.randomId}");
+        debugPrint("📥 Received Qty: ${item.receivedQuantity}");
+        debugPrint("💰 New Price (grnPrice): ${item.newPrice}");
+        debugPrint("🏷 Existing Price: ${item.existingPrice}");
+        debugPrint("📉 BefTax Discount: ${item.befTaxDiscount}");
+        debugPrint("📉 AfTax Discount: ${item.afTaxDiscount}");
+        debugPrint("📅 Expiry Date: $formattedExpiryDate");
+        debugPrint("📍 Location ID: ${item.locationId}");
+        debugPrint("📦 Available Stock: ${item.availableStock}");
+        debugPrint("=========== ITEM DEBUG END ===========");
 
         return {
           "itemId": item.itemId,
@@ -1149,6 +1210,8 @@ class POProvider extends ChangeNotifier {
           "expiryDate": formattedExpiryDate,
         };
       }).toList();
+
+      debugPrint("📦 Total Items Sent: ${itemsList.length}");
 
       /// BUILD BODY
       final Map<String, dynamic> body = {
@@ -1163,11 +1226,13 @@ class POProvider extends ChangeNotifier {
         "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
       };
 
-      debugPrint("=========== UPDATE PO API PAYLOAD ===========");
+      debugPrint("=========== UPDATE PO API PAYLOAD START ===========");
       debugPrint(body.toString());
+      debugPrint("=========== UPDATE PO API PAYLOAD END ===========");
 
       /// API CALL
       debugPrint("🌐 Calling API: PATCH /purchaseorders/receivedupdates/$poId");
+
       final response = await _dio.patch(
         '/purchaseorders/receivedupdates/$poId',
         data: body,
@@ -1176,21 +1241,64 @@ class POProvider extends ChangeNotifier {
       debugPrint("📡 Status Code: ${response.statusCode}");
 
       if (response.statusCode != 200) {
-        debugPrint("❌ API FAILED: ${response.data}");
+        debugPrint("❌ API FAILED");
+        debugPrint("❌ Response Data: ${response.data}");
         throw Exception(response.data?["detail"] ?? "PO update failed");
       }
 
-      debugPrint("=========== UPDATE PO RESPONSE ===========");
+      debugPrint("=========== UPDATE PO RESPONSE START ===========");
       debugPrint(response.data.toString());
 
-      /// CHECK GRN
+      /// CHECK MAIN RESPONSE
       debugPrint("🔎 GRN Created: ${response.data["grnCreated"]}");
       debugPrint("🆔 GRN ID: ${response.data["grnId"]}");
+      debugPrint("🎯 GRN Random ID: ${response.data["grnRandomId"]}");
+      debugPrint(
+        "📦 Newly Received Items: ${response.data["newlyReceivedItems"]}",
+      );
+      debugPrint("📍 Location Used: ${response.data["locationUsed"]}");
+      debugPrint("💰 Price Updates: ${response.data["priceUpdates"]}");
 
-      /// STOCK CHECK
+      /// STOCK CHECK (VERY IMPORTANT)
+      debugPrint("=========== STOCK UPDATE DEBUG START ===========");
+
       if (response.data["stockUpdate"] != null) {
-        debugPrint("📦 Stock Update: ${response.data["stockUpdate"]}");
+        final stockUpdate = response.data["stockUpdate"];
+
+        debugPrint("✅ stockUpdate.success: ${stockUpdate["success"]}");
+        debugPrint(
+          "📦 stockUpdate.total_processed: ${stockUpdate["total_processed"]}",
+        );
+        debugPrint("✔ stockUpdate.successful: ${stockUpdate["successful"]}");
+        debugPrint("❌ stockUpdate.failed: ${stockUpdate["failed"]}");
+        debugPrint(
+          "📈 stockUpdate.stock_updates: ${stockUpdate["stock_updates"]}",
+        );
+        debugPrint(
+          "💰 stockUpdate.price_updates: ${stockUpdate["price_updates"]}",
+        );
+        debugPrint(
+          "📍 stockUpdate.receiving_location: ${stockUpdate["receiving_location"]}",
+        );
+        debugPrint("📝 stockUpdate.items: ${stockUpdate["items"]}");
+
+        if ((stockUpdate["stock_updates"] ?? 0) == 0) {
+          debugPrint("🚨 WARNING: STOCK NOT UPDATED");
+        } else {
+          debugPrint("🎉 SUCCESS: STOCK UPDATED");
+        }
+
+        if ((stockUpdate["price_updates"] ?? 0) == 0) {
+          debugPrint("⚠️ No price updates happened");
+        } else {
+          debugPrint("🎉 SUCCESS: PRICE UPDATED");
+        }
+      } else {
+        debugPrint("❌ stockUpdate is NULL");
       }
+
+      debugPrint("=========== STOCK UPDATE DEBUG END ===========");
+      debugPrint("=========== UPDATE PO RESPONSE END ===========");
 
       debugPrint("✅ updatePoDetails SUCCESS");
 
@@ -1970,7 +2078,7 @@ class POProvider extends ChangeNotifier {
       final double pendingTax = item.pendingTaxAmount ?? 0.0;
 
       double sgst = 0, cgst = 0, igst = 0;
-      if ((item.taxType ?? 'igst') == 'igst') {
+      if ((item.taxType ?? 'cgst_sgst') == 'igst') {
         igst = pendingTax;
       } else {
         cgst = pendingTax / 2;
@@ -1979,9 +2087,52 @@ class POProvider extends ChangeNotifier {
 
       return {
         "itemId": item.itemId ?? "",
+        "itemCode": item.itemCode ?? "",
+        "barcode": item.barcode ?? "",
         "itemName": item.itemName ?? "",
+        "randomId": item.randomId ?? "",
+        "purchasecategoryName": item.purchasecategoryName ?? "",
+        "purchasesubcategoryName": item.purchasesubcategoryName ?? "",
+        "hsnCode": item.hsnCode ?? "",
         "quantity": qty,
         "poQuantity": qty,
+        "count": item.count ?? 1.0,
+        "eachQuantity": item.eachQuantity ?? 0.0,
+        "pendingCount": item.pendingCount ?? 1.0,
+        "pendingQuantity": item.pendingQuantity ?? qty,
+        "pendingTotalQuantity": item.pendingTotalQuantity ?? qty,
+        "receivedQuantity": item.receivedQuantity ?? 0.0,
+        "damagedQuantity": item.damagedQuantity ?? 0.0,
+        "existingPrice": item.existingPrice ?? 0.0,
+        "newPrice": price,
+        "totalPrice": item.totalPrice ?? pendingTotal,
+        "finalPrice": item.finalPrice ?? pendingFinal,
+        "pendingTotalPrice": pendingTotal,
+        "pendingFinalPrice": pendingFinal,
+        "taxPercentage": item.taxPercentage ?? 0.0,
+        "taxType": item.taxType ?? "cgst_sgst",
+        "taxAmount": item.taxAmount ?? pendingTax,
+        "pendingTaxAmount": pendingTax,
+        "sgst": sgst,
+        "cgst": cgst,
+        "igst": igst,
+        "pendingSgst": item.pendingSgst ?? sgst,
+        "pendingCgst": item.pendingCgst ?? cgst,
+        "pendingIgst": item.pendingIgst ?? igst,
+        "befTaxDiscount": item.befTaxDiscount ?? 0.0,
+        "afTaxDiscount": item.afTaxDiscount ?? 0.0,
+        "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
+        "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
+        "befTaxDiscountType": item.befTaxDiscountType.isNotEmpty
+            ? item.befTaxDiscountType
+            : "percentage",
+        "afTaxDiscountType": item.afTaxDiscountType.isNotEmpty
+            ? item.afTaxDiscountType
+            : "percentage",
+        "discountAmount": item.discountAmount ?? pendingDiscount,
+        "pendingDiscountAmount": pendingDiscount,
+        "pendingBefTaxDiscountAmount": item.pendingBefTaxDiscountAmount ?? 0.0,
+        "pendingAfTaxDiscountAmount": item.pendingAfTaxDiscountAmount ?? 0.0,
         "poQuantityTaxAmount": item.poQuantityTaxAmount ?? pendingTax,
         "poQuantityDiscountAmount":
             item.poQuantityDiscountAmount ?? pendingDiscount,
@@ -1993,23 +2144,11 @@ class POProvider extends ChangeNotifier {
         "poQuantitycgst": item.poQuantitycgst ?? cgst,
         "poQuantityigst": item.poQuantityigst ?? igst,
         "uom": item.uom ?? "",
-        "count": item.count ?? 1.0,
-        "eachQuantity": item.eachQuantity ?? 0.0,
-        "existingPrice": item.existingPrice ?? 0.0,
-        "newPrice": price,
-        "taxPercentage": item.taxPercentage ?? 0.0,
-        "taxType": item.taxType ?? "cgst_sgst",
-        "befTaxDiscount": item.befTaxDiscount ?? 0.0,
-        "afTaxDiscount": item.afTaxDiscount ?? 0.0,
-        "befTaxDiscountAmount": item.befTaxDiscountAmount ?? 0.0,
-        "afTaxDiscountAmount": item.afTaxDiscountAmount ?? 0.0,
-        "pendingCount": item.pendingCount ?? 1.0,
-        "pendingQuantity": item.pendingQuantity ?? qty,
-        "pendingTotalQuantity": item.pendingTotalQuantity ?? qty,
-        "pendingTaxAmount": pendingTax,
-        "pendingDiscountAmount": pendingDiscount,
-        "pendingTotalPrice": pendingTotal,
-        "pendingFinalPrice": pendingFinal,
+        "status": item.status ?? "",
+        "expiryDate": (item.expiryDate.isNotEmpty) ? item.expiryDate : null,
+        "poPhoto": item.poPhoto ?? "",
+        "variance": item.variance ?? 0.0,
+        "stockQuantity": item.stockQuantity ?? 0.0,
       };
     }).toList();
   }

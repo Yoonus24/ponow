@@ -12,7 +12,7 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/create%20po/add_item_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/address_fields.dart';
 import 'package:purchaseorders2/widgets/create%20po/discount_section.dart';
-import 'package:purchaseorders2/widgets/create%20po/freight_table.dart';
+import 'package:purchaseorders2/widgets/create%20po/FREIGHT/freight_table.dart';
 import 'package:purchaseorders2/widgets/create%20po/items_table.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/purchase_order_logic.dart';

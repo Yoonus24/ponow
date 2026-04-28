@@ -11,8 +11,8 @@ import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/create%20po/import_csv_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
-import 'package:purchaseorders2/widgets/create%20po/save_template_dialog.dart';
-import 'package:purchaseorders2/widgets/create%20po/template_list_dialog.dart';
+import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/save_template_dialog.dart';
+import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/template_list_dialog.dart';
 import '../widgets/create po/purchase_order_logic.dart';
 import '../widgets/create po/discount_section.dart';
 import '../models/discount_model.dart';
@@ -22,8 +22,8 @@ import '../widgets/create po/vendor_autocomplete.dart';
 import '../widgets/create po/address_fields.dart';
 import '../widgets/create po/items_table.dart';
 import '../widgets/keyboard_dismisser.dart';
-import '../widgets/create po/template_creation_screen.dart';
-import '../widgets/create po/freight_table.dart';
+import '../widgets/create po/TEMPLATE/template_creation_screen.dart';
+import '../widgets/create po/FREIGHT/freight_table.dart';
 
 class PurchaseOrderDialog extends StatefulWidget {
   final PO? editingPO;

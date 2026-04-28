@@ -1,6 +1,9 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
+import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 
@@ -54,8 +57,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      /// Optional: you can validate token here if needed
-      // AuthService.validateToken();
+      context.read<PermissionProvider>().loadPermissions();
     }
   }
 

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 bool _isRedirecting = false;
 
 class DioClient {
-  static const String baseUrl = "http://192.168.29.184:8000/purchasetestapi/";
+  static const String baseUrl = "https://yenerp.com/purchasetestapi/";
   static const String domain = "localhost:3000";
 
   static final Dio dio = Dio(

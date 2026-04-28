@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
-import 'table_components.dart';
+import '../table_components.dart';
 import 'freight_dialog.dart';
 
 class FreightTable extends StatefulWidget {

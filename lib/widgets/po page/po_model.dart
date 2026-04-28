@@ -735,7 +735,7 @@ class _POModalState extends State<POModal> {
     bool canReject = permission.hasPermission(
       "yenerp",
       "purchaseorders_pending",
-      "reject",
+      "approve",
     );
     final items = widget.po.items
         .where((item) => (item.pendingTotalQuantity ?? 0) > 0)

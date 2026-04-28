@@ -74,7 +74,9 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(create: (_) => TemplateProvider()),
         ChangeNotifierProvider(create: (_) => ImportProvider()),
-        ChangeNotifierProvider(create: (_) => PermissionProvider()),
+        ChangeNotifierProvider(
+          create: (_) => PermissionProvider()..loadPermissions(),
+        ),
       ],
       child: MaterialApp(
         navigatorKey: NavigationService.navigatorKey,

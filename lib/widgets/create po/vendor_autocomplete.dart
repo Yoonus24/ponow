@@ -54,11 +54,17 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
       _allVendors = widget.poProvider.vendorCache;
 
       if (_currentQuery.isEmpty) {
-        _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+        _displayedVendors.value = _allVendors
+            .map((e) => e.vendorName)
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList();
       } else {
         _displayedVendors.value = _allVendors
             .where((v) => v.vendorName.toLowerCase().startsWith(_currentQuery))
             .map((e) => e.vendorName)
+            .where((e) => e.isNotEmpty)
+            .toSet()
             .toList();
       }
       return;
@@ -77,54 +83,82 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
 
     widget.poProvider.vendorCache = fetched;
 
-    _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+    _displayedVendors.value = _allVendors
+        .map((e) => e.vendorName)
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
 
     _isLoading.value = false;
   }
 
   void _search(String query) {
-    _currentQuery = query.toLowerCase().trim(); // ✅ ADD THIS
+    _currentQuery = query.toLowerCase().trim();
 
     final q = _currentQuery;
 
     if (q.isEmpty) {
-      _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+      _displayedVendors.value = _allVendors
+          .map((e) => e.vendorName)
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
       return;
     }
 
     _displayedVendors.value = _allVendors
         .where((v) => v.vendorName.toLowerCase().startsWith(q))
         .map((e) => e.vendorName)
+        .where((e) => e.isNotEmpty)
+        .toSet()
         .toList();
   }
 
   Future<void> _loadMore() async {
     if (!_hasMore || _isLoadingMore.value) return;
 
-    _isLoadingMore.value = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!_hasMore || _isLoadingMore.value) return;
 
-    final fetched = await widget.poProvider.fetchingAllVendors(
-      vendorName: _currentQuery,
-      skip: _skip,
-      limit: _limit,
-      append: true,
-    );
+      _isLoadingMore.value = true;
 
-    if (fetched.isEmpty) {
-      _hasMore = false;
-    } else {
-      _allVendors.addAll(fetched);
+      try {
+        final fetched = await widget.poProvider.fetchingAllVendors(
+          vendorName: _currentQuery,
+          skip: _skip,
+          limit: _limit,
+          append: true,
+        );
 
-      _displayedVendors.value = _allVendors.map((e) => e.vendorName).toList();
+        if (fetched.isEmpty) {
+          _hasMore = false;
+        } else {
+          for (var vendor in fetched) {
+            if (!_allVendors.any(
+              (existing) => existing.vendorName == vendor.vendorName,
+            )) {
+              _allVendors.add(vendor);
+            }
+          }
 
-      _skip += fetched.length;
+          _displayedVendors.value = _allVendors
+              .map((e) => e.vendorName)
+              .where((e) => e.isNotEmpty)
+              .toSet()
+              .toList();
 
-      if (fetched.length < _limit) {
-        _hasMore = false;
+          _skip += fetched.length;
+
+          if (fetched.length < _limit) {
+            _hasMore = false;
+          }
+        }
+      } catch (e) {
+        debugPrint("Vendor load more error: $e");
+      } finally {
+        _isLoadingMore.value = false;
       }
-    }
-
-    _isLoadingMore.value = false;
+    });
   }
 
   @override
@@ -168,7 +202,9 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                     onNotification: (scroll) {
                       if (scroll.metrics.pixels >=
                           scroll.metrics.maxScrollExtent - 50) {
-                        if (_currentQuery.isEmpty) {
+                        if (_currentQuery.isEmpty &&
+                            !_isLoadingMore.value &&
+                            _hasMore) {
                           _loadMore();
                         }
                       }

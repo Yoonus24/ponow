@@ -184,10 +184,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     if (po != null) {
       poItems = List<Item>.from(po.items);
-      for (var item in poItems) {
-        item.randomId ??=
-            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
-      }
+      // for (var item in poItems) {
+      //   item.randomId ??=
+      //       "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
+      // }
 
       freights = List<FreightData>.from(po.freights ?? []);
       totalFreightAmount = po.totalFreightAmount ?? 0.0;
@@ -196,7 +196,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       roundOffAdjustment = po.roundOffAdjustment ?? 0.0;
       roundOffController.text = roundOffAdjustment.toStringAsFixed(2);
 
-      // ✅ FIX: RECONSTRUCT OVERALL DISCOUNT FROM ITEMS
+      //  RECONSTRUCT OVERALL DISCOUNT FROM ITEMS
       double totalDiscount = 0.0;
       double totalBefore = 0.0;
 
@@ -654,6 +654,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void setSelectedItem(String itemName) {
     if (_disposed) return;
+
     PurchaseItem foundItem = PurchaseItem(
       itemName: itemName,
       itemCode: '',
@@ -664,6 +665,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       purchasecategoryName: '',
       purchasesubcategoryName: '',
       hsnCode: '',
+      randomId: selectedPurchaseItem?.randomId ?? '',
     );
 
     try {
@@ -675,6 +677,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     } catch (e) {
       purchaseItems.add(foundItem);
     }
+    selectedPurchaseItem = foundItem;
 
     _selectedItem = foundItem;
 
@@ -697,6 +700,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       befTaxDiscountController.text = '0';
       afTaxDiscountController.text = '0';
     });
+
+    debugPrint("=========== SELECTED ITEM DEBUG ===========");
+    debugPrint("Item Name: ${foundItem.itemName}");
+    debugPrint("Item Code: ${foundItem.itemCode}");
+    debugPrint("Purchase Item ID: ${foundItem.purchaseItemId}");
+    debugPrint("Random ID: ${foundItem.randomId}");
+    debugPrint("Purchase Price: ${foundItem.purchasePrice}");
+    debugPrint("Tax %: ${foundItem.purchasetaxName}");
+    debugPrint("UOM: ${foundItem.uom}");
+    debugPrint("===========================================");
+
     safeNotify();
   }
 
@@ -712,7 +726,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         );
 
         selectedVendorDetails = vendor;
-        selectedVendorId = vendor.vendorId; // ✅ IMPORTANT
+        selectedVendorId = vendor.vendorId; 
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_disposed) {
@@ -749,6 +763,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void updateItemDetailsFromCache(PurchaseItem item) {
     if (_disposed) return;
+    selectedPurchaseItem = item;
 
     _selectedItem = item;
 
@@ -772,6 +787,12 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     if (index == -1) {
       purchaseItems.add(item);
     }
+
+    debugPrint("=========== CACHE ITEM DEBUG ===========");
+    debugPrint("Item Name: ${item.itemName}");
+    debugPrint("Purchase Item ID: ${item.purchaseItemId}");
+    debugPrint("Random ID: ${item.randomId}");
+    debugPrint("=======================================");
 
     safeNotify();
   }
@@ -801,15 +822,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       totalAfTaxDiscount += item.afTaxDiscountAmount ?? 0.0;
     }
 
-    /// 🔥 FINAL FIX: BASED ON OVERALL FLAG (NOT ITEM COUNT)
+    ///  FINAL FIX: BASED ON OVERALL FLAG (NOT ITEM COUNT)
     bool hasOverallDiscount = isOverallDiscountActive;
 
     if (hasOverallDiscount) {
-      /// ✅ OVERALL DISCOUNT MODE
+      ///  OVERALL DISCOUNT MODE
       _itemWiseDiscount = 0.0;
       _overallDiscountAmount = totalAfTaxDiscount;
     } else {
-      /// ✅ ITEM DISCOUNT MODE (even multiple items)
+      ///  ITEM DISCOUNT MODE (even multiple items)
       _itemWiseDiscount = totalBefTaxDiscount + totalAfTaxDiscount;
       _overallDiscountAmount = 0.0;
     }
@@ -825,7 +846,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     totalOrderAmount = _calculatedFinalAmount;
     pendingOrderAmount = _calculatedFinalAmount;
 
-    /// ✅ IMPORTANT
     pendingDiscountAmount = _itemWiseDiscount + _overallDiscountAmount;
 
     safeNotify();
@@ -982,7 +1002,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         return false;
       }
 
-      // ✅ SNAPSHOT (LIST FIX)
+      //  SNAPSHOT (LIST FIX)
       final Map<String, dynamic> snapshot = {
         "vendorContact": _getControllerTextSafely(vendorContactController),
         "paymentTerms": _getControllerTextSafely(paymentTermsController),
@@ -1021,10 +1041,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       final formattedOrderDate = formatDate(snapshot["orderedDate"]);
       final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
 
-      for (var item in poItems) {
-        item.randomId ??=
-            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
-      }
+      // for (var item in poItems) {
+      // item.randomId ??=
+      //     "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
+      // }
 
       final List<Item> finalItems = poItems.map((e) => e.copyWith()).toList();
 
@@ -1042,7 +1062,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           vendorName: selectedVendor,
           vendorContact: snapshot["vendorContact"],
 
-          // ✅ LIST FIX
+          //  LIST FIX
           termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
               .map((e) => e.toString())
               .toList(),
@@ -1117,7 +1137,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         totalFreightAmount: totalFreightAmount,
         totalFreightTaxAmount: totalFreightTaxAmount,
 
-        // ✅ LIST FIX
+        //  LIST FIX
         termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
             .map((e) => e.toString())
             .toList(),

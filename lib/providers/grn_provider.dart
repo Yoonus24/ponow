@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously, prefer_final_fields
+// ignore_for_file: avoid_print, unnecessary_non_null_assertion, invalid_null_aware_operator, dead_null_aware_expression, use_build_context_synchronously, prefer_final_fields
 
 import 'dart:async';
 import 'package:dio/dio.dart';

@@ -6,8 +6,8 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
-import '../../models/outgoing.dart';
-import '../../providers/outgoing_payment_provider.dart';
+import '../../../models/outgoing.dart';
+import '../../../providers/outgoing_payment_provider.dart';
 
 class Ledger extends StatefulWidget {
   final String status;

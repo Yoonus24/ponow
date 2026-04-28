@@ -109,7 +109,7 @@ class VendorDetails {
 
 class PurchaseItem {
   final String itemName;
-  final String itemCode; // ✅ ADDED
+  final String itemCode;
   final double purchasePrice;
   final double purchasetaxName;
   final String purchasecategoryName;
@@ -117,10 +117,11 @@ class PurchaseItem {
   final String hsnCode;
   final String purchaseItemId;
   final String uom;
+  final String randomId;
 
   PurchaseItem({
     required this.itemName,
-    required this.itemCode, // ✅ ADDED
+    required this.itemCode,
     required this.purchasePrice,
     required this.purchasetaxName,
     required this.purchaseItemId,
@@ -128,12 +129,13 @@ class PurchaseItem {
     required this.purchasecategoryName,
     required this.purchasesubcategoryName,
     required this.hsnCode,
+    required this.randomId,
   });
 
   factory PurchaseItem.fromJson(Map<String, dynamic> json) {
     return PurchaseItem(
       itemName: json['itemName'] ?? '',
-      itemCode: json['itemCode'] ?? '', // ✅ ADDED
+      itemCode: json['itemCode'] ?? '',
       purchasePrice: json['purchasePrice']?.toDouble() ?? 0.0,
       purchasetaxName: json['purchasetaxName']?.toDouble() ?? 0.0,
       purchaseItemId: json['purchaseItemId'] ?? json['purchaseitemId'] ?? '',
@@ -141,6 +143,7 @@ class PurchaseItem {
       purchasecategoryName: json['purchasecategoryName'] ?? '',
       purchasesubcategoryName: json['purchasesubcategoryName'] ?? '',
       hsnCode: json['hsnCode'] ?? '',
+      randomId: json['randomId'] ?? '',
     );
   }
 }

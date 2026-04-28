@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
-import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../../providers/outgoing_payment_provider.dart';
+import '../../../providers/outgoing_payment_provider.dart';
 import 'package:intl/intl.dart';
 
 class PartialPaymentPage extends StatefulWidget {

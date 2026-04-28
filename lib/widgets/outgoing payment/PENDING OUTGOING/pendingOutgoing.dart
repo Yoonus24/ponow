@@ -7,9 +7,9 @@ import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/models/outgoing.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/OutgoingColumnFilter.dart';
-import 'package:purchaseorders2/widgets/outgoing%20payment/pending%20_outgoing_view_dialog.dart';
+import 'package:purchaseorders2/widgets/outgoing%20payment/PENDING%20OUTGOING/pending%20_outgoing_view_dialog.dart';
 import 'package:provider/provider.dart';
-import '../../providers/outgoing_payment_provider.dart';
+import '../../../providers/outgoing_payment_provider.dart';
 import 'pending_outgoing_logic.dart';
 
 class PendingOutgoing extends StatefulWidget {

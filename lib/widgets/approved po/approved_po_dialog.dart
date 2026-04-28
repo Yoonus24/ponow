@@ -7,7 +7,7 @@ import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_logic.dart';
-import 'package:purchaseorders2/widgets/create%20po/freight_dialog.dart';
+import 'package:purchaseorders2/widgets/create%20po/FREIGHT/freight_dialog.dart';
 import 'approved_po_tables.dart';
 
 class ApprovedPODialog extends StatefulWidget {
@@ -977,20 +977,22 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       "purchaseorders_approved",
       "approve",
     );
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: const BoxDecoration(border: Border()),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Expanded(
+          // Revert PO Button
+          SizedBox(
+            width: 110, // ✅ Increased from 90 to 110
             child: ElevatedButton(
               onPressed: () {
                 if (!canRevert) {
                   _logic.showTopError("No permission to revert PO");
                   return;
                 }
-
                 _logic.revertPO(context);
               },
               style: ElevatedButton.styleFrom(
@@ -1000,14 +1002,16 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               ),
               child: const Text(
                 'Revert PO',
-                style: TextStyle(fontSize: 11, overflow: TextOverflow.ellipsis),
+                style: TextStyle(fontSize: 11),
                 maxLines: 1,
               ),
             ),
           ),
           const SizedBox(width: 8),
+
+          // Close Button
           SizedBox(
-            width: 70,
+            width: 85, // ✅ Increased from 70 to 85
             child: ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
@@ -1017,17 +1021,20 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               ),
               child: const Text(
                 'Close',
-                style: TextStyle(fontSize: 11, overflow: TextOverflow.ellipsis),
+                style: TextStyle(fontSize: 11),
                 maxLines: 1,
               ),
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _logic.isSaving,
-              builder: (context, saving, _) {
-                return ElevatedButton(
+
+          // Convert to GRN Button
+          ValueListenableBuilder<bool>(
+            valueListenable: _logic.isSaving,
+            builder: (context, saving, _) {
+              return SizedBox(
+                width: 125, // ✅ Increased from 100 to 125
+                child: ElevatedButton(
                   onPressed: saving
                       ? null
                       : () {
@@ -1035,7 +1042,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                             _logic.showTopError("No permission to convert GRN");
                             return;
                           }
-
                           _showConvertToGRNConfirmation();
                         },
                   style: ElevatedButton.styleFrom(
@@ -1063,9 +1069,9 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),

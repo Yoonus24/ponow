@@ -64,6 +64,8 @@ class Item {
   double? poQuantitysgst;
   double? poQuantitycgst;
   double? poQuantityigst;
+  String? locationId;
+  double? availableStock;
 
   Item({
     this.itemId,
@@ -131,6 +133,8 @@ class Item {
     this.afTaxDiscountType = 'percentage',
     this.befTaxDiscountType = 'percentage',
     this.isDiscountPercentage = false,
+    this.locationId,
+    this.availableStock,
   });
 
   Item copyWith({
@@ -200,6 +204,8 @@ class Item {
     bool? isDiscountPercentage,
     String? befTaxDiscountType,
     String? afTaxDiscountType,
+    String? locationId,
+    double? availableStock,
   }) {
     return Item(
       itemId: itemId ?? this.itemId,
@@ -273,6 +279,8 @@ class Item {
       isDiscountPercentage: isDiscountPercentage ?? this.isDiscountPercentage,
       befTaxDiscountType: befTaxDiscountType ?? this.befTaxDiscountType,
       afTaxDiscountType: afTaxDiscountType ?? this.afTaxDiscountType,
+      locationId: locationId ?? this.locationId,
+      availableStock: availableStock ?? this.availableStock,
     );
   }
 
@@ -382,6 +390,8 @@ class Item {
       poQuantityigst: json.containsKey('poQuantityigst')
           ? (json['poQuantityigst'] as num?)?.toDouble()
           : null,
+      locationId: json['locationId'],
+      availableStock: (json['availableStock'] ?? 0).toDouble(),
     );
   }
 
@@ -449,6 +459,8 @@ class Item {
       'poQuantitysgst': poQuantitysgst ?? 0.0,
       'poQuantitycgst': poQuantitycgst ?? 0.0,
       'poQuantityigst': poQuantityigst ?? 0.0,
+      "locationId": locationId,
+      "availableStock": availableStock,
     };
   }
 

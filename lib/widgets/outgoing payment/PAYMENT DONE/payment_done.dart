@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: avoid_print, deprecated_member_use
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -7,8 +7,8 @@ import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../../models/outgoing.dart';
-import '../../providers/outgoing_payment_provider.dart';
+import '../../../models/outgoing.dart';
+import '../../../providers/outgoing_payment_provider.dart';
 
 class PaymentDonePage extends StatefulWidget {
   final String status;
@@ -361,17 +361,17 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
   String _formatDate(DateTime? date) =>
       date != null ? DateFormat('dd-MM-yyyy').format(date) : 'N/A';
 
-  List<String> _vendorSuggestions(OutgoingPaymentProvider provider) {
-    final allowed = ['fully paid', 'partially paid'];
-    return provider.payments
-        .where(
-          (p) =>
-              p.vendorName != null && allowed.contains(p.status?.toLowerCase()),
-        )
-        .map((p) => p.vendorName!)
-        .toSet()
-        .toList();
-  }
+  // List<String> _vendorSuggestions(OutgoingPaymentProvider provider) {
+  //   final allowed = ['fully paid', 'partially paid'];
+  //   return provider.payments
+  //       .where(
+  //         (p) =>
+  //             p.vendorName != null && allowed.contains(p.status?.toLowerCase()),
+  //       )
+  //       .map((p) => p.vendorName!)
+  //       .toSet()
+  //       .toList();
+  // }
 
   void _openColumnFilter() {
     showDialog(
@@ -387,55 +387,55 @@ class _PaymentDonePageState extends State<PaymentDonePage> {
     );
   }
 
-  double _calculateTotalWidth(
-    List<String> columnOrder,
-    Map<String, bool> columnVisibility,
-  ) {
-    double totalWidth = 70; // padding
-    for (var column in columnOrder) {
-      if (columnVisibility[column] == true) {
-        switch (column) {
-          case 'No':
-            totalWidth += 50;
-            break;
-          case 'Status':
-            totalWidth += 90;
-            break;
-          case 'View':
-            totalWidth += 70;
-            break;
-          case 'PDF':
-            totalWidth += 70;
-            break;
-          case 'Vendor Name':
-            totalWidth += 200;
-            break;
-          case 'Invoice No':
-            totalWidth += 120;
-            break;
-          case 'Invoice Date':
-            totalWidth += 110;
-            break;
-          case 'Total Amount':
-            totalWidth += 110;
-            break;
-          case 'Amount Paid':
-            totalWidth += 110;
-            break;
-          case 'Payment Date':
-            totalWidth += 120;
-            break;
-          case 'Discount':
-            totalWidth += 130;
-            break;
-          case 'Payable Amount':
-            totalWidth += 180;
-            break;
-        }
-      }
-    }
-    return totalWidth;
-  }
+  // double _calculateTotalWidth(
+  //   List<String> columnOrder,
+  //   Map<String, bool> columnVisibility,
+  // ) {
+  //   double totalWidth = 70; // padding
+  //   for (var column in columnOrder) {
+  //     if (columnVisibility[column] == true) {
+  //       switch (column) {
+  //         case 'No':
+  //           totalWidth += 50;
+  //           break;
+  //         case 'Status':
+  //           totalWidth += 90;
+  //           break;
+  //         case 'View':
+  //           totalWidth += 70;
+  //           break;
+  //         case 'PDF':
+  //           totalWidth += 70;
+  //           break;
+  //         case 'Vendor Name':
+  //           totalWidth += 200;
+  //           break;
+  //         case 'Invoice No':
+  //           totalWidth += 120;
+  //           break;
+  //         case 'Invoice Date':
+  //           totalWidth += 110;
+  //           break;
+  //         case 'Total Amount':
+  //           totalWidth += 110;
+  //           break;
+  //         case 'Amount Paid':
+  //           totalWidth += 110;
+  //           break;
+  //         case 'Payment Date':
+  //           totalWidth += 120;
+  //           break;
+  //         case 'Discount':
+  //           totalWidth += 130;
+  //           break;
+  //         case 'Payable Amount':
+  //           totalWidth += 180;
+  //           break;
+  //       }
+  //     }
+  //   }
+  //   return totalWidth;
+  // }
 
   List<Widget> _buildHeaderRow(
     List<String> columnOrder,

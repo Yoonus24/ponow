@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:purchaseorders2/widgets/create%20po/import_csv_dialog.dart';
 import 'table_components.dart';
 import '../../models/discount_model.dart';
-import 'freight_dialog.dart';
+import 'FREIGHT/freight_dialog.dart';
 
 class ItemsTable extends StatefulWidget {
   final PurchaseOrderNotifier? notifier;

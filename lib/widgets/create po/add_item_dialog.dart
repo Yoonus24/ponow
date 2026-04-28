@@ -73,19 +73,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       notifier.uomController.clear();
       _clearItemDetails();
 
-      final poProvider = Provider.of<POProvider>(context, listen: false);
-
-      _itemFieldLoadingNotifier.value = true;
-
-      try {
-        if (!poProvider.itemsLoaded) {
-          await poProvider.preloadAllPurchaseItems();
-        }
-      } finally {
-        if (mounted) {
-          _itemFieldLoadingNotifier.value = false;
-        }
-      }
+      _itemFieldLoadingNotifier.value = false;
     });
   }
 
@@ -1258,6 +1246,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
         purchasecategoryName: '',
         purchasesubcategoryName: '',
         hsnCode: '',
+        randomId: '',
       ),
     );
 
@@ -1372,6 +1361,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
     print("=========== ADD / UPDATE ITEM START ===========");
 
     if (!_formKey.currentState!.validate()) return;
+
     if (notifier.itemController.text.trim().isEmpty) {
       _fieldHasError['item']!.value = true;
 
@@ -1379,12 +1369,13 @@ class _AddItemDialogState extends State<AddItemDialog> {
       Future.microtask(() => _fieldShakeTrigger['item']!.value = true);
 
       _showRequiredFieldSnackBar("Please select an item");
-
       return;
     }
+
     if (!_validateInputs()) return;
 
     _submitButtonLoadingNotifier.value = true;
+
     try {
       final double count =
           double.tryParse(_fieldControllers['count']!.text) ?? 0;
@@ -1448,63 +1439,83 @@ class _AddItemDialogState extends State<AddItemDialog> {
               purchasecategoryName: '',
               purchasesubcategoryName: '',
               hsnCode: '',
+              randomId: '',
             ),
           );
 
       final Item newItem = Item(
         itemId: selectedPurchaseItem?.purchaseItemId,
         itemName: notifier.itemController.text,
+
+        /// IMPORTANT
+        /// Use correct master randomId like PI1437
+        /// NEVER generated timestamp randomId
+        randomId:
+            selectedPurchaseItem?.randomId ??
+            widget.editingItem?.randomId ??
+            '',
+
         befTaxDiscountType: befType,
         afTaxDiscountType: afType,
+
         quantity: totalQuantity,
         existingPrice:
             double.tryParse(_fieldControllers['existingPrice']!.text) ?? 0,
         newPrice: newPrice,
+
         count: count,
         eachQuantity: eachQty,
+
         taxPercentage: taxPercentage,
         taxAmount: result['pendingTaxAmount'] ?? 0,
+
         befTaxDiscount: befType == "percentage"
             ? befValue
             : (result['befTaxDiscount'] ?? 0.0),
+
         afTaxDiscount: afType == "percentage"
             ? afValue
             : (result['afTaxDiscount'] ?? 0.0),
+
         befTaxDiscountAmount: befType == "amount"
             ? befValue
             : (result['pendingBefTaxDiscountAmount'] ?? 0.0),
+
         afTaxDiscountAmount: afType == "amount"
             ? afValue
             : (result['pendingAfTaxDiscountAmount'] ?? 0.0),
+
         totalPrice: result['pendingTotalPrice'] ?? 0,
         finalPrice: result['pendingFinalPrice'] ?? 0,
+
         variance:
             newPrice -
             (double.tryParse(_fieldControllers['existingPrice']!.text) ?? 0),
+
         uom: notifier.uomController.text,
         taxType: notifier.taxType,
+
         pendingCount: count,
         pendingQuantity: eachQty,
         pendingTotalQuantity: totalQuantity,
+
         pendingTaxAmount: result['pendingTaxAmount'] ?? 0,
         pendingFinalPrice: result['pendingFinalPrice'] ?? 0,
         pendingTotalPrice: result['pendingTotalPrice'] ?? 0,
         pendingDiscountAmount: result['pendingDiscountAmount'] ?? 0,
+
         pendingCgst: result['pendingCgst'] ?? 0,
         pendingSgst: result['pendingSgst'] ?? 0,
         pendingIgst: result['pendingIgst'] ?? 0,
+
         expiryDate: '',
         hsnCode: selectedPurchaseItem?.hsnCode,
         purchasecategoryName: selectedPurchaseItem?.purchasecategoryName,
         purchasesubcategoryName: selectedPurchaseItem?.purchasesubcategoryName,
-        randomId:
-            widget.editingItem?.randomId ??
-            "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}",
       );
 
+      /// EDIT FLOW
       if (widget.editingIndex != null) {
-        final oldItem = notifier.poItems[widget.editingIndex!];
-        newItem.randomId = oldItem.randomId;
         notifier.poItems[widget.editingIndex!] = newItem;
       } else {
         final existingIndex = notifier.poItems.indexWhere(
@@ -1515,20 +1526,22 @@ class _AddItemDialogState extends State<AddItemDialog> {
           final existingItem = notifier.poItems[existingIndex];
 
           final newQty = (existingItem.quantity ?? 0) + (newItem.quantity ?? 0);
+
           final newCount = (existingItem.count ?? 0) + (newItem.count ?? 0);
 
-          // ✅ UPDATE ALL RELATED VALUES
           existingItem.quantity = newQty;
           existingItem.count = newCount;
 
           existingItem.pendingTotalQuantity = newQty;
           existingItem.pendingCount = newCount;
 
-          // 🔥 IMPORTANT
           existingItem.pendingQuantity =
               newQty / (newCount == 0 ? 1 : newCount);
 
           existingItem.newPrice = newItem.newPrice;
+
+          /// IMPORTANT FIX
+          existingItem.randomId = newItem.randomId;
         } else {
           notifier.poItems.add(newItem);
         }
@@ -1550,7 +1563,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     } finally {
       _submitButtonLoadingNotifier.value = false;

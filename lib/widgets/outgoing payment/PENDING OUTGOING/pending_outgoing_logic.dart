@@ -8,10 +8,10 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:purchaseorders2/widgets/outgoing%20payment/ap_viewinvoice_modal.dart';
-import 'package:purchaseorders2/widgets/outgoing%20payment/grn_details_screen.dart';
-import '../../providers/outgoing_payment_provider.dart';
-import 'payment_dialogue.dart';
+import 'package:purchaseorders2/widgets/outgoing%20payment/PENDING%20OUTGOING/ap_viewinvoice_modal.dart';
+import 'package:purchaseorders2/widgets/outgoing%20payment/PENDING%20OUTGOING/grn_details_screen.dart';
+import '../../../providers/outgoing_payment_provider.dart';
+import '../payment_dialogue.dart';
 
 class PendingOutgoingLogic {
   // Scroll Controllers

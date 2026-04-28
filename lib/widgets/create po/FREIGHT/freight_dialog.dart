@@ -5,7 +5,7 @@ import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/freight_name_model.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
-import '../../widgets/numeric_Calculator.dart';
+import '../../numeric_Calculator.dart';
 
 class FreightDialog extends StatefulWidget {
   final Function(List<FreightData>) onAdd;
@@ -32,7 +32,7 @@ class _FreightDialogState extends State<FreightDialog> {
   );
 
   // Store freights with their individual calculations
-  final List<FreightData> _temporaryFreights = [];
+  final ValueNotifier<List<FreightData>> _temporaryFreights = ValueNotifier([]);
 
   // Summary calculations
   final ValueNotifier<double> _totalFreightAmount = ValueNotifier<double>(0);
@@ -105,7 +105,7 @@ class _FreightDialogState extends State<FreightDialog> {
 
     // Load initial freights if any
     if (widget.initialFreights != null && widget.initialFreights!.isNotEmpty) {
-      _temporaryFreights.addAll(widget.initialFreights!);
+      _temporaryFreights.value = [...widget.initialFreights!];
       _updateSummaryCalculations();
     }
 
@@ -176,7 +176,7 @@ class _FreightDialogState extends State<FreightDialog> {
     double totalTax = 0;
     double total = 0;
 
-    for (var freight in _temporaryFreights) {
+    for (var freight in _temporaryFreights.value) {
       totalAmount += freight.amount;
       totalTax += freight.taxAmount;
       total += freight.total;
@@ -202,6 +202,7 @@ class _FreightDialogState extends State<FreightDialog> {
     _totalTaxAmount.dispose();
     _grandTotal.dispose();
     _isSaving.dispose();
+    _temporaryFreights.dispose();
     _leftVertical.dispose();
     _rightVertical.dispose();
     _horizontal.dispose();
@@ -303,17 +304,17 @@ class _FreightDialogState extends State<FreightDialog> {
       total: _total.value,
     );
 
-    setState(() {
-      // Check if already exists → update
-      final index = _temporaryFreights.indexWhere((f) => f.id == freight.id);
+    // Check if already exists → update
+    final List<FreightData> tempList = List.from(_temporaryFreights.value);
+    final index = tempList.indexWhere((f) => f.id == freight.id);
 
-      if (index != -1) {
-        _temporaryFreights[index] = freight; // update
-      } else {
-        _temporaryFreights.add(freight); // add new
-      }
-      _updateSummaryCalculations();
-    });
+    if (index != -1) {
+      tempList[index] = freight; // update
+    } else {
+      tempList.add(freight); // add new
+    }
+    _temporaryFreights.value = tempList;
+    _updateSummaryCalculations();
 
     _clearForm();
   }
@@ -327,29 +328,29 @@ class _FreightDialogState extends State<FreightDialog> {
   }
 
   void _removeTemporaryFreight(int index) {
-    setState(() {
-      _temporaryFreights.removeAt(index);
-      _updateSummaryCalculations();
-    });
+    final List<FreightData> tempList = List.from(_temporaryFreights.value);
+    tempList.removeAt(index);
+    _temporaryFreights.value = tempList;
+    _updateSummaryCalculations();
   }
 
   void _editTemporaryFreight(FreightData freight) {
-    setState(() {
-      _amountController.text = freight.amount.toStringAsFixed(2);
-      _taxCode.value = freight.taxCode;
-      _taxType.value = freight.taxType;
-      _sgst.value = freight.sgst;
-      _cgst.value = freight.cgst;
-      _igst.value = freight.igst;
-      _taxAmount.value = freight.taxAmount;
-      _total.value = freight.total;
-      _selectedFreightId.value = freight.id;
+    _amountController.text = freight.amount.toStringAsFixed(2);
+    _taxCode.value = freight.taxCode;
+    _taxType.value = freight.taxType;
+    _sgst.value = freight.sgst;
+    _cgst.value = freight.cgst;
+    _igst.value = freight.igst;
+    _taxAmount.value = freight.taxAmount;
+    _total.value = freight.total;
+    _selectedFreightId.value = freight.id;
 
-      _temporaryFreights.removeWhere(
-        (f) => f.id == freight.id && f.amount == freight.amount,
-      );
-      _updateSummaryCalculations();
-    });
+    final List<FreightData> tempList = List.from(_temporaryFreights.value);
+    tempList.removeWhere(
+      (f) => f.id == freight.id && f.amount == freight.amount,
+    );
+    _temporaryFreights.value = tempList;
+    _updateSummaryCalculations();
   }
 
   Future<void> _submitAll() async {
@@ -357,7 +358,7 @@ class _FreightDialogState extends State<FreightDialog> {
       _showTopError("No permission to add freight");
       return;
     }
-    if (_temporaryFreights.isEmpty) {
+    if (_temporaryFreights.value.isEmpty) {
       _showTopError("No freights to save");
       return;
     }
@@ -368,7 +369,7 @@ class _FreightDialogState extends State<FreightDialog> {
       // Simulate network delay or actual save operation
       await Future.delayed(const Duration(milliseconds: 500));
 
-      widget.onAdd(_temporaryFreights);
+      widget.onAdd(_temporaryFreights.value);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -385,213 +386,95 @@ class _FreightDialogState extends State<FreightDialog> {
   Widget _buildFreightTable() {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final double rowHeight = 48;
-    final int itemCount = _temporaryFreights.length;
 
-    if (itemCount == 0) {
-      return Container(
-        height: 100,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(
-            "No freight items added yet",
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontStyle: FontStyle.italic,
-              fontSize: isMobile ? 13 : 14,
+    return ValueListenableBuilder<List<FreightData>>(
+      valueListenable: _temporaryFreights,
+      builder: (context, temporaryFreights, child) {
+        final int itemCount = temporaryFreights.length;
+
+        if (itemCount == 0) {
+          return Container(
+            height: 100,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Center(
+              child: Text(
+                "No freight items added yet",
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                  fontSize: isMobile ? 13 : 14,
+                ),
+              ),
+            ),
+          );
+        }
+
+        double tableHeight;
+        if (itemCount <= 3) {
+          tableHeight = rowHeight * (itemCount + 1);
+        } else {
+          tableHeight = rowHeight * 4;
+        }
+
+        final double nameWidth = isMobile ? 100 : 130;
+        final double amountWidth = isMobile ? 70 : 80;
+        final double taxWidth = isMobile ? 70 : 80;
+        final double totalWidth = isMobile ? 70 : 80;
+        final double actionsWidth = isMobile ? 100 : 120;
+
+        return Container(
+          height: tableHeight,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-      );
-    }
-
-    double tableHeight;
-    if (itemCount <= 3) {
-      tableHeight = rowHeight * (itemCount + 1);
-    } else {
-      tableHeight = rowHeight * 4;
-    }
-
-    final double nameWidth = isMobile ? 100 : 130;
-    final double amountWidth = isMobile ? 70 : 80;
-    final double taxWidth = isMobile ? 70 : 80;
-    final double totalWidth = isMobile ? 70 : 80;
-    final double actionsWidth = isMobile ? 100 : 120;
-
-    return Container(
-      height: tableHeight,
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          // Left fixed column (Name)
-          Column(
+          child: Row(
             children: [
-              Container(
-                height: rowHeight,
-                width: nameWidth,
-                color: Colors.grey[200],
-                child: Center(
-                  child: Text(
-                    "Name",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: isMobile ? 12 : 13,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: _leftVertical,
-                  physics: itemCount <= 3
-                      ? const NeverScrollableScrollPhysics()
-                      : const AlwaysScrollableScrollPhysics(),
-                  child: Column(
-                    children: _temporaryFreights.map((f) {
-                      return Container(
-                        height: rowHeight,
-                        width: nameWidth,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.grey.shade300),
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Center(
-                          child: Text(
-                            f.name,
-                            style: TextStyle(fontSize: isMobile ? 11 : 12),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Right scrollable columns
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _horizontal,
-              scrollDirection: Axis.horizontal,
-              child: Column(
+              // Left fixed column (Name)
+              Column(
                 children: [
-                  // Header row
                   Container(
                     height: rowHeight,
+                    width: nameWidth,
                     color: Colors.grey[200],
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildTableHeader("Amount", amountWidth, isMobile),
-                        _buildTableHeader("Tax", taxWidth, isMobile),
-                        _buildTableHeader("Total", totalWidth, isMobile),
-                        Container(
-                          width: actionsWidth,
-                          alignment: Alignment.center,
-                          child: Text(
-                            "Actions",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: isMobile ? 12 : 13,
-                            ),
-                          ),
+                    child: Center(
+                      child: Text(
+                        "Name",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: isMobile ? 12 : 13,
                         ),
-                      ],
+                      ),
                     ),
                   ),
-
-                  // Table body
                   Expanded(
                     child: SingleChildScrollView(
-                      controller: _rightVertical,
+                      controller: _leftVertical,
                       physics: itemCount <= 3
                           ? const NeverScrollableScrollPhysics()
                           : const AlwaysScrollableScrollPhysics(),
                       child: Column(
-                        children: _temporaryFreights.asMap().entries.map((
-                          entry,
-                        ) {
-                          final index = entry.key;
-                          final f = entry.value;
-
+                        children: temporaryFreights.map((f) {
                           return Container(
                             height: rowHeight,
+                            width: nameWidth,
                             decoration: BoxDecoration(
                               border: Border(
                                 bottom: BorderSide(color: Colors.grey.shade300),
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildTableCell(
-                                  "₹${f.amount.toStringAsFixed(2)}",
-                                  amountWidth,
-                                  isMobile,
-                                ),
-                                _buildTableCell(
-                                  "₹${f.taxAmount.toStringAsFixed(2)}",
-                                  taxWidth,
-                                  isMobile,
-                                ),
-                                _buildTableCell(
-                                  "₹${f.total.toStringAsFixed(2)}",
-                                  totalWidth,
-                                  isMobile,
-                                ),
-                                Container(
-                                  width: actionsWidth,
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _buildActionButton(
-                                        icon: Icons.edit,
-                                        color: Colors.blueAccent,
-                                        onPressed: () {
-                                          if (!canEditFreight) {
-                                            _showTopError(
-                                              "No permission to edit freight",
-                                            );
-                                            return;
-                                          }
-
-                                          _editTemporaryFreight(f);
-                                        },
-                                        isMobile: isMobile,
-                                      ),
-                                      SizedBox(width: isMobile ? 2 : 4),
-                                      _buildActionButton(
-                                        icon: Icons.delete,
-                                        color: Colors.red,
-                                        onPressed: () {
-                                          if (!canDeleteFreight) {
-                                            _showTopError(
-                                              "No permission to delete freight",
-                                            );
-                                            return;
-                                          }
-
-                                          _removeTemporaryFreight(index);
-                                        },
-                                        isMobile: isMobile,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Center(
+                              child: Text(
+                                f.name,
+                                style: TextStyle(fontSize: isMobile ? 11 : 12),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           );
                         }).toList(),
@@ -600,10 +483,137 @@ class _FreightDialogState extends State<FreightDialog> {
                   ),
                 ],
               ),
-            ),
+
+              // Right scrollable columns
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _horizontal,
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    children: [
+                      // Header row
+                      Container(
+                        height: rowHeight,
+                        color: Colors.grey[200],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildTableHeader("Amount", amountWidth, isMobile),
+                            _buildTableHeader("Tax", taxWidth, isMobile),
+                            _buildTableHeader("Total", totalWidth, isMobile),
+                            Container(
+                              width: actionsWidth,
+                              alignment: Alignment.center,
+                              child: Text(
+                                "Actions",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: isMobile ? 12 : 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Table body
+                      Expanded(
+                        child: SingleChildScrollView(
+                          controller: _rightVertical,
+                          physics: itemCount <= 3
+                              ? const NeverScrollableScrollPhysics()
+                              : const AlwaysScrollableScrollPhysics(),
+                          child: Column(
+                            children: temporaryFreights.asMap().entries.map((
+                              entry,
+                            ) {
+                              final index = entry.key;
+                              final f = entry.value;
+
+                              return Container(
+                                height: rowHeight,
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey.shade300,
+                                    ),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildTableCell(
+                                      "₹${f.amount.toStringAsFixed(2)}",
+                                      amountWidth,
+                                      isMobile,
+                                    ),
+                                    _buildTableCell(
+                                      "₹${f.taxAmount.toStringAsFixed(2)}",
+                                      taxWidth,
+                                      isMobile,
+                                    ),
+                                    _buildTableCell(
+                                      "₹${f.total.toStringAsFixed(2)}",
+                                      totalWidth,
+                                      isMobile,
+                                    ),
+                                    Container(
+                                      width: actionsWidth,
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _buildActionButton(
+                                            icon: Icons.edit,
+                                            color: Colors.blueAccent,
+                                            onPressed: () {
+                                              if (!canEditFreight) {
+                                                _showTopError(
+                                                  "No permission to edit freight",
+                                                );
+                                                return;
+                                              }
+
+                                              _editTemporaryFreight(f);
+                                            },
+                                            isMobile: isMobile,
+                                          ),
+                                          SizedBox(width: isMobile ? 2 : 4),
+                                          _buildActionButton(
+                                            icon: Icons.delete,
+                                            color: Colors.red,
+                                            onPressed: () {
+                                              if (!canDeleteFreight) {
+                                                _showTopError(
+                                                  "No permission to delete freight",
+                                                );
+                                                return;
+                                              }
+
+                                              _removeTemporaryFreight(index);
+                                            },
+                                            isMobile: isMobile,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1135,39 +1145,47 @@ class _FreightDialogState extends State<FreightDialog> {
                               child: ValueListenableBuilder<bool>(
                                 valueListenable: _isSaving,
                                 builder: (context, isSaving, child) {
-                                  return ElevatedButton(
-                                    onPressed:
-                                        isSaving || _temporaryFreights.isEmpty
-                                        ? null
-                                        : _submitAll,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: isMobile ? 10 : 14,
-                                      ),
-                                      disabledBackgroundColor:
-                                          Colors.grey.shade300,
-                                    ),
-                                    child: isSaving
-                                        ? SizedBox(
-                                            height: 20,
-                                            width: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    Colors.white,
-                                                  ),
-                                            ),
-                                          )
-                                        : Text(
-                                            "Save (${_temporaryFreights.length})",
-                                            style: TextStyle(
-                                              fontSize: isMobile ? 13 : 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
+                                  return ValueListenableBuilder<
+                                    List<FreightData>
+                                  >(
+                                    valueListenable: _temporaryFreights,
+                                    builder: (context, temporaryFreights, _) {
+                                      return ElevatedButton(
+                                        onPressed:
+                                            isSaving ||
+                                                temporaryFreights.isEmpty
+                                            ? null
+                                            : _submitAll,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.green,
+                                          foregroundColor: Colors.white,
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: isMobile ? 10 : 14,
                                           ),
+                                          disabledBackgroundColor:
+                                              Colors.grey.shade300,
+                                        ),
+                                        child: isSaving
+                                            ? SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
+                                                ),
+                                              )
+                                            : Text(
+                                                "Save (${temporaryFreights.length})",
+                                                style: TextStyle(
+                                                  fontSize: isMobile ? 13 : 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                      );
+                                    },
                                   );
                                 },
                               ),

@@ -69,19 +69,29 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     }
   }
 
-  void _filterItems(String query) {
-    final q = query.toLowerCase().trim();
+  Future<void> _filterItems(String query) async {
+    final q = query.trim();
 
     if (q.isEmpty) {
-      _displayedItemsNotifier.value = _allPurchaseItems
-          .map((e) => e.itemName ?? '')
-          .toList();
-    } else {
-      _displayedItemsNotifier.value = _allPurchaseItems
-          .where((item) => (item.itemName ?? '').toLowerCase().startsWith(q))
-          .map((e) => e.itemName ?? '')
-          .toList();
+      _displayedItemsNotifier.value = [];
+      return;
     }
+
+    final results = await widget.poProvider.searchPurchaseItems(
+      query: q,
+      skip: 0,
+      limit: 20,
+      append: false,
+    );
+
+    _allPurchaseItems = results;
+    _cacheItems(results);
+
+    _displayedItemsNotifier.value = results
+        .map((e) => e.itemName ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
   }
 
   void _cacheItems(List<PurchaseItem> items) {
@@ -114,7 +124,14 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
       }
 
       _cacheItems(newItems);
-      _allPurchaseItems.addAll(newItems);
+
+      for (var item in newItems) {
+        if (!_allPurchaseItems.any(
+          (existing) => existing.itemName == item.itemName,
+        )) {
+          _allPurchaseItems.add(item);
+        }
+      }
 
       final newNames = newItems
           .map((e) => e.itemName ?? '')
@@ -122,8 +139,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
           .toList();
 
       _displayedItemsNotifier.value = [
-        ..._displayedItemsNotifier.value,
-        ...newNames,
+        ...{..._displayedItemsNotifier.value, ...newNames},
       ];
 
       _skip += _limit;
@@ -195,15 +211,24 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                   purchasecategoryName: '',
                   purchasesubcategoryName: '',
                   hsnCode: '',
+                  randomId: '',
                 ),
               );
 
               if (foundItem.itemName?.isNotEmpty ?? false) {
                 _itemCache[selectedItemName] = foundItem;
-                _allPurchaseItems.add(foundItem);
+
+                if (!_allPurchaseItems.any(
+                  (item) => item.itemName == foundItem.itemName,
+                )) {
+                  _allPurchaseItems.add(foundItem);
+                }
+
                 widget.notifier.updateItemDetailsFromCache(foundItem);
               }
-            } catch (e) {}
+            } catch (e) {
+              debugPrint("Error fetching item details: $e");
+            }
           }
 
           widget.onItemSelected(selectedItemName);
@@ -450,7 +475,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               }
 
               try {
-                await widget.poProvider.preloadAllPurchaseItems();
+                // await widget.poProvider.preloadAllPurchaseItems();
                 if (_isDisposed) return;
                 _allPurchaseItems = widget.poProvider.purchaseItems;
                 _displayedItemsNotifier.value = _allPurchaseItems
