@@ -1028,7 +1028,7 @@ class _GRNModalState extends State<GRNModal> {
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  error!,
+                  error,
                   style: const TextStyle(color: Colors.red, fontSize: 11),
                 ),
               ),

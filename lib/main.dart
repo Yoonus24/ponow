@@ -1,14 +1,14 @@
 // ignore_for_file: dead_code
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 import 'package:purchaseorders2/providers/import_provider.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/navigation_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:purchaseorders2/AppInitializer.dart';
 import 'package:purchaseorders2/home_shell.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
@@ -31,17 +31,15 @@ Future<void> main() async {
   try {
     await ServerTimeService.initialize();
   } catch (e) {
-    print("⚠️ Server time init failed: $e");
+    debugPrint('Failed to initialize ServerTimeService: $e');
   }
+  await dotenv.load(fileName: ".env");
 
   /// Init Dio
   await DioClient.init();
 
   ///Get stored token
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.reload();
-
-  final token = prefs.getString('token');
+  final token = await SecureStorageService.getToken();
 
   ///SIMPLE AUTH CHECK (NO validateToken)
   bool isAuthenticated = token != null;

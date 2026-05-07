@@ -95,6 +95,8 @@ class ImportCSVDialog extends StatelessWidget {
               String path = result.files.single.path!;
               final data = await provider.uploadFile(path);
 
+              if (!context.mounted) return;
+
               if (data['success'] == true) {
                 Navigator.pop(context);
                 onSuccess(data['imported_items']);
@@ -106,11 +108,9 @@ class ImportCSVDialog extends StatelessWidget {
                     ),
                     backgroundColor: Colors.green,
                     duration: const Duration(seconds: 2),
-
-                    behavior: SnackBarBehavior.floating, 
-
+                    behavior: SnackBarBehavior.floating,
                     margin: const EdgeInsets.only(
-                      bottom: 80, 
+                      bottom: 80,
                       left: 16,
                       right: 16,
                     ),

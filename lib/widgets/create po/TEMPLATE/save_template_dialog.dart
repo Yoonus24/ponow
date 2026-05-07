@@ -177,10 +177,12 @@ class _SaveTemplateDialogState extends State<SaveTemplateDialog> {
       try {
         await widget.onSave(_templateNameController.text.trim());
 
-        // ✅ success → close dialog
+        if (!mounted) return;
+
         Navigator.of(context).pop();
       } catch (e) {
-        // ❌ show backend error
+        if (!mounted) return;
+
         String message = "Something went wrong";
 
         if (e.toString().contains("already exists")) {

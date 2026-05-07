@@ -857,7 +857,7 @@ class _FreightDialogState extends State<FreightDialog> {
                                       builder: (context, selectedValue, _) {
                                         return DropdownButtonFormField<String>(
                                           isExpanded: true,
-                                          value:
+                                          initialValue:
                                               provider.freightNames.any(
                                                 (f) => f.id == selectedValue,
                                               )
@@ -961,7 +961,7 @@ class _FreightDialogState extends State<FreightDialog> {
                                       builder: (context, taxCodeValue, child) {
                                         return DropdownButtonFormField<double>(
                                           isExpanded: true,
-                                          value: taxCodeValue == null
+                                          initialValue: taxCodeValue == null
                                               ? null
                                               : double.tryParse(taxCodeValue),
                                           decoration: _buildFieldDecoration(
@@ -1012,7 +1012,7 @@ class _FreightDialogState extends State<FreightDialog> {
                                   valueListenable: _taxType,
                                   builder: (context, taxTypeValue, child) {
                                     return DropdownButtonFormField<String>(
-                                      value: taxTypeValue,
+                                      initialValue: taxTypeValue,
                                       decoration: _buildFieldDecoration(
                                         "Tax Type",
                                       ),

@@ -858,7 +858,7 @@ class _POModalState extends State<POModal> {
                                                           ),
                                                       color: Colors.grey[200],
                                                       child: const Row(
-                                                        children: const [
+                                                        children: [
                                                           SizedBox(
                                                             width: 30,
                                                             child: Text(

@@ -1127,7 +1127,7 @@ class _PartialPaymentPageState extends State<PartialPaymentPage> {
                 ),
                 _buildDetailRow(
                   'Tax',
-                  '${payment.taxDetails?.toStringAsFixed(2) ?? '0.00'}',
+                  payment.taxDetails?.toStringAsFixed(2) ?? '0.00',
                 ),
                 _buildDetailRow(
                   'Discount',

@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/ap.dart';
-import 'package:purchaseorders2/pdfs/apinvoice_pdf.dart';
-import 'package:printing/printing.dart';
 import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import '../../widgets/ap invoice/ap_invoice_model.dart';
 import 'package:purchaseorders2/models/globals.dart' as globals;
@@ -80,8 +78,39 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
+  String getDisplayStatus(ApInvoice ap) {
+    final status = (ap.status ?? "").toLowerCase();
+
+    switch (status) {
+      case "pending":
+        return "Pending";
+
+      case "pending payment":
+        return "Pending Payment";
+
+      case "verified":
+        return "Verified";
+
+      case "partially paid":
+        return "Partially Paid";
+
+      case "fully paid":
+        return "Fully Paid";
+
+      case "returned":
+        return "Returned";
+
+      default:
+        return ap.status ?? "Unknown";
+    }
+  }
+
+  Color getStatusColor(ApInvoice ap) {
+    return Colors.blueAccent.shade100;
+  }
+
   Widget _buildHeader(ApInvoice apinvoice, APInvoiceProvider provider) {
-    String statusText = _formatStatus(apinvoice.status);
+    String statusText = getDisplayStatus(apinvoice);
     final double headerAmount = (apinvoice.invoiceAmount ?? 0.0);
 
     return Container(
@@ -98,18 +127,17 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
             children: [
               // Invoice No
               Expanded(
-                  child: Text(
-                    "Invoice No: ${apinvoice.randomId ?? "N/A"}",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2, 
-                    softWrap: true, 
+                child: Text(
+                  "Invoice No: ${apinvoice.randomId}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
+                  maxLines: 2,
+                  softWrap: true,
                 ),
-              
+              ),
 
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -117,7 +145,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.blueAccent.shade100,
+                  color: getStatusColor(apinvoice),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.white, width: 1),
                 ),
@@ -165,7 +193,7 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
 
                       if (result == true) {
                         await context.read<APInvoiceProvider>().fetchAPInvoices(
-                          status: "Outgoing Posted",
+                          status: null,
                           skip: 0,
                           limit: 50,
                         );
@@ -229,26 +257,6 @@ class _APInvoiceWidgetState extends State<APInvoiceWidget> {
     );
   }
 
-  String _formatStatus(String? status) {
-    if (status == null) return "Unknown";
-
-    switch (status.toLowerCase()) {
-      case 'pending':
-        return "Pending";
-      case 'outgoing posted':
-        return "Outgoing Posted";
-      case 'fully paid':
-        return "Fully Paid";
-      case 'partially paid':
-        return "Partially Paid";
-      case 'returned':
-        return "Returned";
-      case 'active':
-        return "Active";
-      default:
-        return status;
-    }
-  }
 
   Widget _buildTable(ApInvoice apinvoice) {
     final items = apinvoice.itemDetails ?? [];

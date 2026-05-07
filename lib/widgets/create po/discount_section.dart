@@ -88,7 +88,7 @@ class _DiscountSectionState extends State<DiscountSection> {
 
     if (n.isOverallDiscountActive && n.overallDiscountValue > 0) {
       /// 🔥 FORCE AMOUNT MODE
-      widget.discountMode.value = DiscountMode.fixedAmount;
+      widget.discountMode.value = DiscountMode.amount;
 
       widget.overallDiscountController.text = n.overallDiscountValue
           .toStringAsFixed(2);
@@ -624,11 +624,11 @@ class _DiscountSectionState extends State<DiscountSection> {
                     child: _optionButton(
                       label: "Amount",
                       icon: Icons.currency_rupee,
-                      selected: mode == DiscountMode.fixedAmount,
+                      selected: mode == DiscountMode.amount,
                       enabled: mode != DiscountMode.none,
                       onTap: () {
                         if (mode != DiscountMode.none) {
-                          widget.discountMode.value = DiscountMode.fixedAmount;
+                          widget.discountMode.value = DiscountMode.amount;
                           widget.onCalculationsUpdate();
                         }
                       },

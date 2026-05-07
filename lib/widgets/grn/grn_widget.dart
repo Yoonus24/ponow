@@ -3,11 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/grn.dart';
-import 'package:purchaseorders2/pdfs/grn_pdf.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/widgets/grn/DEBIT%20NOTE/debit_note_viewdialog.dart';
 import 'package:purchaseorders2/widgets/grn/GRN%20RETURN/grn_return_dialog.dart';
-import 'package:printing/printing.dart';
 import 'GRN VIEW/grn_modal.dart';
 import 'package:purchaseorders2/models/globals.dart' as globals;
 

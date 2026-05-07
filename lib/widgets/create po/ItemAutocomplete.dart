@@ -46,6 +46,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   bool _isDisposed = false;
   final Map<String, PurchaseItem> _itemCache = {};
   List<PurchaseItem> _allPurchaseItems = [];
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -70,8 +71,9 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   Future<void> _filterItems(String query) async {
-    final q = query.trim();
+    final q = query.trim().toLowerCase();
 
+    // ✅ Empty na clear
     if (q.isEmpty) {
       _displayedItemsNotifier.value = [];
       return;
@@ -80,9 +82,30 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     final results = await widget.poProvider.searchPurchaseItems(
       query: q,
       skip: 0,
-      limit: 20,
+      limit: 50,
       append: false,
     );
+
+    // ✅ Exact match first
+    results.sort((a, b) {
+      final aName = (a.itemName ?? '').toLowerCase();
+      final bName = (b.itemName ?? '').toLowerCase();
+
+      // 1. Exact match highest priority
+      if (aName == q && bName != q) return -1;
+      if (bName == q && aName != q) return 1;
+
+      // 2. Starts with query second priority
+      if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
+      if (bName.startsWith(q) && !aName.startsWith(q)) return 1;
+
+      // 3. Contains query third priority
+      if (aName.contains(q) && !bName.contains(q)) return -1;
+      if (bName.contains(q) && !aName.contains(q)) return 1;
+
+      // 4. Alphabetical fallback
+      return aName.compareTo(bName);
+    });
 
     _allPurchaseItems = results;
     _cacheItems(results);
@@ -156,16 +179,25 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   PurchaseItem? _findItemByName(String itemName) {
-    if (_itemCache.containsKey(itemName)) {
-      return _itemCache[itemName];
+    final normalizedName = itemName.trim().toLowerCase();
+
+    // ✅ Check cache first
+    for (var entry in _itemCache.entries) {
+      if (entry.key.trim().toLowerCase() == normalizedName) {
+        return entry.value;
+      }
     }
 
+    // ✅ Check loaded purchase items
     for (var item in _allPurchaseItems) {
-      if (item.itemName == itemName) {
+      final currentName = item.itemName?.trim().toLowerCase();
+
+      if (currentName == normalizedName) {
         _itemCache[itemName] = item;
         return item;
       }
     }
+
     return null;
   }
 
@@ -174,60 +206,68 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
     return Padding(
       padding: const EdgeInsets.only(top: 4.0),
       child: Autocomplete<String>(
-        optionsBuilder: (TextEditingValue textEditingValue) {
-          final input = textEditingValue.text.trim();
+        optionsBuilder: (TextEditingValue textEditingValue) async {
+          final input = textEditingValue.text.trim().toLowerCase();
+
           _currentQuery = input;
-          _filterItems(input);
+
+          _searchDebounce?.cancel();
+
+          await Future.delayed(const Duration(milliseconds: 300));
+
+          if (input != _currentQuery) {
+            return [];
+          }
+
+          await _filterItems(input);
+
           return _displayedItemsNotifier.value;
         },
-
         onSelected: (selectedItemName) async {
           widget.controller.text = selectedItemName;
+
           final selectedItem = _findItemByName(selectedItemName);
 
           if (selectedItem != null) {
+            print("✅ ITEM FOUND FROM CACHE");
+            print("✅ ITEM CODE = ${selectedItem.itemCode}");
+
             widget.notifier.updateItemDetailsFromCache(selectedItem);
             _updateItemDetailsDirectly(selectedItem);
           } else {
             try {
-              await widget.poProvider.searchPurchaseItems(
+              final results = await widget.poProvider.searchPurchaseItems(
                 query: selectedItemName,
                 skip: 0,
                 limit: 10,
                 append: false,
               );
 
-              final foundItem = widget.poProvider.purchaseItems.firstWhere(
+              final foundItem = results.firstWhere(
                 (item) =>
-                    item.itemName?.toLowerCase() ==
-                    selectedItemName.toLowerCase(),
-                orElse: () => PurchaseItem(
-                  itemName: selectedItemName,
-                  itemCode: '',
-                  purchasePrice: 0,
-                  purchasetaxName: 0,
-                  uom: '',
-                  purchaseItemId: '',
-                  purchasecategoryName: '',
-                  purchasesubcategoryName: '',
-                  hsnCode: '',
-                  randomId: '',
-                ),
+                    item.itemName?.trim().toLowerCase() ==
+                    selectedItemName.trim().toLowerCase(),
+                orElse: () =>
+                    throw Exception("Item not found: $selectedItemName"),
               );
 
-              if (foundItem.itemName?.isNotEmpty ?? false) {
-                _itemCache[selectedItemName] = foundItem;
+              print("✅ ITEM FOUND FROM API");
+              print("✅ ITEM CODE = ${foundItem.itemCode}");
 
-                if (!_allPurchaseItems.any(
-                  (item) => item.itemName == foundItem.itemName,
-                )) {
-                  _allPurchaseItems.add(foundItem);
-                }
+              _itemCache[selectedItemName] = foundItem;
 
-                widget.notifier.updateItemDetailsFromCache(foundItem);
+              if (!_allPurchaseItems.any(
+                (item) =>
+                    item.itemName?.trim().toLowerCase() ==
+                    foundItem.itemName?.trim().toLowerCase(),
+              )) {
+                _allPurchaseItems.add(foundItem);
               }
+
+              widget.notifier.updateItemDetailsFromCache(foundItem);
+              _updateItemDetailsDirectly(foundItem);
             } catch (e) {
-              debugPrint("Error fetching item details: $e");
+              debugPrint("❌ Error fetching item details: $e");
             }
           }
 
@@ -406,6 +446,7 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   }
 
   void _updateItemDetailsDirectly(PurchaseItem item) {
+    print("📍 SELECTED ITEM LOCATION ID: ${item.locationId}");
     widget.notifier.safeControllerAction(() {
       widget.notifier.existingPriceController.text = item.purchasePrice
           .toStringAsFixed(2);
@@ -501,10 +542,13 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   void dispose() {
     _isDisposed = true;
     _debounceTimer?.cancel();
+    _searchDebounce?.cancel();
+
     _displayedItemsNotifier.dispose();
     _isLoadingNotifier.dispose();
     _isLoadingMoreNotifier.dispose();
     _queryNotifier.dispose();
+
     super.dispose();
   }
 }

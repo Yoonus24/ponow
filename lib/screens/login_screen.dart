@@ -1,6 +1,5 @@
 // ignore_for_file: sized_box_for_whitespace, deprecated_member_use, avoid_print, use_build_context_synchronously
 
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -69,7 +68,7 @@ class _LoginPageState extends State<LoginPage>
     final prefs = await SharedPreferences.getInstance();
     final uuid = const Uuid();
 
-    /// ✅ Get or create browser_session_id
+    /// Get or create browser_session_id
     String? browserSessionId = prefs.getString('browser_session_id');
 
     if (browserSessionId == null) {
@@ -78,46 +77,18 @@ class _LoginPageState extends State<LoginPage>
     }
 
     try {
-      /// 🔥 LOGIN API CALL
+      /// LOGIN API CALL
       final result = await AuthService.login(
         username: username,
         password: password,
         browserSessionId: browserSessionId,
       );
-
-      print("🔥 LOGIN RESULT FULL:");
-      print(result);
-
-      print("🔥 ROLE:");
-      print(result?['role_name']);
-
-      print("🔥 PERMISSIONS:");
-      print(result?['permissions']);
-
       _isLoading.value = false;
 
       if (result != null) {
-        /// ✅ Start session
+        // Start session
         SessionService.start();
-
-        /// ✅ Save role
-        await prefs.setString('role', result['role_name'] ?? '');
-
-        /// ✅ Save permissions
-        await prefs.setString(
-          'permissions',
-          jsonEncode(result['permissions'] ?? {}),
-        );
-
-        print("💾 SAVED PERMISSIONS:");
-        print(jsonEncode(result['permissions']));
-
-        /// ✅ Verify from storage
-        final savedPermissions = prefs.getString('permissions');
-        print("📦 FROM STORAGE:");
-        print(savedPermissions);
-
-        /// 🔥 IMPORTANT: Load into Provider (if using)
+        // Load into Provider
         try {
           final permissionProvider = Provider.of<PermissionProvider>(
             context,
@@ -126,16 +97,15 @@ class _LoginPageState extends State<LoginPage>
 
           await permissionProvider.loadPermissions();
 
-          print("🧠 PROVIDER PERMISSIONS:");
           print(permissionProvider.permissions);
         } catch (e) {
           print("⚠️ Provider not loaded: $e");
         }
 
-        // ✅ Save credentials to autofill context after successful login
+        // Autofill complete
         TextInput.finishAutofillContext();
 
-        /// ✅ Navigate
+        // Navigate
         Navigator.pushReplacementNamed(
           context,
           '/home',

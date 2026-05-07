@@ -11,8 +11,14 @@ class PermissionProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final data = prefs.getString('permissions');
 
-    if (data != null) {
-      _permissions = jsonDecode(data);
+    if (data != null && data.isNotEmpty) {
+      try {
+        _permissions = jsonDecode(data);
+      } catch (e) {
+        _permissions = {}; // Prevent crash if corrupted
+      }
+    } else {
+      _permissions = {}; // Reset if null
     }
 
     notifyListeners();
@@ -42,8 +48,12 @@ class PermissionProvider extends ChangeNotifier {
     }
   }
 
-  void clear() {
+  Future<void> clear() async {
     _permissions = {};
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('permissions'); // Clear storage also
+
     notifyListeners();
   }
 }

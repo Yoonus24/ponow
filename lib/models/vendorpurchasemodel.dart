@@ -1,18 +1,24 @@
 class Vendor {
   final String vendorName;
   final String vendorId;
+  final String? randomId;
 
-  Vendor({required this.vendorName, required this.vendorId});
+  Vendor({required this.vendorName, required this.vendorId, this.randomId});
 
   factory Vendor.fromJson(Map<String, dynamic> json) {
     return Vendor(
       vendorName: json['vendorName'] ?? '',
       vendorId: json['vendorId'] ?? '',
+      randomId: json['randomId']?.toString() ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'vendorName': vendorName, 'vendorId': vendorId};
+    return {
+      'vendorName': vendorName,
+      'vendorId': vendorId,
+      'randomId': randomId ?? '',
+    };
   }
 }
 
@@ -29,6 +35,7 @@ class VendorAll {
   final String gstNumber;
   final int creditLimit;
   final String vendorId;
+  final String? randomId;
 
   VendorAll({
     required this.vendorName,
@@ -43,6 +50,7 @@ class VendorAll {
     required this.postalCode,
     required this.gstNumber,
     required this.creditLimit,
+    this.randomId,
   });
 
   factory VendorAll.fromJson(Map<String, dynamic> json) {
@@ -59,6 +67,7 @@ class VendorAll {
       postalCode: int.tryParse(json['postalCode']?.toString() ?? '0') ?? 0,
       creditLimit: int.tryParse(json['creditLimit']?.toString() ?? '0') ?? 0,
       gstNumber: json['gstNumber'] ?? '',
+      randomId: json['randomId']?.toString() ?? '',
     );
   }
 
@@ -76,11 +85,16 @@ class VendorAll {
       'postalCode': postalCode,
       'gstNumber': gstNumber,
       'creditLimit': creditLimit,
+      'randomId': randomId ?? '',
     };
   }
 
   Vendor toVendor() {
-    return Vendor(vendorName: vendorName, vendorId: vendorId);
+    return Vendor(
+      vendorName: vendorName,
+      vendorId: vendorId,
+      randomId: randomId ?? '',
+    );
   }
 }
 
@@ -118,6 +132,7 @@ class PurchaseItem {
   final String purchaseItemId;
   final String uom;
   final String randomId;
+  final String locationId;
 
   PurchaseItem({
     required this.itemName,
@@ -130,6 +145,7 @@ class PurchaseItem {
     required this.purchasesubcategoryName,
     required this.hsnCode,
     required this.randomId,
+    required this.locationId,
   });
 
   factory PurchaseItem.fromJson(Map<String, dynamic> json) {
@@ -144,6 +160,10 @@ class PurchaseItem {
       purchasesubcategoryName: json['purchasesubcategoryName'] ?? '',
       hsnCode: json['hsnCode'] ?? '',
       randomId: json['randomId'] ?? '',
+      locationId:
+          json['locationId']?.toString() ??
+          json['location_id']?.toString() ??
+          '',
     );
   }
 }

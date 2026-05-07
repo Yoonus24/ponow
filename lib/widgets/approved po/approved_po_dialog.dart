@@ -49,21 +49,21 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Future<void> _showConvertToGRNConfirmation() async {
-    print("🟢 _showConvertToGRNConfirmation START");
+    print("_showConvertToGRNConfirmation START");
 
     if (!mounted) {
-      print("⚠️ Widget not mounted. Aborting dialog.");
+      print("Widget not mounted. Aborting dialog.");
       return;
     }
 
-    print("📢 Showing confirmation dialog...");
+    print("Showing confirmation dialog...");
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) {
-        print("🪟 Dialog builder executed");
+        print("Dialog builder executed");
 
         return AlertDialog(
           backgroundColor: Colors.white,
@@ -87,7 +87,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           actions: [
             TextButton(
               onPressed: () {
-                print("❌ User pressed CANCEL");
+                print("User pressed CANCEL");
                 Navigator.of(ctx).pop(false);
               },
               style: TextButton.styleFrom(
@@ -129,25 +129,22 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       },
     );
 
-    print("📥 Dialog result: $confirmed");
+    print("Dialog result: $confirmed");
 
     if (!mounted) {
-      print("⚠️ Widget unmounted after dialog");
+      print("Widget unmounted after dialog");
       return;
     }
 
     if (confirmed == true && mounted) {
-      print("🚀 User confirmed. Starting PO → GRN conversion");
+      print("User confirmed. Starting PO → GRN conversion");
 
-      Future.microtask(() {
-        print("⚙️ Calling convertPoToGRN()");
-        _logic.convertPoToGRN(context);
-      });
+      await _logic.convertPoToGRN(context);
     } else {
-      print("⛔ Conversion cancelled by user");
+      print("Conversion cancelled by user");
     }
 
-    print("🏁 _showConvertToGRNConfirmation END");
+    print("_showConvertToGRNConfirmation END");
   }
 
   void _openFreightDialog() {
@@ -182,11 +179,11 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               _logic.po.freights = updatedFreights;
               _logic.po.totalFreightAmount = totalAmount;
               _logic.po.totalFreightTaxAmount = totalTax;
+
               _logic.recalculateFinalAmountAfterDiscount();
               _logic.refreshUI();
 
-              // ❌ REMOVE THIS BLOCK
-              // Navigator.pop(dialogContext);
+              await _logic.poProvider.fetchApprovedPOsOnly();
             } catch (e) {
               debugPrint("Freight update error: $e");
             }
@@ -806,7 +803,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                               onChanged: (val) {
                                 _logic.isBefTaxDiscount.value = !val;
                               },
-                              activeColor: Colors.blueAccent,
+                              activeThumbColor: Colors.blueAccent,
                               activeTrackColor: Colors.blueAccent.withOpacity(
                                 0.4,
                               ),
@@ -953,7 +950,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  error!,
+                  error,
                   style: const TextStyle(color: Colors.red, fontSize: 10),
                 ),
               ),

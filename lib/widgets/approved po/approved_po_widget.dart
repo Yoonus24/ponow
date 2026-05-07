@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
 import 'package:purchaseorders2/models/po.dart';
-import 'package:purchaseorders2/pdfs/approved_pdf.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_dialog.dart';
 import 'package:intl/intl.dart';

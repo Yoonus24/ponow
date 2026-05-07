@@ -28,7 +28,9 @@ class ApInvoice {
   final int? postalCode;
   final String? gstNumber;
   final String randomId;
-  final String? status;
+  String? status;
+  String? verifiedBy;
+  String? verifiedDate;
   final String? poDate;
   final String? apReturnedDate;
   final String? apPerson;
@@ -71,6 +73,8 @@ class ApInvoice {
     this.gstNumber,
     required this.randomId,
     this.status,
+    this.verifiedBy,
+    this.verifiedDate,
     this.poDate,
     this.apReturnedDate,
     this.apPerson,
@@ -117,6 +121,8 @@ class ApInvoice {
       gstNumber: json['gstNumber'] as String?,
       randomId: json['randomId'] as String,
       status: json['status'] as String?,
+      verifiedBy: json['verifiedBy'] as String?,
+      verifiedDate: json['verifiedDate'] as String?,
       poDate: json['poDate'] as String?,
       apReturnedDate: json['apReturnedDate'] as String?,
       apPerson: json['apPerson'] as String?,
@@ -166,6 +172,8 @@ class ApInvoice {
       'gstNumber': gstNumber,
       'randomId': randomId,
       'status': status,
+      'verifiedBy': verifiedBy,
+      'verifiedDate': verifiedDate,
       'poDate': poDate,
       'apReturnedDate': apReturnedDate,
       'apPerson': apPerson,

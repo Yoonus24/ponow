@@ -77,7 +77,7 @@ class ApprovedPOTable extends StatelessWidget {
                         width: totalColumnsWidth,
                         child: Column(
                           children: [
-                            Container(
+                            SizedBox(
                               height: 32,
                               child: Row(
                                 children: logic.sharedColumns.value
@@ -86,10 +86,12 @@ class ApprovedPOTable extends StatelessWidget {
                                       final isVisible =
                                           visibility[column] ?? true;
                                       if (!isVisible) return false;
-                                      if (isOrdered && column == 'Received')
+                                      if (isOrdered && column == 'Received') {
                                         return false;
-                                      if (!isOrdered && column == 'Total')
+                                      }
+                                      if (!isOrdered && column == 'Total') {
                                         return false;
+                                      }
                                       return true;
                                     })
                                     .map((column) {
@@ -118,17 +120,20 @@ class ApprovedPOTable extends StatelessWidget {
                                       child: Row(
                                         children: logic.sharedColumns.value
                                             .where((column) {
-                                              if (column == 'Item')
+                                              if (column == 'Item') {
                                                 return false;
+                                              }
                                               final isVisible =
                                                   visibility[column] ?? true;
                                               if (!isVisible) return false;
                                               if (isOrdered &&
-                                                  column == 'Received')
+                                                  column == 'Received') {
                                                 return false;
+                                              }
                                               if (!isOrdered &&
-                                                  column == 'Total')
+                                                  column == 'Total') {
                                                 return false;
+                                              }
                                               return true;
                                             })
                                             .map((column) {
@@ -645,12 +650,11 @@ class ApprovedPOTable extends StatelessWidget {
                             onPrimary: Colors.white,
                             onSurface: Colors.black,
                           ),
-                          dialogBackgroundColor: Colors.white,
                           textButtonTheme: TextButtonThemeData(
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.blueAccent,
                             ),
-                          ),
+                          ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
                         ),
                         child: child!,
                       );

@@ -1,4 +1,4 @@
-enum DiscountMode { percentage, fixedAmount, none }
+enum DiscountMode { percentage, amount, none }
 
 class PurchaseOrderDiscount {
   final DiscountMode mode;
@@ -10,30 +10,43 @@ class PurchaseOrderDiscount {
     switch (mode) {
       case DiscountMode.percentage:
         return subtotal * (value / 100);
-      case DiscountMode.fixedAmount:
+      case DiscountMode.amount:
         return value;
       case DiscountMode.none:
         return 0.0;
     }
   }
 
-  Map<String, dynamic> toJson() {
-    return {'mode': mode.toString().split('.').last, 'value': value};
+  ///IMPORTANT
+  String get backendMode {
+    switch (mode) {
+      case DiscountMode.percentage:
+        return "percentage";
+      case DiscountMode.amount:
+        return "amount";
+      case DiscountMode.none:
+        return "percentage";
+    }
+  }
+
+  ///USE THIS ONLY FOR API
+  Map<String, dynamic> toBackendJson() {
+    return {"discountMode": backendMode, "overallDiscountValue": value};
   }
 
   factory PurchaseOrderDiscount.fromJson(Map<String, dynamic> json) {
     return PurchaseOrderDiscount(
-      mode: _parseDiscountMode(json['mode']),
-      value: (json['value'] ?? 0).toDouble(),
+      mode: _parseDiscountMode(json['discountMode']),
+      value: (json['overallDiscountValue'] ?? 0).toDouble(),
     );
   }
 
-  static DiscountMode _parseDiscountMode(String mode) {
+  static DiscountMode _parseDiscountMode(String? mode) {
     switch (mode) {
       case 'percentage':
         return DiscountMode.percentage;
-      case 'fixedAmount':
-        return DiscountMode.fixedAmount;
+      case 'amount':
+        return DiscountMode.amount;
       default:
         return DiscountMode.none;
     }

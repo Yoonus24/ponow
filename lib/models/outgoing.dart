@@ -453,9 +453,9 @@ class Outgoing {
       remainingPayableAmount:
           remainingPayableAmount ?? this.remainingPayableAmount,
       paymentHistory: paymentHistory ?? this.paymentHistory,
-      totalFreightAmount: totalFreightAmount ?? this.totalFreightAmount,
+      totalFreightAmount: totalFreightAmount ?? totalFreightAmount,
       totalFreightTaxAmount:
-          totalFreightTaxAmount ?? this.totalFreightTaxAmount,
+          totalFreightTaxAmount ?? totalFreightTaxAmount,
     );
   }
 }

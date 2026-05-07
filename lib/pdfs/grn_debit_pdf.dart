@@ -369,15 +369,31 @@ class GRNDebitPdf {
 
   Future<void> generateAndOpenDebit(BuildContext context, String grnId) async {
     try {
-      print("📄 Generating Debit PDF...");
+      debugPrint("📄 Generating Debit PDF...");
 
       final file = await generateGrnPdf(grnId);
 
-      print("✅ PDF generated: ${file.path}");
+      if (!context.mounted) return;
 
-      await OpenFilex.open(file.path);
+      debugPrint("✅ PDF generated: ${file.path}");
+
+      final result = await OpenFilex.open(file.path);
+
+      if (!context.mounted) return;
+
+      debugPrint("📂 Open result: ${result.message}");
+
+      if (result.type != ResultType.done) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to open Debit PDF: ${result.message}"),
+          ),
+        );
+      }
     } catch (e) {
-      print("❌ Debit PDF Error: $e");
+      if (!context.mounted) return;
+
+      debugPrint("❌ Debit PDF Error: $e");
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

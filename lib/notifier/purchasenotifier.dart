@@ -1,11 +1,10 @@
-// ignore_for_file: empty_catches, avoid_print, unnecessary_getters_setters
+// ignore_for_file: unused_local_variable, empty_catches, avoid_print, unnecessary_getters_setters
 
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/freight.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
-import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import '../models/po.dart';
 import '../models/po_item.dart';
@@ -50,7 +49,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     overallDiscountController.text = rawValue.toStringAsFixed(2);
 
     for (final item in poItems) {
-      if (item == null) continue;
       item.afTaxDiscount = rawValue;
       item.afTaxDiscountType = discountMode.value == DiscountMode.percentage
           ? "percentage"
@@ -134,17 +132,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   late TextEditingController termsAndConditionsController =
       TextEditingController();
 
-  String? selectedVendor;
+  String selectedVendor = '';
   VendorAll? selectedVendorDetails;
   late bool isHoldOrder;
-  String? selectedPaymentTerm;
-  String? selectedShippingaddress;
-  String? selectedBillingaddress;
+  String selectedPaymentTerm = '';
+  String selectedShippingaddress = '';
+  String selectedBillingaddress = '';
   double totalOrderAmount = 0.0;
   bool _vendorsLoaded = false;
   bool _vendorsLoading = false;
-  String? selectedLocation;
-  String? selectedLocationName;
+  String selectedLocation = '';
+  String selectedLocationName = '';
 
   List<Item> poItems = [];
   List<PurchaseItem> purchaseItems = [];
@@ -184,11 +182,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     if (po != null) {
       poItems = List<Item>.from(po.items);
-      // for (var item in poItems) {
-      //   item.randomId ??=
-      //       "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
-      // }
-
       freights = List<FreightData>.from(po.freights ?? []);
       totalFreightAmount = po.totalFreightAmount ?? 0.0;
       totalFreightTaxAmount = po.totalFreightTaxAmount ?? 0.0;
@@ -215,7 +208,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
         _overallDiscountValue = totalDiscount;
 
-        discountMode.value = DiscountMode.fixedAmount;
+        discountMode.value = DiscountMode.amount;
 
         overallDiscountController.text = _overallDiscountValue.toStringAsFixed(
           2,
@@ -278,7 +271,9 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     try {
       action();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("Error in safeControllerAction: ${e.toString()}");
+    }
   }
 
   Future<void> addFreight(FreightData freight) async {
@@ -313,10 +308,10 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void clearSelectedVendor() {
     safeControllerAction(() {
-      selectedVendor = null;
+      selectedVendor = '';
       selectedVendorDetails = null;
-      selectedLocation = null;
-      selectedLocationName = null;
+      selectedLocation = '';
+      selectedLocationName = '';
       vendorContactController.value = TextEditingValue.empty;
       paymentTermsController.value = TextEditingValue.empty;
       creditLimitController.value = TextEditingValue.empty;
@@ -345,14 +340,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void setLocation({required String location, String? locationName}) {
     if (_disposed) return;
     selectedLocation = location;
-    selectedLocationName = locationName;
+    selectedLocationName = locationName ?? '';
     safeNotify();
   }
 
   void clearLocation() {
     if (_disposed) return;
-    selectedLocation = null;
-    selectedLocationName = null;
+    selectedLocation = '';
+    selectedLocationName = '';
     safeNotify();
   }
 
@@ -365,7 +360,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
   void setSelectedVendors(String? vendorName) {
     if (_disposed) return;
-    selectedVendor = vendorName;
+    selectedVendor = vendorName ?? '';
     if (vendorName != null) {
       selectedVendorDetails = vendorAllList.firstWhere(
         (vendor) => vendor.vendorName == vendorName,
@@ -382,6 +377,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           postalCode: 0,
           gstNumber: '',
           creditLimit: 0,
+          randomId: '',
         ),
       );
     } else {
@@ -443,17 +439,22 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       countryController,
       postalCodeController,
       gstNumberController,
+      termsAndConditionsController,
     ];
 
     for (final c in controllers) {
       try {
         c.dispose();
-      } catch (e) {}
+      } catch (e) {
+        debugPrint("Error disposing controller: ${e.toString()}");
+      }
     }
 
     try {
       discountMode.dispose();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("Error disposing discountMode: ${e.toString()}");
+    }
     super.dispose();
   }
 
@@ -509,7 +510,9 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           .toList();
 
       safeNotify();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("Error fetching items: ${e.toString()}");
+    }
   }
 
   Future<void> preloadItems({bool forceRefresh = false}) async {
@@ -526,7 +529,9 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           .toList();
 
       safeNotify();
-    } catch (e) {}
+    } catch (e) {
+      debugPrint("Error preloading items: ${e.toString()}");
+    }
   }
 
   Future<void> fetchBranches1() async {
@@ -648,76 +653,57 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void setSelectedPaymentTerm(String? term) {
     if (_disposed) return;
 
-    selectedPaymentTerm = term;
+    selectedPaymentTerm = term ?? '';
     safeNotify();
   }
 
   void setSelectedItem(String itemName) {
     if (_disposed) return;
 
-    PurchaseItem foundItem = PurchaseItem(
-      itemName: itemName,
-      itemCode: '',
-      purchasePrice: 0,
-      purchasetaxName: 0,
-      uom: '',
-      purchaseItemId: '',
-      purchasecategoryName: '',
-      purchasesubcategoryName: '',
-      hsnCode: '',
-      randomId: selectedPurchaseItem?.randomId ?? '',
-    );
-
     try {
-      final existingItem = purchaseItems.firstWhere(
-        (item) => item.itemName == itemName,
+      final normalizedName = itemName.trim().toLowerCase();
+
+      final foundItem = purchaseItems.firstWhere(
+        (item) => item.itemName.trim().toLowerCase() == normalizedName,
       );
 
-      foundItem = existingItem;
-    } catch (e) {
-      purchaseItems.add(foundItem);
-    }
-    selectedPurchaseItem = foundItem;
+      selectedPurchaseItem = foundItem;
+      _selectedItem = foundItem;
 
-    _selectedItem = foundItem;
+      safeControllerAction(() {
+        itemController.text = foundItem.itemName;
+        uomController.text = foundItem.uom.toString();
 
-    safeControllerAction(() {
-      itemController.text = itemName;
-      uomController.text = foundItem.uom.toString();
-
-      if (foundItem.purchasePrice > 0) {
         existingPriceController.text = foundItem.purchasePrice.toStringAsFixed(
           2,
         );
-        newPriceController.text = foundItem.purchasePrice.toStringAsFixed(2);
-      }
 
-      if (foundItem.purchasetaxName >= 0) {
+        newPriceController.text = foundItem.purchasePrice.toStringAsFixed(2);
+
         taxPercentageController.text = foundItem.purchasetaxName
             .toStringAsFixed(2);
-      }
 
-      befTaxDiscountController.text = '0';
-      afTaxDiscountController.text = '0';
-    });
+        befTaxDiscountController.text = '0';
+        afTaxDiscountController.text = '0';
+      });
 
-    debugPrint("=========== SELECTED ITEM DEBUG ===========");
-    debugPrint("Item Name: ${foundItem.itemName}");
-    debugPrint("Item Code: ${foundItem.itemCode}");
-    debugPrint("Purchase Item ID: ${foundItem.purchaseItemId}");
-    debugPrint("Random ID: ${foundItem.randomId}");
-    debugPrint("Purchase Price: ${foundItem.purchasePrice}");
-    debugPrint("Tax %: ${foundItem.purchasetaxName}");
-    debugPrint("UOM: ${foundItem.uom}");
-    debugPrint("===========================================");
+      debugPrint("=========== SELECTED ITEM DEBUG ===========");
+      debugPrint("Item Name: ${foundItem.itemName}");
+      debugPrint("Item Code: ${foundItem.itemCode}");
+      debugPrint("Purchase Item ID: ${foundItem.purchaseItemId}");
+      debugPrint("Random ID: ${foundItem.randomId}");
+      debugPrint("===========================================");
 
-    safeNotify();
+      safeNotify();
+    } catch (e) {
+      debugPrint("❌ ITEM NOT FOUND: $itemName");
+    }
   }
 
   void setSelectedVendor(String? vendorName) {
     if (_disposed) return;
 
-    selectedVendor = vendorName;
+    selectedVendor = vendorName ?? '';
 
     if (vendorName != null && vendorName.isNotEmpty) {
       try {
@@ -726,7 +712,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
         );
 
         selectedVendorDetails = vendor;
-        selectedVendorId = vendor.vendorId; 
+        selectedVendorId = vendor.vendorId;
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!_disposed) {
@@ -750,14 +736,14 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void setSelectedshippingaddress(String? shippingId) {
     if (_disposed) return;
 
-    selectedShippingaddress = shippingId;
+    selectedShippingaddress = shippingId ?? '';
     safeNotify();
   }
 
   void setSelectedbillingaddress(String? businessId) {
     if (_disposed) return;
 
-    selectedBillingaddress = businessId;
+    selectedBillingaddress = businessId ?? '';
     safeNotify();
   }
 
@@ -893,15 +879,15 @@ class PurchaseOrderNotifier extends ChangeNotifier {
 
     countController.text = '1';
 
-    selectedVendor = null;
+    selectedVendor = '';
     selectedVendorDetails = null;
 
-    selectedLocation = null;
-    selectedLocationName = null;
+    selectedLocation = '';
+    selectedLocationName = '';
 
-    selectedPaymentTerm = null;
-    selectedShippingaddress = null;
-    selectedBillingaddress = null;
+    selectedPaymentTerm = '';
+    selectedShippingaddress = '';
+    selectedBillingaddress = '';
 
     poItems.clear();
     purchaseItems.clear();
@@ -979,40 +965,39 @@ class PurchaseOrderNotifier extends ChangeNotifier {
     }
   }
 
-  Future<bool> submitPurchaseOrder(BuildContext context) async {
+  Future<bool> submitPurchaseOrder() async {
     if (_disposed) return false;
 
     try {
-      if (selectedLocation == null || selectedLocation!.isEmpty) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select location')),
-          );
-        }
+      // LOCATION VALIDATION
+      if (selectedLocation.isEmpty) {
         return false;
       }
 
       final vendorDetails = selectedVendorDetails;
+
+      // VENDOR VALIDATION
       if (vendorDetails == null) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Please select a vendor')),
-          );
-        }
         return false;
       }
 
-      //  SNAPSHOT (LIST FIX)
       final Map<String, dynamic> snapshot = {
         "vendorContact": _getControllerTextSafely(vendorContactController),
+
         "paymentTerms": _getControllerTextSafely(paymentTermsController),
+
         "billing": _getControllerTextSafely(billingController),
+
         "shipping": _getControllerTextSafely(shippingController),
+
         "orderedDate": _getControllerTextSafely(orderedDateController),
+
         "expectedDate": _getControllerTextSafely(
           expectedDeliveryDateController,
         ),
+
         "roundOff": _getControllerTextSafely(roundOffController),
+
         "overallDiscount": _getControllerTextSafely(overallDiscountController),
 
         "termsandConditions": [
@@ -1021,17 +1006,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       };
 
       await recalculateTotalsFromBackend();
-      await Future.delayed(const Duration(milliseconds: 50));
-
-      final poProvider = Provider.of<POProvider>(context, listen: false);
 
       String formatDate(String? s) {
         if (s == null || s.isEmpty) return '';
+
         try {
           final parts = s.split('-');
+
           if (parts.length == 3 && parts[0].length == 2) {
             return '${parts[2]}-${parts[1]}-${parts[0]}';
           }
+
           return s;
         } catch (_) {
           return s;
@@ -1039,12 +1024,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       }
 
       final formattedOrderDate = formatDate(snapshot["orderedDate"]);
-      final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
 
-      // for (var item in poItems) {
-      // item.randomId ??=
-      //     "${DateTime.now().millisecondsSinceEpoch}_${UniqueKey().hashCode}";
-      // }
+      final formattedExpectedDate = formatDate(snapshot["expectedDate"]);
 
       final List<Item> finalItems = poItems.map((e) => e.copyWith()).toList();
 
@@ -1062,7 +1043,6 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           vendorName: selectedVendor,
           vendorContact: snapshot["vendorContact"],
 
-          //  LIST FIX
           termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
               .map((e) => e.toString())
               .toList(),
@@ -1091,53 +1071,73 @@ class PurchaseOrderNotifier extends ChangeNotifier {
           gstNumber: vendorDetails.gstNumber,
           creditLimit: vendorDetails.creditLimit,
           roundOffAdjustment: roundOffValue,
+
           overallDiscount: hasOverallDiscount
               ? PurchaseOrderDiscount(
                   value: overallDiscountValue,
                   mode: discountMode.value,
                 )
               : null,
+
           poStatus: calculatedFinalAmount > vendorDetails.creditLimit
               ? 'CreditLimit for Approve'
               : 'Pending',
         );
 
         await poProvider.updatePO(updatedPO);
+
         return true;
       }
 
       // ================= CREATE CASE =================
       final newPO = PO(
         purchaseOrderId: '',
-        vendorName: selectedVendor ?? '',
+        vendorName: selectedVendor,
         vendorId: selectedVendorId,
         location: selectedLocation,
         locationName: selectedLocationName,
         vendorContact: snapshot["vendorContact"],
+
         items: finalItems,
+
         totalOrderAmount: calculatedFinalAmount,
+
         pendingOrderAmount: calculatedFinalAmount,
+
         pendingDiscountAmount: overallDiscountAmount + itemWiseDiscount,
+
         pendingTaxAmount: pendingTaxAmount,
+
         paymentTerms: snapshot["paymentTerms"] ?? '',
+
         billingAddress: snapshot["billing"] ?? '',
+
         shippingAddress: snapshot["shipping"] ?? '',
+
         contactpersonEmail: vendorDetails.contactpersonEmail,
+
         address: vendorDetails.address,
         country: vendorDetails.country,
         state: vendorDetails.state,
         city: vendorDetails.city,
         postalCode: vendorDetails.postalCode,
+
         gstNumber: vendorDetails.gstNumber,
+
         creditLimit: vendorDetails.creditLimit,
+
         orderDate: formattedOrderDate,
+
         expectedDeliveryDate: formattedExpectedDate,
+
         roundOffAdjustment: roundOffValue,
+
         freights: freights,
+
         totalFreightAmount: totalFreightAmount,
+
         totalFreightTaxAmount: totalFreightTaxAmount,
 
-        //  LIST FIX
         termsandConditions: (snapshot["termsandConditions"] as List<dynamic>)
             .map((e) => e.toString())
             .toList(),
@@ -1157,19 +1157,17 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       );
 
       await poProvider.postPO(newPO, vendorDetails);
+
       return true;
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save PO: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('Failed to save PO: ${e.toString()}');
+
       return false;
     }
   }
 
-  Future<void> applyOverallDiscount(POProvider poProvider) async {}
+  // Future<void> applyOverallDiscount(POProvider poProvider) async {}
 }
+
+// ---------------------------------------------------------------------------
+// export 'purchase_order_notifier.dart';

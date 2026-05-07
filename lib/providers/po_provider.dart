@@ -1,6 +1,7 @@
 // ignore_for_file: prefer_final_fields, unnecessary_non_null_assertion, unnecessary_null_comparison, dead_null_aware_expression, avoid_print, use_build_context_synchronously
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -450,7 +451,7 @@ class POProvider extends ChangeNotifier {
   }
 
   Future<void> _actualVendorSearch(String query) async {
-    if (query.isEmpty || query.length < 1) {
+    if (query.isEmpty || query.isEmpty) {
       notifyListeners();
       return;
     }
@@ -502,6 +503,7 @@ class POProvider extends ChangeNotifier {
           return Vendor(
             vendorId: vendor['vendorId'] ?? '',
             vendorName: vendor['vendorName'] ?? '',
+            randomId: vendor['randomId'] ?? '',
           );
         }).toList();
 
@@ -570,9 +572,11 @@ class POProvider extends ChangeNotifier {
             postalCode: vendor['postalCode'] ?? 0,
             gstNumber: vendor['gstNumber'] ?? '',
             creditLimit: vendor['creditLimit'] ?? 0,
+
+            /// VERY IMPORTANT
+            randomId: vendor['randomId'] ?? '',
           );
         }).toList();
-
         // ✅ cache store
         if (vendorName.isEmpty && !append) {
           vendorCache = fetchedVendors;
@@ -745,7 +749,7 @@ class POProvider extends ChangeNotifier {
 
         final newItems = data
             .map((item) => PurchaseItem.fromJson(item))
-            .where((item) => item.itemName?.isNotEmpty ?? false)
+            .where((item) => item.itemName.isNotEmpty ?? false)
             .toList();
 
         final newItemNames = newItems
@@ -870,7 +874,7 @@ class POProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ✅ separate dio ONLY for branches
+      // separate dio ONLY for branches
       final Dio branchDio = Dio(
         BaseOptions(
           baseUrl: 'https://yenerp.com/masteradminapi',
@@ -1316,67 +1320,94 @@ class POProvider extends ChangeNotifier {
 
     try {
       final String now = ServerTimeService.now.toIso8601String();
+
       final formattedOrderedDate = _formatDateForBackend(po.orderedDate ?? "");
+
       final formattedExpectedDate = _formatDateForBackend(
         po.expectedDeliveryDate ?? "",
       );
 
       final updatedItems = _buildPostItems(po.items);
 
+      // 🔢 Freight
       final double totalFreightAmount = (po.freights ?? []).fold(
         0.0,
         (a, b) => a + (b.amount ?? 0),
       );
+
       final double totalFreightTaxAmount = (po.freights ?? []).fold(
         0.0,
         (a, b) => a + (b.taxAmount ?? 0),
       );
 
+      // 🔢 Totals from items (IMPORTANT SOURCE OF TRUTH)
       final double totalPendingAmount = po.items.fold(
         0.0,
         (s, i) => s + (i.pendingFinalPrice ?? 0),
       );
+
       final double totalPendingDiscount = po.items.fold(
         0.0,
         (s, i) => s + (i.pendingDiscountAmount ?? 0),
       );
+
       final double totalPendingTax = po.items.fold(
         0.0,
         (s, i) => s + (i.pendingTaxAmount ?? 0),
       );
 
       final double roundOffValue = po.roundOffAdjustment ?? 0.0;
+
       final double finalAmount =
           totalPendingAmount +
           totalFreightAmount +
           totalFreightTaxAmount +
           roundOffValue;
 
-      final bool isHoldOrder =
-          finalAmount > (selectedVendorDetails.creditLimit ?? 0);
+      final bool isHoldOrder = finalAmount > selectedVendorDetails.creditLimit;
 
+      // 🔁 Updated PO
       final updatedPO = po.copyWith(
+        vendorId: selectedVendorDetails.vendorId,
+        vendorName: selectedVendorDetails.vendorName,
+        vendorcode: selectedVendorDetails.randomId,
+
         orderDate: now,
         createdDate: now,
         lastUpdatedDate: now,
+
         approvedDate: null,
         rejectedDate: null,
         invoiceDate: null,
+
         orderedDate: formattedOrderedDate,
         expectedDeliveryDate: formattedExpectedDate,
+
         totalOrderAmount: finalAmount,
         pendingOrderAmount: finalAmount,
         pendingDiscountAmount: totalPendingDiscount,
         pendingTaxAmount: totalPendingTax,
+
         roundOffAdjustment: roundOffValue,
-        poStatus: isHoldOrder ? 'CreditLimit for Approve' : 'Pending',
+
+        poStatus: isHoldOrder
+            ? 'CreditLimit for Approve'
+            : 'Pending for Approve',
       );
 
       final Map<String, dynamic> poJson = updatedPO.toJson()
+        ..['vendorcode'] = selectedVendorDetails.randomId
+        ..['vendorId'] = selectedVendorDetails.vendorId
+        ..['vendorName'] = selectedVendorDetails.vendorName
         ..['freights'] = po.freights?.map((f) => f.toJson()).toList() ?? []
         ..['items'] = updatedItems
         ..['totalFreightAmount'] = totalFreightAmount
         ..['totalFreightTaxAmount'] = totalFreightTaxAmount
+        ..['discountMode'] = po.overallDiscount?.backendMode ?? "percentage"
+        ..['overallDiscountValue'] = totalPendingDiscount
+        ..['discountPrice'] = totalPendingDiscount
+        ..['totalDiscount'] = totalPendingDiscount
+        ..['totalTax'] = totalPendingTax
         ..removeWhere(
           (key, value) =>
               (key == "approvedDate" ||
@@ -1385,14 +1416,31 @@ class POProvider extends ChangeNotifier {
               (value == "" || value == null),
         );
 
+      debugPrint("🔥 FINAL POST API HIT");
+      debugPrint("🔥 DISCOUNT MODE = ${poJson["discountMode"]}");
+      debugPrint("🔥 DISCOUNT VALUE = ${poJson["overallDiscountValue"]}");
+      debugPrint("🔥 FINAL JSON = ${jsonEncode(poJson)}");
+
       final response = await _dio.post('/purchaseorders/', data: poJson);
+
+      debugPrint("✅ POST RESPONSE STATUS: ${response.statusCode}");
+      debugPrint("✅ POST RESPONSE DATA: ${response.data}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         notifyListeners();
       } else {
         throw Exception("Failed to post PO");
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint("❌ POST PO ERROR: $e");
+      debugPrint("❌ STACKTRACE: $stackTrace");
+
+      if (e is DioException) {
+        debugPrint("❌ STATUS CODE: ${e.response?.statusCode}");
+        debugPrint("❌ RESPONSE DATA: ${e.response?.data}");
+        debugPrint("❌ REQUEST DATA: ${e.requestOptions.data}");
+      }
+
       _setError(_handleError(e));
     } finally {
       _setLoadingState(false);
@@ -1510,17 +1558,38 @@ class POProvider extends ChangeNotifier {
       "taxType": "cgst_sgst",
     };
 
+    // DEBUG PRINT - REQUEST
+    print("========== OVERALL DISCOUNT API REQUEST ==========");
+    print("applyOverallDiscount: $applyOverallDiscount");
+    print("overallDiscountType: $overallDiscountType");
+    print("overallDiscount: $overallDiscount");
+    print("overallDiscountAmount: $overallDiscountAmount");
+    print("Payload: $payload");
+    print("==================================================");
+
     try {
       final response = await _dio.post(
         '/purchaseorders/items/calculate-overall-discount',
         data: payload,
       );
+
+      // DEBUG PRINT - RESPONSE
+      print("========== OVERALL DISCOUNT API RESPONSE ==========");
+      print("Status Code: ${response.statusCode}");
+      print("Response Data: ${response.data}");
+      print("===================================================");
+
       if (response.statusCode == 200) {
         return response.data;
       } else {
         throw Exception("HTTP ${response.statusCode}");
       }
     } catch (e) {
+      // DEBUG PRINT - ERROR
+      print("========== OVERALL DISCOUNT API ERROR ==========");
+      print("Error: $e");
+      print("===============================================");
+
       rethrow;
     }
   }
@@ -1641,47 +1710,6 @@ class POProvider extends ChangeNotifier {
       searchQuery: _searchQuery,
       filterByField: _filterBy,
       includeInactive: _includeInactive,
-      clearExisting: true,
-    );
-  }
-
-  Future<void> fetchTodayPOs() async {
-    final now = ServerTimeService.now;
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
-
-    await fetchPOsWithFilters(
-      fromDate: todayStart,
-      toDate: todayEnd,
-      filterByField: 'orderDate',
-      clearExisting: true,
-    );
-  }
-
-  Future<void> fetchThisWeekPOs() async {
-    final now = ServerTimeService.now;
-    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-    final endOfWeek = startOfWeek.add(
-      const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
-    );
-
-    await fetchPOsWithFilters(
-      fromDate: startOfWeek,
-      toDate: endOfWeek,
-      filterByField: 'orderDate',
-      clearExisting: true,
-    );
-  }
-
-  Future<void> fetchThisMonthPOs() async {
-    final now = ServerTimeService.now;
-    final startOfMonth = DateTime(now.year, now.month, 1);
-    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
-
-    await fetchPOsWithFilters(
-      fromDate: startOfMonth,
-      toDate: endOfMonth,
-      filterByField: 'orderDate',
       clearExisting: true,
     );
   }

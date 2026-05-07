@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/pdfs/grn_debit_pdf.dart';
-import 'package:printing/printing.dart';
 
 class DebitNoteViewDialog extends StatefulWidget {
   final DebitCreditNote grn;

@@ -1,8 +1,6 @@
 // ignore_for_file: use_build_context_synchronously, avoid_print
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/auth_service.dart';
 import 'package:purchaseorders2/services/session_service.dart';
 

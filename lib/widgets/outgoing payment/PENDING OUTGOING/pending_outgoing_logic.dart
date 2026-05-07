@@ -18,27 +18,37 @@ class PendingOutgoingLogic {
   final ScrollController verticalScrollController = ScrollController();
   final ScrollController horizontalScrollController = ScrollController();
   final ScrollController mainScrollController = ScrollController();
-  
+
   // Text Controllers
   final TextEditingController vendorController = TextEditingController();
   final TextEditingController invoiceSearchController = TextEditingController();
-  
+
   // Value Notifiers
-  final ValueNotifier<List<bool>> selectedRowsNotifier = ValueNotifier<List<bool>>([]);
-  final ValueNotifier<Set<int>> selectedIndicesNotifier = ValueNotifier<Set<int>>({});
-  final ValueNotifier<String?> selectedVendorNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String?> selectedInvoiceNotifier = ValueNotifier<String?>(null);
-  final ValueNotifier<String> sortColumnNotifier = ValueNotifier<String>('dueDays');
-  final ValueNotifier<bool> sortAscendingNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<List<bool>> selectedRowsNotifier =
+      ValueNotifier<List<bool>>([]);
+  final ValueNotifier<Set<int>> selectedIndicesNotifier =
+      ValueNotifier<Set<int>>({});
+  final ValueNotifier<String?> selectedVendorNotifier = ValueNotifier<String?>(
+    null,
+  );
+  final ValueNotifier<String?> selectedInvoiceNotifier = ValueNotifier<String?>(
+    null,
+  );
+  final ValueNotifier<String> sortColumnNotifier = ValueNotifier<String>(
+    'invoiceDate',
+  );
+
+  final ValueNotifier<bool> sortAscendingNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<bool> refreshDataNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<bool> isLoadingMoreNotifier = ValueNotifier(false);
-  
+
   // State
   final Map<int, bool> loadingPdfMap = {};
   OverlayEntry? overlayEntry;
   int? currentTooltipIndex;
-  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+  OverlayEntry? paymentTooltip;
   // Calculate Due Days
   int calculateDueDays(Outgoing outgoing) {
     if (outgoing.invoiceDate == null) return 0;
@@ -90,6 +100,50 @@ class PendingOutgoingLogic {
     isLoadingMoreNotifier.value = false;
   }
 
+  void showPaymentTooltip(BuildContext context, GlobalKey key) {
+    final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    const double tooltipWidth = 150;
+
+    paymentTooltip?.remove();
+
+    paymentTooltip = OverlayEntry(
+      builder: (context) => Positioned(
+        left: position.dx + (size.width / 2) - (tooltipWidth / 2),
+
+        top: position.dy + size.height + 6,
+
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: tooltipWidth,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              "Payment not verified",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(paymentTooltip!);
+
+    Future.delayed(const Duration(seconds: 2), () {
+      paymentTooltip?.remove();
+      paymentTooltip = null;
+    });
+  }
+
   // Load Initial Data
   Future<void> loadInitialData(BuildContext context) async {
     final provider = context.read<OutgoingPaymentProvider>();
@@ -114,18 +168,23 @@ class PendingOutgoingLogic {
   // Load Data with Filters
   Future<void> loadData(BuildContext context) async {
     try {
-      final provider = Provider.of<OutgoingPaymentProvider>(context, listen: false);
-      
-      final String? vendorNameForApi = 
+      final provider = Provider.of<OutgoingPaymentProvider>(
+        context,
+        listen: false,
+      );
+
+      final String? vendorNameForApi =
           (selectedVendorNotifier.value == null ||
-           selectedVendorNotifier.value!.isEmpty ||
-           selectedVendorNotifier.value == 'All Vendors')
-          ? null : selectedVendorNotifier.value!.trim();
+              selectedVendorNotifier.value!.isEmpty ||
+              selectedVendorNotifier.value == 'All Vendors')
+          ? null
+          : selectedVendorNotifier.value!.trim();
 
       final String? invoiceNoForApi =
           (selectedInvoiceNotifier.value == null ||
-           selectedInvoiceNotifier.value!.trim().isEmpty)
-          ? null : selectedInvoiceNotifier.value!.trim();
+              selectedInvoiceNotifier.value!.trim().isEmpty)
+          ? null
+          : selectedInvoiceNotifier.value!.trim();
 
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
@@ -143,16 +202,19 @@ class PendingOutgoingLogic {
   }
 
   // Handle PDF Click
-  Future<void> handlePdfClick(BuildContext context, int index, Outgoing outgoing) async {
+  Future<void> handlePdfClick(
+    BuildContext context,
+    int index,
+    Outgoing outgoing,
+  ) async {
     loadingPdfMap[index] = true;
-    // Trigger rebuild
     refreshDataNotifier.value = !refreshDataNotifier.value;
 
     try {
       final service = OutgoingPdf();
       final pdfFile = await service.generateOutgoingPdf(outgoing.outgoingId);
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-      
+
       scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('PDF generated successfully')),
       );
@@ -167,11 +229,16 @@ class PendingOutgoingLogic {
   }
 
   // Show Tax Tooltip
-  void showTaxTooltip(BuildContext context, GlobalKey key, Outgoing payment, int index) {
+  void showTaxTooltip(
+    BuildContext context,
+    GlobalKey key,
+    Outgoing payment,
+    int index,
+  ) {
     removeOverlay();
     final renderBox = key.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
-    
+
     final position = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
 
@@ -258,8 +325,10 @@ class PendingOutgoingLogic {
     int? singleIndex,
     bool isBulkPayment,
   ) async {
-    double totalPayableAmount = selectedPayments.fold(0.0, 
-        (sum, p) => sum + (p.totalPayableAmount ?? 0.0));
+    double totalPayableAmount = selectedPayments.fold(
+      0.0,
+      (sum, p) => sum + (p.totalPayableAmount ?? 0.0),
+    );
 
     await showDialog(
       barrierDismissible: false,
@@ -268,95 +337,127 @@ class PendingOutgoingLogic {
         return PaymentDialog(
           totalPayableAmount: totalPayableAmount,
           isBulkPayment: isBulkPayment,
-          onPaymentConfirmed: (
-            paymentType,
-            amount,
-            paymentMode,
-            paymentMethod,
-            transactionDetails,
-          ) async {
-            final provider = Provider.of<OutgoingPaymentProvider>(context, listen: false);
+          onPaymentConfirmed:
+              (
+                paymentType,
+                amount,
+                paymentMode,
+                paymentMethod,
+                transactionDetails,
+              ) async {
+                final provider = Provider.of<OutgoingPaymentProvider>(
+                  context,
+                  listen: false,
+                );
 
-            try {
-              if (isBulkPayment) {
-                final bulkPayments = selectedPayments.map((payment) {
-                  String? transactionReference;
-                  if (paymentMode == 'Bank') {
-                    if (paymentMethod == 'neft') transactionReference = transactionDetails['neftNo'];
-                    else if (paymentMethod == 'rtgs') transactionReference = transactionDetails['rtgsNo'];
-                    else if (paymentMethod == 'imps') transactionReference = transactionDetails['impsNo'];
-                    else if (paymentMethod == 'upi') transactionReference = transactionDetails['upi'];
+                try {
+                  if (isBulkPayment) {
+                    final bulkPayments = selectedPayments.map((payment) {
+                      String? transactionReference;
+                      if (paymentMode == 'Bank') {
+                        if (paymentMethod == 'neft')
+                          transactionReference = transactionDetails['neftNo'];
+                        else if (paymentMethod == 'rtgs')
+                          transactionReference = transactionDetails['rtgsNo'];
+                        else if (paymentMethod == 'imps')
+                          transactionReference = transactionDetails['impsNo'];
+                        else if (paymentMethod == 'upi')
+                          transactionReference = transactionDetails['upi'];
+                      }
+
+                      return BulkPayment(
+                        outgoingId: payment.outgoingId ?? '',
+                        paymentType: paymentType,
+                        paymentMode: paymentMode,
+                        paymentMethod: paymentMethod,
+                        partialAmount: paymentType == 'partial' ? amount : null,
+                        fullPaymentAmount: paymentType == 'full'
+                            ? payment.totalPayableAmount
+                            : null,
+                        bankName: paymentMode == 'Bank'
+                            ? transactionDetails['bankName']
+                            : null,
+                        transactionReference: transactionReference,
+                        cashVoucherNo: null,
+                        pettyCashAmount:
+                            paymentMode == 'Cash' &&
+                                paymentMethod == 'petty_cash'
+                            ? amount
+                            : null,
+                        hoCash:
+                            paymentMode == 'Cash' && paymentMethod == 'ho_cash'
+                            ? amount
+                            : null,
+                      );
+                    }).toList();
+
+                    await provider.processBulkPayments(
+                      bulkPayments,
+                      selectedPayments,
+                    );
+                  } else {
+                    for (var payment in selectedPayments) {
+                      await provider.processPayment(
+                        outgoingId: payment.outgoingId ?? '',
+                        paymentType: paymentType,
+                        amount: amount / selectedPayments.length,
+                        paymentMode: paymentMode,
+                        paymentMethod: paymentMethod,
+                        transactionDetails: transactionDetails,
+                      );
+                    }
                   }
 
-                  return BulkPayment(
-                    outgoingId: payment.outgoingId ?? '',
-                    paymentType: paymentType,
-                    paymentMode: paymentMode,
-                    paymentMethod: paymentMethod,
-                    partialAmount: paymentType == 'partial' ? amount : null,
-                    fullPaymentAmount: paymentType == 'full' ? payment.totalPayableAmount : null,
-                    bankName: paymentMode == 'Bank' ? transactionDetails['bankName'] : null,
-                    transactionReference: transactionReference,
-                    cashVoucherNo: null,
-                    pettyCashAmount: paymentMode == 'Cash' && paymentMethod == 'petty_cash' ? amount : null,
-                    hoCash: paymentMode == 'Cash' && paymentMethod == 'ho_cash' ? amount : null,
-                  );
-                }).toList();
+                  if (context.mounted) {
+                    if (singleIndex != null) {
+                      final newSelectedRows = List<bool>.from(
+                        selectedRowsNotifier.value,
+                      );
+                      newSelectedRows[singleIndex] = false;
+                      selectedRowsNotifier.value = newSelectedRows;
 
-                await provider.processBulkPayments(bulkPayments, selectedPayments);
-              } else {
-                for (var payment in selectedPayments) {
-                  await provider.processPayment(
-                    outgoingId: payment.outgoingId ?? '',
-                    paymentType: paymentType,
-                    amount: amount / selectedPayments.length,
-                    paymentMode: paymentMode,
-                    paymentMethod: paymentMethod,
-                    transactionDetails: transactionDetails,
-                  );
-                }
-              }
+                      final newSelectedIndices = Set<int>.from(
+                        selectedIndicesNotifier.value,
+                      );
+                      newSelectedIndices.remove(singleIndex);
+                      selectedIndicesNotifier.value = newSelectedIndices;
+                    } else {
+                      final newSelectedRows = List<bool>.from(
+                        selectedRowsNotifier.value,
+                      );
+                      for (var index
+                          in selectedIndicesNotifier.value.toList()) {
+                        newSelectedRows[index] = false;
+                      }
+                      selectedRowsNotifier.value = newSelectedRows;
+                      selectedIndicesNotifier.value = {};
+                    }
 
-              if (context.mounted) {
-                if (singleIndex != null) {
-                  final newSelectedRows = List<bool>.from(selectedRowsNotifier.value);
-                  newSelectedRows[singleIndex] = false;
-                  selectedRowsNotifier.value = newSelectedRows;
+                    scaffoldMessengerKey.currentState?.showSnackBar(
+                      const SnackBar(content: Text('Payment Confirmed')),
+                    );
 
-                  final newSelectedIndices = Set<int>.from(selectedIndicesNotifier.value);
-                  newSelectedIndices.remove(singleIndex);
-                  selectedIndicesNotifier.value = newSelectedIndices;
-                } else {
-                  final newSelectedRows = List<bool>.from(selectedRowsNotifier.value);
-                  for (var index in selectedIndicesNotifier.value.toList()) {
-                    newSelectedRows[index] = false;
+                    final provider = Provider.of<OutgoingPaymentProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await provider.fetchApInvoices();
+                    await provider.fetchFilteredOutgoings(
+                      status: 'Pending',
+                      filterBy: 'invoiceDate',
+                      limit: 100,
+                      isTableRefresh: true,
+                    );
+                    refreshDataNotifier.value = !refreshDataNotifier.value;
                   }
-                  selectedRowsNotifier.value = newSelectedRows;
-                  selectedIndicesNotifier.value = {};
+                } catch (e) {
+                  if (context.mounted) {
+                    scaffoldMessengerKey.currentState?.showSnackBar(
+                      SnackBar(content: Text('Payment Failed: $e')),
+                    );
+                  }
                 }
-
-                scaffoldMessengerKey.currentState?.showSnackBar(
-                  const SnackBar(content: Text('Payment Confirmed')),
-                );
-
-                final provider = Provider.of<OutgoingPaymentProvider>(context, listen: false);
-                await provider.fetchApInvoices();
-                await provider.fetchFilteredOutgoings(
-                  status: 'Pending',
-                  filterBy: 'invoiceDate',
-                  limit: 100,
-                  isTableRefresh: true,
-                );
-                refreshDataNotifier.value = !refreshDataNotifier.value;
-              }
-            } catch (e) {
-              if (context.mounted) {
-                scaffoldMessengerKey.currentState?.showSnackBar(
-                  SnackBar(content: Text('Payment Failed: $e')),
-                );
-              }
-            }
-          },
+              },
         );
       },
     );
@@ -436,13 +537,17 @@ class PendingOutgoingLogic {
 
   // Handle Vendor Selection
   void handleVendorSelected(String? value, BuildContext context) {
-    selectedVendorNotifier.value = (value == null || value == 'All Vendors') ? null : value;
+    selectedVendorNotifier.value = (value == null || value == 'All Vendors')
+        ? null
+        : value;
     loadData(context);
   }
 
   // Handle Invoice Selection
   void handleInvoiceSelected(String? value, BuildContext context) {
-    selectedInvoiceNotifier.value = (value == null || value.trim().isEmpty) ? null : value;
+    selectedInvoiceNotifier.value = (value == null || value.trim().isEmpty)
+        ? null
+        : value;
     loadData(context);
   }
 
@@ -450,7 +555,7 @@ class PendingOutgoingLogic {
   List<Outgoing> sortPayments(List<Outgoing> payments) {
     final String sortColumn = sortColumnNotifier.value;
     final bool ascending = sortAscendingNotifier.value;
-    
+
     payments.sort((a, b) {
       int result = 0;
       switch (sortColumn) {
@@ -461,7 +566,9 @@ class PendingOutgoingLogic {
           result = (a.paymentTerms ?? '').compareTo(b.paymentTerms ?? '');
           break;
         case 'invoiceDate':
-          result = (a.invoiceDate ?? DateTime(1970)).compareTo(b.invoiceDate ?? DateTime(1970));
+          result = (a.invoiceDate ?? DateTime(1970)).compareTo(
+            b.invoiceDate ?? DateTime(1970),
+          );
           break;
       }
       return ascending ? result : -result;

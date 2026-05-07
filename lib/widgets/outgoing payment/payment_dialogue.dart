@@ -466,7 +466,7 @@ class PaymentDialog extends StatelessWidget {
                         controller: provider.transactionController,
                         varianceName: 'Enter Reference Number',
                         onValueSelected: () {},
-                        fieldType: '',
+                        fieldType: 'number',
                       );
                     },
               child: AbsorbPointer(

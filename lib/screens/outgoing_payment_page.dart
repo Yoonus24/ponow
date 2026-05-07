@@ -6,7 +6,6 @@ import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/LEDGER/ledger.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/PAYMENT%20DONE/payment_done.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/PENDING%20OUTGOING/pendingOutgoing.dart';
-import 'package:purchaseorders2/widgets/outgoing payment/pre_outgoing.dart';
 import 'package:purchaseorders2/widgets/outgoing%20payment/PARTIAL%20PAYMENT/partial_payment.dart';
 import 'package:provider/provider.dart';
 import '../widgets/common_app_bar.dart';
@@ -171,8 +170,8 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
                       toDate: _toDateNotifier.value,
                     );
 
-                  case 'partially_paid':
-                    return const PreOutgoing();
+                  // case 'partially_paid':
+                    // return const PreOutgoing();
 
                   case 'ledger':
                     return Ledger(
@@ -347,8 +346,7 @@ class _OutgoingPaymentPageState extends State<OutgoingPaymentPage> {
               primary: Color.fromARGB(255, 38, 89, 198),
               onPrimary: Colors.white,
               onSurface: Colors.black,
-            ),
-            dialogBackgroundColor: Colors.white,
+            ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );

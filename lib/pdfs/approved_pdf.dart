@@ -349,11 +349,11 @@ class PurchaseOrderService {
                   _safeFixedString(_calculateTotalDiscount(itemsRaw)),
                 ),
                 _twoCellRow(
-                  'CGST @${taxPercentage}%',
+                  'CGST @$taxPercentage%',
                   _safeFixedString(cgstAmount),
                 ),
                 _twoCellRow(
-                  'SGST @${taxPercentage}%',
+                  'SGST @$taxPercentage%',
                   _safeFixedString(sgstAmount),
                 ),
                 _twoCellRow(

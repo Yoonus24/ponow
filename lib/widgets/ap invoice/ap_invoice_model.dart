@@ -1,8 +1,10 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/ap.dart';
 import 'package:purchaseorders2/models/ap_item.dart';
+import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import 'package:purchaseorders2/widgets/column_filter.dart';
 import 'ap_invoice_modal_logic.dart';
 
@@ -17,7 +19,7 @@ class APInvoiceModal extends StatefulWidget {
 
 class _APInvoiceModalState extends State<APInvoiceModal> {
   late APInvoiceModalLogic logic;
-
+  final ValueNotifier<bool> isVerifying = ValueNotifier(false);
   final Map<String, Widget Function(dynamic)> cellRenderers = {
     'Item Name': (item) => Text(
       item.itemName ?? '',
@@ -104,7 +106,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
   Widget build(BuildContext context) {
     logic.setContext(context);
     logic.hasOutgoingPayment(context);
-    
+
     debugPrint('🧾 AP MODAL STATUS => "${widget.apinvoice.status}"');
     final items = logic.getItems();
     final roundOff = logic.getRoundOff();
@@ -175,7 +177,10 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                             .where((col) => columnVisibility[col] == true)
                             .toList();
                         final rightColumns = visibleColumns
-                            .where((column) => column != 'Item Name' && column != 'S.No')
+                            .where(
+                              (column) =>
+                                  column != 'Item Name' && column != 'S.No',
+                            )
                             .toList();
 
                         return Column(
@@ -186,7 +191,10 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                               children: [
                                 const Text(
                                   'Invoice Details',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20,
+                                  ),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.filter_list),
@@ -195,11 +203,16 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                     showDialog(
                                       context: context,
                                       builder: (context) => ColumnFilterDialog(
-                                        columns: logic.columnOrderNotifier.value,
-                                        columnVisibility: logic.columnVisibilityNotifier.value,
+                                        columns:
+                                            logic.columnOrderNotifier.value,
+                                        columnVisibility: logic
+                                            .columnVisibilityNotifier
+                                            .value,
                                         onApply: (newOrder, newVisibility) {
                                           logic.updateColumnOrder(newOrder);
-                                          logic.updateColumnVisibility(newVisibility);
+                                          logic.updateColumnVisibility(
+                                            newVisibility,
+                                          );
                                         },
                                       ),
                                     );
@@ -209,16 +222,42 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                             ),
                             const Divider(thickness: 1),
                             const SizedBox(height: 4),
-                            Text('Invoice No: ${logic.getInvoiceNo()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text('Vendor: ${logic.getVendorName()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text('Date: ${logic.getInvoiceDate()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text('Total Amount: ${finalTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(
+                              'Invoice No: ${logic.getInvoiceNo()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Vendor: ${logic.getVendorName()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Date: ${logic.getInvoiceDate()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              'Total Amount: ${finalTotal.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                             const SizedBox(height: 8),
                             Expanded(
                               child: Row(
                                 children: [
                                   SizedBox(
-                                    width: logic.columnWidths['S.No']! + logic.columnWidths['Item Name']!,
+                                    width:
+                                        logic.columnWidths['S.No']! +
+                                        logic.columnWidths['Item Name']!,
                                     child: Column(
                                       children: [
                                         Row(
@@ -228,39 +267,94 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                               height: 40,
                                               alignment: Alignment.center,
                                               color: Colors.grey[200],
-                                              child: const Text("S.No", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                              child: const Text(
+                                                "S.No",
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ),
                                             Container(
-                                              width: logic.columnWidths['Item Name'],
+                                              width: logic
+                                                  .columnWidths['Item Name'],
                                               height: 40,
                                               alignment: Alignment.centerLeft,
-                                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
                                               color: Colors.grey[200],
-                                              child: const Text("Item Name", textAlign: TextAlign.left, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                              child: const Text(
+                                                "Item Name",
+                                                textAlign: TextAlign.left,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ),
                                           ],
                                         ),
                                         Expanded(
                                           child: ListView.builder(
-                                            controller: logic.leftVerticalController,
+                                            controller:
+                                                logic.leftVerticalController,
                                             itemCount: items.length,
                                             itemBuilder: (context, index) {
                                               return Row(
                                                 children: [
                                                   Container(
-                                                    width: logic.columnWidths['S.No'],
+                                                    width: logic
+                                                        .columnWidths['S.No'],
                                                     height: 45,
                                                     alignment: Alignment.center,
-                                                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          border: Border(
+                                                            bottom: BorderSide(
+                                                              color:
+                                                                  Colors.grey,
+                                                              width: 0.5,
+                                                            ),
+                                                          ),
+                                                        ),
                                                     child: Text('${index + 1}'),
                                                   ),
                                                   Container(
-                                                    width: logic.columnWidths['Item Name'],
+                                                    width: logic
+                                                        .columnWidths['Item Name'],
                                                     height: 45,
-                                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                                    alignment: Alignment.centerLeft,
-                                                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
-                                                    child: Text(items[index].itemName ?? ''),
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                        ),
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    decoration:
+                                                        const BoxDecoration(
+                                                          border: Border(
+                                                            bottom: BorderSide(
+                                                              color:
+                                                                  Colors.grey,
+                                                              width: 0.5,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    child: Tooltip(
+                                                      message:
+                                                          items[index]
+                                                              .itemName ??
+                                                          '',
+                                                      waitDuration:
+                                                          const Duration(
+                                                            milliseconds: 500,
+                                                          ),
+                                                      child: Text(
+                                                        items[index].itemName ??
+                                                            '',
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               );
@@ -272,18 +366,27 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                   ),
                                   Expanded(
                                     child: SingleChildScrollView(
-                                      controller: logic.rightHorizontalController,
+                                      controller:
+                                          logic.rightHorizontalController,
                                       scrollDirection: Axis.horizontal,
                                       child: SizedBox(
-                                        width: logic.getRightWidth(rightColumns),
+                                        width: logic.getRightWidth(
+                                          rightColumns,
+                                        ),
                                         child: Column(
                                           children: [
                                             _buildHeaderRow(rightColumns),
                                             Expanded(
                                               child: ListView.builder(
-                                                controller: logic.rightVerticalController,
+                                                controller: logic
+                                                    .rightVerticalController,
                                                 itemCount: items.length,
-                                                itemBuilder: (context, index) => _buildItemRow(items[index], index, rightColumns),
+                                                itemBuilder: (context, index) =>
+                                                    _buildItemRow(
+                                                      items[index],
+                                                      index,
+                                                      rightColumns,
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -301,13 +404,34 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('Total Discount Amount: ${totalDiscount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
-                                  Text('SGST: ${totalSgst.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
-                                  Text('CGST: ${totalCgst.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
-                                  Text('Freight Charges: ${freightTotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
-                                  Text('Round Off: ${roundOff.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
+                                  Text(
+                                    'Total Discount Amount: ${totalDiscount.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    'SGST: ${totalSgst.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    'CGST: ${totalCgst.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    'Freight Charges: ${freightTotal.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    'Round Off: ${roundOff.toStringAsFixed(2)}',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
                                   const SizedBox(height: 4),
-                                  Text('Total Invoice Amount: ${finalTotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    'Total Invoice Amount: ${finalTotal.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -326,21 +450,51 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                                 barrierDismissible: false,
                                                 builder: (dialogContext) => AlertDialog(
                                                   backgroundColor: Colors.white,
-                                                  title: const Text("Confirm Return"),
-                                                  content: const Text("Are you sure you want to return this GRN?"),
+                                                  title: const Text(
+                                                    "Confirm Return",
+                                                  ),
+                                                  content: const Text(
+                                                    "Are you sure you want to return this GRN?",
+                                                  ),
                                                   actions: [
                                                     ElevatedButton(
-                                                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                                                      child: const Text("Cancel"),
+                                                      onPressed: () =>
+                                                          Navigator.of(
+                                                            dialogContext,
+                                                          ).pop(false),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .blueAccent,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                      child: const Text(
+                                                        "Cancel",
+                                                      ),
                                                     ),
                                                     ElevatedButton(
                                                       onPressed: () async {
-                                                        Navigator.of(dialogContext).pop(true);
-                                                        await logic.performReturn(context);
+                                                        Navigator.of(
+                                                          dialogContext,
+                                                        ).pop(true);
+                                                        await logic
+                                                            .performReturn(
+                                                              context,
+                                                            );
                                                       },
-                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                                                      child: const Text("Confirm"),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .blueAccent,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                      child: const Text(
+                                                        "Confirm",
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
@@ -348,10 +502,15 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                             }
                                           : null,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: canReturn ? Colors.blueAccent : Colors.grey,
+                                        backgroundColor: canReturn
+                                            ? Colors.blueAccent
+                                            : Colors.grey,
                                         foregroundColor: Colors.white,
                                       ),
-                                      child: const Text('Return to GRN', style: TextStyle(fontSize: 12)),
+                                      child: const Text(
+                                        'Return to GRN',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -360,9 +519,124 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                   child: SizedBox(
                                     height: 40,
                                     child: ElevatedButton(
-                                      onPressed: () => Navigator.of(context).pop(),
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                                      child: const Text('Close', style: TextStyle(fontSize: 12)),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blueAccent,
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      child: const Text(
+                                        'Close',
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: SizedBox(
+                                    height: 40,
+                                    child: ElevatedButton(
+                                      onPressed:
+                                          (widget.apinvoice.verifiedBy !=
+                                                  null &&
+                                              widget
+                                                  .apinvoice
+                                                  .verifiedBy!
+                                                  .isNotEmpty)
+                                          ? null
+                                          : () async {
+                                              final confirm = await showDialog<bool>(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (context) => AlertDialog(
+                                                  backgroundColor: Colors.white,
+                                                  title: const Text(
+                                                    "Confirm Verify",
+                                                  ),
+                                                  content: const Text(
+                                                    "Are you sure you want to verify this AP Invoice?",
+                                                  ),
+                                                  actions: [
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            false,
+                                                          ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .blueAccent,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                      child: const Text(
+                                                        "Cancel",
+                                                      ),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () =>
+                                                          Navigator.pop(
+                                                            context,
+                                                            true,
+                                                          ),
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .blueAccent,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                      child: const Text(
+                                                        "Verify",
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+
+                                              if (confirm == true) {
+                                                isVerifying.value =
+                                                    true; 
+
+                                                final success = await context
+                                                    .read<APInvoiceProvider>()
+                                                    .verifyAPInvoice(
+                                                      widget
+                                                          .apinvoice
+                                                          .invoiceId!,
+                                                    );
+
+                                                isVerifying.value =
+                                                    false; 
+
+                                                if (success &&
+                                                    context.mounted) {
+                                                  ScaffoldMessenger.of(
+                                                    context,
+                                                  ).showSnackBar(
+                                                    const SnackBar(
+                                                      content: Text(
+                                                        "AP Invoice Verified",
+                                                      ),
+                                                      backgroundColor:
+                                                          Colors.green,
+                                                    ),
+                                                  );
+
+                                                  Navigator.pop(context, true);
+                                                }
+                                              }
+                                            },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            Colors.blueAccent, 
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      child: const Text("Verify"),
                                     ),
                                   ),
                                 ),
@@ -376,16 +650,28 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                 ),
               ),
             ),
-            ValueListenableBuilder<bool>(
-              valueListenable: logic.isReturning,
-              builder: (context, isLoading, _) {
-                if (!isLoading) return const SizedBox.shrink();
-                return Container(
-                  color: Colors.black.withOpacity(0.3),
-                  child: const Center(child: CircularProgressIndicator()),
-                );
-              },
+           ValueListenableBuilder<bool>(
+  valueListenable: logic.isReturning,
+  builder: (context, isReturning, _) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: isVerifying,
+      builder: (context, isVerifyingNow, _) {
+        if (!isReturning && !isVerifyingNow) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          color: Colors.black.withOpacity(0.3),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: Colors.blueAccent,
             ),
+          ),
+        );
+      },
+    );
+  },
+),
           ],
         ),
       ),
@@ -417,49 +703,100 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                 return ValueListenableBuilder<Map<String, bool>>(
                   valueListenable: logic.columnVisibilityNotifier,
                   builder: (context, columnVisibility, _) {
-                    final visibleColumns = columnOrder.where((col) => columnVisibility[col] == true).toList();
-                    final rightColumns = visibleColumns.where((column) => column != 'Item Name' && column != 'S.No').toList();
+                    final visibleColumns = columnOrder
+                        .where((col) => columnVisibility[col] == true)
+                        .toList();
+                    final rightColumns = visibleColumns
+                        .where(
+                          (column) => column != 'Item Name' && column != 'S.No',
+                        )
+                        .toList();
                     final rightWidth = logic.getRightWidth(rightColumns);
 
                     return LayoutBuilder(
                       builder: (context, constraints) {
                         return SingleChildScrollView(
                           child: ConstrainedBox(
-                            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                            constraints: BoxConstraints(
+                              minHeight: constraints.maxHeight,
+                            ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Padding(
                                   padding: const EdgeInsets.all(8.0),
                                   child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text('Invoice No: ${logic.getInvoiceNo()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                          Text(
+                                            'Invoice No: ${logic.getInvoiceNo()}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                           const SizedBox(height: 2),
-                                          Text('Vendor: ${logic.getVendorName()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                          Text(
+                                            'Vendor: ${logic.getVendorName()}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                           const SizedBox(height: 2),
-                                          Text('Date: ${logic.getInvoiceDate()}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                          Text(
+                                            'Date: ${logic.getInvoiceDate()}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                           const SizedBox(height: 2),
-                                          Text('Total Amount: ${finalTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                          Text(
+                                            'Total Amount: ${finalTotal.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
                                         ],
                                       ),
                                       IconButton(
-                                        icon: const Icon(Icons.filter_list, size: 20),
+                                        icon: const Icon(
+                                          Icons.filter_list,
+                                          size: 20,
+                                        ),
                                         tooltip: 'Filter Columns',
                                         onPressed: () {
                                           showDialog(
                                             context: context,
-                                            builder: (context) => ColumnFilterDialog(
-                                              columns: logic.columnOrderNotifier.value,
-                                              columnVisibility: logic.columnVisibilityNotifier.value,
-                                              onApply: (newOrder, newVisibility) {
-                                                logic.updateColumnOrder(newOrder);
-                                                logic.updateColumnVisibility(newVisibility);
-                                              },
-                                            ),
+                                            builder: (context) =>
+                                                ColumnFilterDialog(
+                                                  columns: logic
+                                                      .columnOrderNotifier
+                                                      .value,
+                                                  columnVisibility: logic
+                                                      .columnVisibilityNotifier
+                                                      .value,
+                                                  onApply:
+                                                      (
+                                                        newOrder,
+                                                        newVisibility,
+                                                      ) {
+                                                        logic.updateColumnOrder(
+                                                          newOrder,
+                                                        );
+                                                        logic
+                                                            .updateColumnVisibility(
+                                                              newVisibility,
+                                                            );
+                                                      },
+                                                ),
                                           );
                                         },
                                       ),
@@ -468,7 +805,8 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                 ),
                                 const Divider(thickness: 1),
                                 SizedBox(
-                                  height: MediaQuery.of(context).size.height * 0.55,
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.55,
                                   child: Row(
                                     children: [
                                       SizedBox(
@@ -478,9 +816,14 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                             _buildLandscapeHeaderLeft(),
                                             Expanded(
                                               child: ListView.builder(
-                                                controller: logic.leftVerticalController,
+                                                controller: logic
+                                                    .leftVerticalController,
                                                 itemCount: items.length,
-                                                itemBuilder: (context, index) => _buildLandscapeItemLeft(items[index], index),
+                                                itemBuilder: (context, index) =>
+                                                    _buildLandscapeItemLeft(
+                                                      items[index],
+                                                      index,
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -488,18 +831,28 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                       ),
                                       Expanded(
                                         child: SingleChildScrollView(
-                                          controller: logic.rightHorizontalController,
+                                          controller:
+                                              logic.rightHorizontalController,
                                           scrollDirection: Axis.horizontal,
                                           child: SizedBox(
                                             width: rightWidth,
                                             child: Column(
                                               children: [
-                                                _buildLandscapeHeaderRow(rightColumns),
+                                                _buildLandscapeHeaderRow(
+                                                  rightColumns,
+                                                ),
                                                 Expanded(
                                                   child: ListView.builder(
-                                                    controller: logic.rightVerticalController,
+                                                    controller: logic
+                                                        .rightVerticalController,
                                                     itemCount: items.length,
-                                                    itemBuilder: (context, index) => _buildLandscapeItemRow(items[index], index, rightColumns),
+                                                    itemBuilder:
+                                                        (context, index) =>
+                                                            _buildLandscapeItemRow(
+                                                              items[index],
+                                                              index,
+                                                              rightColumns,
+                                                            ),
                                                   ),
                                                 ),
                                               ],
@@ -512,17 +865,40 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                 ),
                                 const SizedBox(height: 8),
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text('Total Discount Amount: ${totalDiscount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
-                                      Text('SGST: ${totalSgst.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
-                                      Text('CGST: ${totalCgst.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
-                                      Text('Freight Charges: ${freightTotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
-                                      Text('Round Off: ${roundOff.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12)),
+                                      Text(
+                                        'Total Discount Amount: ${totalDiscount.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      Text(
+                                        'SGST: ${totalSgst.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      Text(
+                                        'CGST: ${totalCgst.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      Text(
+                                        'Freight Charges: ${freightTotal.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      Text(
+                                        'Round Off: ${roundOff.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
                                       const Divider(),
-                                      Text('Total Invoice Amount: ${finalTotal.toStringAsFixed(2)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                      Text(
+                                        'Total Invoice Amount: ${finalTotal.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -540,21 +916,46 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                               barrierDismissible: false,
                                               builder: (dialogContext) => AlertDialog(
                                                 backgroundColor: Colors.white,
-                                                title: const Text("Confirm Return"),
-                                                content: const Text("Are you sure you want to return this GRN?"),
+                                                title: const Text(
+                                                  "Confirm Return",
+                                                ),
+                                                content: const Text(
+                                                  "Are you sure you want to return this GRN?",
+                                                ),
                                                 actions: [
                                                   ElevatedButton(
-                                                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+                                                    onPressed: () =>
+                                                        Navigator.of(
+                                                          dialogContext,
+                                                        ).pop(false),
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.blueAccent,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                        ),
                                                     child: const Text("Cancel"),
                                                   ),
                                                   ElevatedButton(
                                                     onPressed: () async {
-                                                      Navigator.of(dialogContext).pop(true);
-                                                      await logic.performReturn(context);
+                                                      Navigator.of(
+                                                        dialogContext,
+                                                      ).pop(true);
+                                                      await logic.performReturn(
+                                                        context,
+                                                      );
                                                     },
-                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
-                                                    child: const Text("Confirm"),
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              Colors.blueAccent,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                        ),
+                                                    child: const Text(
+                                                      "Confirm",
+                                                    ),
                                                   ),
                                                 ],
                                               ),
@@ -563,19 +964,32 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Colors.blueAccent,
                                             foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
                                           ),
-                                          child: const Text('Return to GRN', style: TextStyle(fontSize: 12)),
+                                          child: const Text(
+                                            'Return to GRN',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
                                         ),
                                       const SizedBox(width: 12),
                                       ElevatedButton(
-                                        onPressed: () => Navigator.of(context).pop(),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: Colors.blueAccent,
                                           foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8,
+                                          ),
                                         ),
-                                        child: const Text('Close', style: TextStyle(fontSize: 12)),
+                                        child: const Text(
+                                          'Close',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -614,7 +1028,10 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
           height: 40,
           alignment: Alignment.center,
           color: Colors.grey[200],
-          child: const Text("S.No", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          child: const Text(
+            "S.No",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+          ),
         ),
         Container(
           width: logic.columnWidths['Item Name'] ?? 130,
@@ -622,7 +1039,10 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           color: Colors.grey[200],
-          child: const Text("Item Name", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+          child: const Text(
+            "Item Name",
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+          ),
         ),
       ],
     );
@@ -635,7 +1055,9 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
           width: logic.columnWidths['S.No'] ?? 40,
           height: 45,
           alignment: Alignment.center,
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+          ),
           child: Text('${index + 1}', style: const TextStyle(fontSize: 11)),
         ),
         Container(
@@ -643,8 +1065,19 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
           height: 45,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           alignment: Alignment.centerLeft,
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
-          child: Text(item.itemName ?? '', style: const TextStyle(fontSize: 11), maxLines: 3, overflow: TextOverflow.ellipsis),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+          ),
+          child: Tooltip(
+            message: item.itemName ?? '',
+            waitDuration: const Duration(milliseconds: 500),
+            child: Text(
+              item.itemName ?? '',
+              style: const TextStyle(fontSize: 11),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ),
       ],
     );
@@ -673,10 +1106,16 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     );
   }
 
-  Widget _buildLandscapeItemRow(dynamic item, int index, List<String> rightColumns) {
+  Widget _buildLandscapeItemRow(
+    dynamic item,
+    int index,
+    List<String> rightColumns,
+  ) {
     return Container(
       height: 45,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+      ),
       child: Row(
         children: rightColumns.map((column) {
           return Container(
@@ -692,13 +1131,21 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
 
   Widget _buildLandscapeCellContent(String column, dynamic item, int index) {
     if (column == 'S.No') {
-      return Text('${index + 1}', style: const TextStyle(fontSize: 11), textAlign: TextAlign.center);
+      return Text(
+        '${index + 1}',
+        style: const TextStyle(fontSize: 11),
+        textAlign: TextAlign.center,
+      );
     }
     final renderer = cellRenderers[column];
     if (renderer != null) {
       if (renderer(item) is Text) {
         final textWidget = renderer(item) as Text;
-        return Text(textWidget.data ?? '', style: const TextStyle(fontSize: 11), textAlign: textWidget.textAlign);
+        return Text(
+          textWidget.data ?? '',
+          style: const TextStyle(fontSize: 11),
+          textAlign: textWidget.textAlign,
+        );
       }
       return Align(alignment: Alignment.center, child: renderer(item));
     }
@@ -731,7 +1178,9 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
   Widget _buildItemRow(dynamic item, int index, List<String> rightColumns) {
     return Container(
       height: 45,
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5))),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+      ),
       child: Row(
         children: rightColumns.map((column) {
           return Container(
@@ -747,7 +1196,11 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
 
   Widget _buildCellContent(String column, dynamic item, int index) {
     if (column == 'S.No') {
-      return Text('${index + 1}', style: const TextStyle(fontSize: 14), textAlign: TextAlign.center);
+      return Text(
+        '${index + 1}',
+        style: const TextStyle(fontSize: 14),
+        textAlign: TextAlign.center,
+      );
     }
     final renderer = cellRenderers[column];
     if (renderer != null) {

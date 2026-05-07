@@ -7,6 +7,7 @@ class PO {
   final String purchaseOrderId;
   final String? vendorName;
   final String? vendorId;
+  final String? vendorcode;
   final String? vendorContact;
   final String? orderDate;
   final String? orderedDate;
@@ -42,7 +43,7 @@ class PO {
   final PurchaseOrderDiscount? overallDiscount;
   final double? roundOffAdjustment;
   final bool? isHoldOrder;
-  final double? overallDiscountValue;
+  // final double? overallDiscountValue;
   double? manualTotalDiscount;
 
   final bool? isTemplate;
@@ -59,6 +60,7 @@ class PO {
     required this.purchaseOrderId,
     this.vendorName,
     this.vendorId,
+    this.vendorcode,
     this.newPrice,
     this.vendorContact,
     this.orderDate,
@@ -98,7 +100,7 @@ class PO {
     this.templateName,
     this.templateCreatedDate,
     this.templateId,
-    this.overallDiscountValue,
+    // this.overallDiscountValue,
 
     this.location,
     this.locationName,
@@ -128,9 +130,9 @@ class PO {
   double get totalDiscount {
     if (manualTotalDiscount != null) return manualTotalDiscount!;
 
-    if (overallDiscountValue != null) {
-      return overallDiscountValue!;
-    }
+    // if (overallDiscountValue != null) {
+    //   return overallDiscountValue!;
+    // }
 
     return itemWiseDiscount + overallDiscountAmount;
   }
@@ -149,6 +151,7 @@ class PO {
     String? purchaseOrderId,
     String? vendorName,
     String? vendorId,
+    String? vendorcode,
     String? vendorContact,
     String? orderDate,
     String? orderedDate,
@@ -200,6 +203,7 @@ class PO {
       purchaseOrderId: purchaseOrderId ?? this.purchaseOrderId,
       vendorName: vendorName ?? this.vendorName,
       vendorId: vendorId ?? this.vendorId,
+      vendorcode: vendorcode ?? this.vendorcode,
       vendorContact: vendorContact ?? this.vendorContact,
       orderDate: orderDate ?? this.orderDate,
       orderedDate: orderedDate ?? this.orderedDate,
@@ -254,6 +258,7 @@ class PO {
     'purchaseOrderId': purchaseOrderId,
     'vendorName': vendorName ?? '',
     "vendorId": vendorId ?? "",
+    'vendorcode': vendorcode ?? '',
     'vendorContact': vendorContact ?? '',
     'orderDate': orderDate ?? '',
     'orderedDate': orderedDate ?? '',
@@ -286,8 +291,8 @@ class PO {
     'postalCode': postalCode,
     'gstNumber': gstNumber,
     'creditLimit': creditLimit,
-    'overallDiscount': overallDiscount?.toJson(),
-    'overallDiscountValue': overallDiscountValue ?? totalDiscount,
+    ...overallDiscount?.toBackendJson() ?? {},
+    // 'overallDiscountValue': overallDiscountValue ?? totalDiscount,
 
     'roundOffValue': roundOffAdjustment ?? 0.0,
     'isHoldOrder': isHoldOrder ?? false,
@@ -307,6 +312,7 @@ class PO {
     purchaseOrderId: json['purchaseOrderId'] ?? '',
     vendorName: json['vendorName'] ?? '',
     vendorId: json['vendorId'] ?? '',
+    vendorcode: json['vendorcode'] ?? '',
     vendorContact: json['vendorContact'] ?? '',
     orderDate: json['orderDate']?.toString() ?? '',
     orderedDate: json['orderedDate']?.toString() ?? '',
@@ -340,9 +346,9 @@ class PO {
     overallDiscount: json['overallDiscount'] != null
         ? PurchaseOrderDiscount.fromJson(json['overallDiscount'])
         : null,
-    overallDiscountValue:
-        (json['overallDiscountValue'] ?? json['overallDiscount'] ?? 0.0)
-            .toDouble(),
+    // overallDiscountValue:
+    //     (json['overallDiscountValue'] ?? json['overallDiscount'] ?? 0.0)
+    //         .toDouble(),
 
     roundOffAdjustment:
         (json['roundOffAdjustment'] ?? json['roundOffValue'] ?? 0.0).toDouble(),

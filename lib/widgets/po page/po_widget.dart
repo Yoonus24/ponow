@@ -511,6 +511,7 @@ class _POWidgetState extends State<POWidget> {
 
   void _editPO(BuildContext context, PO po) async {
     final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+
     final poProvider = Provider.of<POProvider>(context, listen: false);
 
     showDialog(
@@ -521,12 +522,15 @@ class _POWidgetState extends State<POWidget> {
 
     final fullPO = await poProvider.fetchPOById(po.purchaseOrderId);
 
+    if (!context.mounted) return;
+
     Navigator.of(context).pop();
 
     if (fullPO == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to load PO details")),
       );
+
       return;
     }
 

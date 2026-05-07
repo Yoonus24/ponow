@@ -62,7 +62,7 @@ class ApprovedPOLogic {
   static const double _rowHeight = 30.0;
   static const int _minVisibleRows = 7;
   bool isTablet = false;
-  double _poBaseTotalQty = 0.0;
+  final double _poBaseTotalQty = 0.0;
   double _poBaseDiscount = 0.0;
   double _approvedExtraDiscount = 0.0;
   double addedFreightAmount = 0.0;
@@ -875,11 +875,13 @@ class ApprovedPOLogic {
   }
 
   Future<void> selectInvoiceDate(BuildContext context) async {
+    final DateTime now = ServerTimeService.now;
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: ServerTimeService.now,
+      initialDate: now,
       firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      lastDate: now,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -889,10 +891,10 @@ class ApprovedPOLogic {
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
+            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -923,10 +925,10 @@ class ApprovedPOLogic {
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
+            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -1016,7 +1018,7 @@ class ApprovedPOLogic {
                       ),
                     );
                   }
-                } catch (e, stack) {
+                } catch (e) {
                   if (context.mounted) {
                     Navigator.of(context).pop();
 
@@ -1038,10 +1040,10 @@ class ApprovedPOLogic {
   }
 
   Future<void> convertPoToGRN(BuildContext context) async {
-    debugPrint("🟢 convertPoToGRN() CALLED");
+    debugPrint("convertPoToGRN() CALLED");
 
     if (isSaving.value) {
-      debugPrint("⛔ Already saving, skipping...");
+      debugPrint("Already saving, skipping...");
       return;
     }
 
@@ -1053,9 +1055,9 @@ class ApprovedPOLogic {
 
       debugPrint("=========== GRN CONVERSION START ===========");
 
-      /// ✅ VALIDATION
+      // VALIDATION
       if (!validateForm()) {
-        debugPrint("❌ Form validation failed");
+        debugPrint("Form validation failed");
         isSaving.value = false;
         return;
       }
@@ -1068,7 +1070,7 @@ class ApprovedPOLogic {
         return;
       }
 
-      /// ✅ SHOW LOADER
+      // SHOW LOADER
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -1076,10 +1078,10 @@ class ApprovedPOLogic {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
-      /// ✅ NORMALIZE
+      // NORMALIZE
       normalizeBeforeApi();
 
-      /// ✅ PREPARE ITEMS
+      // PREPARE ITEMS
       final List<Item> receivedItems = po.items.map((item) {
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
@@ -1091,7 +1093,7 @@ class ApprovedPOLogic {
         );
       }).toList();
 
-      /// ✅ PARSE DATE
+      // PARSE DATE
       final pickedDate = DateFormat(
         'dd-MM-yyyy',
       ).parse(invoiceDateController.text.trim());
@@ -1107,7 +1109,7 @@ class ApprovedPOLogic {
         now.second,
       );
 
-      /// ✅ API CALL
+      // API CALL
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
@@ -1117,33 +1119,33 @@ class ApprovedPOLogic {
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      /// ✅ GRN CREATED CHECK
+      // GRN CREATED CHECK
       if (response["grnCreated"] != true) {
         throw Exception("GRN creation failed");
       }
 
-      /// ✅ STOCK UPDATE CHECK
+      // STOCK UPDATE CHECK
       final stockUpdate = response["stockUpdate"];
 
       if (stockUpdate != null) {
-        debugPrint("📦 STOCK UPDATE SUCCESS: $stockUpdate");
+        debugPrint("STOCK UPDATE SUCCESS: $stockUpdate");
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("✅ Stock updated successfully"),
+              content: Text("Stock updated successfully"),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
         }
       } else {
-        debugPrint("❌ STOCK UPDATE FAILED OR NOT RETURNED");
+        debugPrint("STOCK UPDATE FAILED OR NOT RETURNED");
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("❌ Stock update failed"),
+              content: Text("Stock update failed"),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 2),
             ),
@@ -1151,7 +1153,7 @@ class ApprovedPOLogic {
         }
       }
 
-      /// 🔥 SAFE GRN NUMBER FETCH
+      // SAFE GRN NUMBER FETCH
       final String grnNumber =
           response["grnRandomId"] ??
           response["randomId"] ??
@@ -1161,26 +1163,25 @@ class ApprovedPOLogic {
           response["grnId"] ??
           "N/A";
 
-      debugPrint("✅ GRN CREATED: $grnNumber");
-      debugPrint("FULL RESPONSE: $response");
-      debugPrint("GRN RANDOM ID: ${response["grnRandomId"]}");
+      debugPrint("GRN CREATED: $grnNumber");
 
-      /// ✅ CLOSE LOADER
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+      // CLOSE LOADER
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+
+      if (context.mounted && rootNavigator.canPop()) {
+        rootNavigator.pop();
       }
 
-      /// ✅ REFRESH DATA
-      Future.microtask(() {
-        poProvider.fetchPOsWithFilters(
-          status: "Approved,PartiallyReceived",
-          clearExisting: true,
-        );
+      // REFRESH DATA
+      if (context.mounted) {
+        await poProvider.fetchApprovedPOsOnly();
+      }
 
-        grnProvider.fetchFilteredGRNs();
-      });
+      if (context.mounted) {
+        await grnProvider.fetchFilteredGRNs();
+      }
 
-      /// ✅ SUCCESS DIALOG
+      // SUCCESS DIALOG
       if (context.mounted) {
         showDialog(
           context: context,
@@ -1203,7 +1204,10 @@ class ApprovedPOLogic {
                 ElevatedButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pop();
+
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
@@ -1219,11 +1223,13 @@ class ApprovedPOLogic {
 
       debugPrint("=========== GRN CONVERSION END ===========");
     } catch (e, stack) {
-      debugPrint("❌ Convert PO to GRN failed: $e");
+      debugPrint("Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
 
-      if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+      final rootNavigator = Navigator.of(context, rootNavigator: true);
+
+      if (context.mounted && rootNavigator.canPop()) {
+        rootNavigator.pop();
       }
 
       dialogMessengerKey.currentState?.showSnackBar(

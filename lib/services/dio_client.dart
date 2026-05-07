@@ -1,37 +1,42 @@
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
+import 'package:purchaseorders2/core/config/env.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:purchaseorders2/services/navigation_service.dart';
+import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 import 'package:flutter/material.dart';
 
 bool _isRedirecting = false;
 
 class DioClient {
-  static const String baseUrl = "https://yenerp.com/purchasetestapi/";
-  static const String domain = "localhost:3000";
+  static final Dio dio = Dio();
 
-  static final Dio dio = Dio(
-    BaseOptions(
-      baseUrl: baseUrl,
+  // INIT (MUST CALL IN main)
+  static Future<void> init() async {
+    //Set options AFTER dotenv is loaded
+    dio.options = BaseOptions(
+      baseUrl: Env.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       headers: {"Content-Type": "application/json"},
-    ),
-  );
+    );
 
-  static Future<void> init() async {
     dio.interceptors.clear();
 
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final prefs = await SharedPreferences.getInstance();
-          final token = prefs.getString('token');
+          // Get token securely
+          final token = await SecureStorageService.getToken();
 
           if (!options.path.contains("/login") && token != null) {
             options.headers["Authorization"] = "Bearer $token";
           }
 
-          options.headers["x-domain"] = domain;
+          // Add domain from env
+          options.headers["x-domain"] = Env.domain;
+
           return handler.next(options);
         },
 
@@ -42,10 +47,12 @@ class DioClient {
         onError: (e, handler) async {
           final path = e.requestOptions.path;
 
+          // Skip login errors
           if (path.contains("/login")) {
             return handler.next(e);
           }
 
+          // Handle session expiry
           if (e.response?.statusCode == 401 && !_isRedirecting) {
             _isRedirecting = true;
 
@@ -64,12 +71,11 @@ class DioClient {
     );
   }
 
+  // SESSION EXPIRED DIALOG
   static void _showSessionExpiredDialog() async {
     final context = NavigationService.navigatorKey.currentContext;
 
-    if (context == null) {
-      return;
-    }
+    if (context == null) return;
 
     showDialog(
       context: context,
@@ -105,7 +111,11 @@ class DioClient {
                 Navigator.pop(context);
 
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.remove('token');
+
+                // Clear secure token
+                await SecureStorageService.clearToken();
+
+                // Clear local data
                 await prefs.remove('username');
                 await prefs.remove('browser_session_id');
 

@@ -538,7 +538,7 @@ class GRNLogic {
         Navigator.of(context).pop();
         Future.microtask(() {
           context.read<APInvoiceProvider>().fetchAPInvoices(
-            status: "Outgoing Posted",
+            status: "Pending Payment",
             skip: 0,
             limit: 50,
           );

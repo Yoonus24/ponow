@@ -45,7 +45,7 @@ class PurchaseOrderLogic {
     required this.formKey,
     required this.isDisposed,
     required this.templateProvider,
-  }) {}
+  });
 
   void initializeData() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -333,14 +333,12 @@ class PurchaseOrderLogic {
     try {
       isSaving.value = true;
 
-      // ✅ ROUND OFF FIX START
       final roundOff = double.tryParse(notifier.roundOffController.text) ?? 0.0;
 
       notifier.roundOffAdjustment = roundOff;
 
       debugPrint("🟢 ROUND OFF BEFORE SAVE: $roundOff");
       debugPrint("🟢 TOTAL ORDER BEFORE SAVE: ${notifier.totalOrderAmount}");
-      // ✅ ROUND OFF FIX END
 
       if (notifier.isNotifierDisposed) {
         _stopSavingSpinner();
@@ -358,18 +356,38 @@ class PurchaseOrderLogic {
 
       _verifyItemDataBeforeSubmission();
 
-      final bool success = await notifier.submitPurchaseOrder(context);
+      final bool success = await notifier.submitPurchaseOrder();
 
       if (isDisposed()) {
         _stopSavingSpinner();
         return;
       }
 
+      // HANDLE FAILURE HERE
       if (!success) {
-        throw Exception('Purchase Order save failed');
+        if (notifier.selectedLocation == null ||
+            notifier.selectedLocation!.isEmpty) {
+          _showRequiredFieldSnackBar(
+            'Please select location',
+            scrollKey: vendorSectionKey,
+          );
+        } else if (notifier.selectedVendor == null ||
+            notifier.selectedVendor!.isEmpty) {
+          _showRequiredFieldSnackBar(
+            'Please select a vendor',
+            scrollKey: vendorSectionKey,
+          );
+        } else {
+          _showRequiredFieldSnackBar('Purchase Order save failed');
+        }
+
+        _stopSavingSpinner();
+        return;
       }
 
       await poProvider.refreshPOList();
+
+      if (!context.mounted) return;
 
       if (isDisposed()) {
         _stopSavingSpinner();
@@ -383,17 +401,13 @@ class PurchaseOrderLogic {
 
       FocusManager.instance.primaryFocus?.unfocus();
 
-      if (context.mounted) {
-        Navigator.of(context).pop(true);
-      }
+      Navigator.of(context).pop(true);
     } catch (e, stackTrace) {
+      debugPrint("SAVE PO ERROR: $e");
+      debugPrint("STACKTRACE: $stackTrace");
+
       if (!isDisposed() && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to save PO: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showRequiredFieldSnackBar('Failed to save PO');
       }
     } finally {
       if (!isDisposed()) {
@@ -846,7 +860,7 @@ class PurchaseOrderLogic {
 
       notifier.discountMode.value = type == 'percentage'
           ? DiscountMode.percentage
-          : DiscountMode.fixedAmount;
+          : DiscountMode.amount;
 
       overallDiscountMode.value = notifier.discountMode.value;
 
@@ -1022,7 +1036,7 @@ class PurchaseOrderLogic {
 
       notifier.discountMode.value = type == 'percentage'
           ? DiscountMode.percentage
-          : DiscountMode.fixedAmount;
+          : DiscountMode.amount;
 
       overallDiscountMode.value = notifier.discountMode.value;
 

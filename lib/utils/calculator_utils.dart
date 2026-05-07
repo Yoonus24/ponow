@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/numeric_calculator.dart'; // adjust path if needed
+import '../widgets/numeric_calculator.dart';
 
 void showNumericCalculator({
   required BuildContext context,
@@ -16,7 +16,12 @@ void showNumericCalculator({
       controller: controller,
       initialValue: double.tryParse(controller.text),
       onValueSelected: (value) {
-        controller.text = value.toStringAsFixed(2);
+        if (fieldType == 'number') {
+          controller.text = value.toInt().toString();
+        } else {
+          controller.text = value.toStringAsFixed(2);
+        }
+
         onValueSelected();
       },
     ),

@@ -403,7 +403,6 @@ class GRNProvider with ChangeNotifier {
         "items": data.items
             ?.where(
               (i) =>
-                  i.itemId != null &&
                   i.itemId!.isNotEmpty &&
                   i.itemId!.length == 24,
             )

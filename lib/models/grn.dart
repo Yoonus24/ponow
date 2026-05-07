@@ -7,6 +7,7 @@ class GRN {
   final String? purchaseOrderId;
   final String? poRandomID;
   final String? vendorName;
+  final String? vendorcode;
   final String? grnDate;
   final String? grnVerifiedDate;
   final String? grnReturnedDate;
@@ -58,6 +59,7 @@ class GRN {
     this.purchaseOrderId,
     this.poRandomID,
     this.vendorName,
+    this.vendorcode,
     this.grnDate,
     this.grnVerifiedDate,
     this.grnReturnedDate,
@@ -111,6 +113,7 @@ class GRN {
       purchaseOrderId: json['purchaseOrderId'] as String?,
       poRandomID: json['poRandomID'] as String?,
       vendorName: json['vendorName'] as String?,
+      vendorcode: json['vendorcode'] as String?,
       grnDate: json['grnDate'] as String?,
       grnVerifiedDate: json['grnVerifiedDate'] as String?,
       grnReturnedDate: json['grnReturnedDate'] as String?,
@@ -179,6 +182,7 @@ class GRN {
       'poRandomID': poRandomID ?? '',
       'randomId': randomId,
       'vendorName': vendorName,
+      'vendorcode': vendorcode,
       'grnDate': grnDate,
       'grnVerifiedDate': grnVerifiedDate,
       'grnReturnedDate': grnReturnedDate,

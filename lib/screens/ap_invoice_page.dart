@@ -1,3 +1,5 @@
+// ignore_for_file: library_private_types_in_public_api, dead_null_aware_expression, use_build_context_synchronously, deprecated_member_use
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,9 +20,7 @@ class APInvoicePage extends StatefulWidget {
 
 class _APInvoicePageState extends State<APInvoicePage> {
   final ValueNotifier<String> _invoiceType = ValueNotifier("Goods");
-  final ValueNotifier<Set<String>> _statusFilters = ValueNotifier(<String>{
-    "Outgoing Posted",
-  });
+  final ValueNotifier<Set<String>> _statusFilters = ValueNotifier(<String>{});
 
   final ValueNotifier<String> _vendorNotifier = ValueNotifier('');
   final ValueNotifier<DateTimeRange?> _selectedDateRangeNotifier =
@@ -34,25 +34,18 @@ class _APInvoicePageState extends State<APInvoicePage> {
   int _skip = 0;
   final int _limit = 50;
   Timer? _debounce;
-  final ValueNotifier<List<String>> _allVendors = ValueNotifier(
-    [],
-  ); // List<String> _displayedVendors = [];
+  final ValueNotifier<List<String>> _allVendors = ValueNotifier([]);
   @override
   void initState() {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-
-      final provider = context.read<APInvoiceProvider>();
-
-      // ✅ Load only first time (same logic as GRN page)
-      if (provider.apInvoices.isEmpty) {
-        _applyFilters();
-      }
+      _applyFilters();
 
       final poProvider = context.read<POProvider>();
       final vendors = poProvider.vendorCache;
+
       final names = vendors
           .map((e) => e.vendorName ?? '')
           .where((name) => name.isNotEmpty)
@@ -74,8 +67,12 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
     _skip += _limit;
 
+    String? selectedStatus = _statusFilters.value.isEmpty
+        ? null
+        : _statusFilters.value.first;
+
     await provider.fetchAPInvoices(
-      status: _statusFilters.value.first,
+      status: selectedStatus,
       vendorName: _vendorNotifier.value.isNotEmpty
           ? _vendorNotifier.value
           : null,
@@ -89,8 +86,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
   @override
   void dispose() {
-    _debounce?.cancel(); // add this
-
+    _debounce?.cancel();
     _vendorNotifier.dispose();
     _selectedDateRangeNotifier.dispose();
     _vendorController.dispose();
@@ -108,23 +104,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
     }
   }
 
-  // void _searchVendor(String query) {
-  //   final q = query.toLowerCase().trim();
-
-  //   if (q.isEmpty) {
-  //     setState(() {
-  //       _displayedVendors = List.from(_allVendors);
-  //     });
-  //     return;
-  //   }
-
-  //   setState(() {
-  //     _displayedVendors = _allVendors
-  //         .where((v) => v.toLowerCase().contains(q))
-  //         .toList();
-  //   });
-  // }
-
   bool isGoodsInvoice(ApInvoice inv) {
     if (inv.itemDetails == null || inv.itemDetails!.isEmpty) return false;
     return inv.itemDetails!.any((item) => (item.quantity ?? 0) > 0);
@@ -133,24 +112,15 @@ class _APInvoicePageState extends State<APInvoicePage> {
   void _toggleFilter(String value) {
     final set = Set<String>.from(_statusFilters.value);
 
-    if (value == "Outgoing Posted") {
-      _statusFilters.value = {"Outgoing Posted"};
-      return;
-    }
-
-    set.remove("Outgoing Posted");
-
     if (set.contains(value)) {
       set.remove(value);
     } else {
+      set.clear();
       set.add(value);
     }
 
-    if (set.isEmpty) {
-      set.add("Outgoing Posted");
-    }
-
     _statusFilters.value = set;
+
     _applyFilters();
   }
 
@@ -175,8 +145,12 @@ class _APInvoicePageState extends State<APInvoicePage> {
         toDate = DateTime(range.end.year, range.end.month, range.end.day);
       }
 
+      String? selectedStatus = _statusFilters.value.isEmpty
+          ? null
+          : _statusFilters.value.first;
+
       context.read<APInvoiceProvider>().fetchAPInvoices(
-        status: _statusFilters.value.first,
+        status: selectedStatus,
         vendorName: _vendorNotifier.value.isNotEmpty
             ? _vendorNotifier.value
             : null,
@@ -483,7 +457,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
             valueListenable: _statusFilters,
             builder: (context, filters, _) {
               final bool hasCustomFilter =
-                  !(filters.length == 1 && filters.contains("Outgoing Posted"));
+                  !(filters.length == 1 && filters.contains("Pending Payment"));
 
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -505,7 +479,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                         _typeButtonCompact("Goods", selected),
                         const SizedBox(width: 6),
-                        // _typeButtonCompact("Service", selected),
                       ],
                     ),
                   ),
@@ -531,10 +504,43 @@ class _APInvoicePageState extends State<APInvoicePage> {
                         ),
                       ),
                       itemBuilder: (_) => [
-                        _statusMenuItem(
-                          title: "Outgoing Posted",
-                          value: "Outgoing Posted",
+                        PopupMenuItem<String>(
+                          enabled: false,
+                          child: InkWell(
+                            onTap: () {
+                              _statusFilters.value = {};
+                              _applyFilters();
+                              Navigator.pop(context);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 8,
+                              ),
+                              child: Row(
+                                children: const [
+                                  Icon(
+                                    Icons.clear,
+                                    color: Colors.redAccent,
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text(
+                                    "Clear Filter",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.redAccent,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
+
+                        const PopupMenuDivider(),
+
+                        _statusMenuItem(title: "Verified", value: "Verified"),
                         _statusMenuItem(
                           title: "Partially Paid",
                           value: "Partially Paid",
@@ -544,19 +550,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                           value: "Fully Paid",
                         ),
                         _statusMenuItem(title: "Returned", value: "Returned"),
-                        const PopupMenuDivider(),
-                        PopupMenuItem(
-                          child: TextButton(
-                            onPressed: () {
-                              _statusFilters.value = {"Outgoing Posted"};
-                              Navigator.pop(context);
-                            },
-                            child: const Text(
-                              "Reset Filters",
-                              style: TextStyle(color: Colors.black),
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -648,7 +641,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                               mainAxisAlignment:
                                                   MainAxisAlignment.center,
                                               children: [
-                                                /// 🔴 ERROR ICON
                                                 const Icon(
                                                   Icons.error_outline,
                                                   color: Colors.redAccent,
@@ -657,7 +649,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                                                 const SizedBox(height: 12),
 
-                                                /// ✅ MESSAGE
                                                 Text(
                                                   provider.error ??
                                                       "Something went wrong",
@@ -671,10 +662,8 @@ class _APInvoicePageState extends State<APInvoicePage> {
 
                                                 const SizedBox(height: 14),
 
-                                                /// 🔁 RETRY BUTTON
                                                 ElevatedButton(
-                                                  onPressed:
-                                                      _applyFilters, // ✅ IMPORTANT
+                                                  onPressed: _applyFilters,
                                                   style:
                                                       ElevatedButton.styleFrom(
                                                         backgroundColor:
@@ -694,25 +683,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                     List<ApInvoice> list = List.from(
                                       provider.apInvoices,
                                     );
-
-                                    final selectedType = _invoiceType.value;
-
-                                    if (selectedType == "Goods") {
-                                      list = list.where((inv) {
-                                        return inv.itemDetails != null &&
-                                            inv.itemDetails!.any(
-                                              (item) =>
-                                                  (item.quantity ?? 0) > 0,
-                                            );
-                                      }).toList();
-                                    }
-
-                                    // if (selectedType == "Service") {
-                                    //   list = list.where((inv) {
-                                    //     return inv.itemDetails == null ||
-                                    //         inv.itemDetails!.isEmpty;
-                                    //   }).toList();
-                                    // }
                                     if (list.isEmpty) {
                                       return ListView(
                                         physics:

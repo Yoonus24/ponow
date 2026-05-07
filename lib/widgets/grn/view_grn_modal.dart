@@ -375,7 +375,7 @@ class _GRNViewModalState extends State<GRNViewModal> {
 
             return Row(
               children: [
-                Container(
+                SizedBox(
                   width: fixedWidth,
                   child: Column(
                     children: [

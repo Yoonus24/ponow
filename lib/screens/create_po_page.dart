@@ -9,7 +9,6 @@ import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import 'package:purchaseorders2/widgets/create%20po/import_csv_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
 import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/save_template_dialog.dart';
 import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/template_list_dialog.dart';
@@ -221,7 +220,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
         context,
         listen: false,
       );
-      notifier.selectedVendor = null;
+      notifier.selectedVendor = '';
       notifier.selectedVendorDetails = null;
       notifier.poItems.clear();
       notifier.expectedDeliveryDateController.text = '';
@@ -515,7 +514,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   void _safeClearAndClose() {
     try {
       notifier.poItems.clear();
-      notifier.selectedVendor = null;
+      notifier.selectedVendor = '';
       notifier.selectedVendorDetails = null;
       try {
         notifier.billingController.text = '';
@@ -638,7 +637,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       return;
     }
 
-    if (notifier.selectedVendor == null || notifier.selectedVendor!.isEmpty) {
+    if (notifier.selectedVendor.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a vendor before saving as template'),
@@ -799,7 +798,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   PO _createPOFromCurrentData(PurchaseOrderNotifier notifier) {
     return PO(
       purchaseOrderId: '',
-      vendorName: notifier.selectedVendor ?? '',
+      vendorName: notifier.selectedVendor,
       vendorContact: notifier.vendorContactController.text,
       location: notifier.selectedLocation,
       locationName: notifier.selectedLocationName,

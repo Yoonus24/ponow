@@ -324,7 +324,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                             textController.clear();
                             widget.controller.clear();
                             widget.notifier.clearSelectedVendor();
-                            widget.notifier.selectedVendor = null;
+                            widget.notifier.selectedVendor = '';
                             widget.notifier.selectedVendorDetails = null;
 
                             _currentQuery = '';

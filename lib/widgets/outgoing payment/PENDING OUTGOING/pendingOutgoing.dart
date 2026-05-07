@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, use_build_context_synchronously
+// ignore_for_file: unnecessary_to_list_in_spreads, unnecessary_brace_in_string_interps, deprecated_member_use, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -30,17 +30,17 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   // Selected amount state with setState
   double _selectedAmount = 0.0;
   int _selectedCount = 0;
-
+  bool _isSorting = false;
   // Define all available columns
   final List<String> _allColumns = const [
     'S.No',
     'Select',
-    'PO No', // ✅ NEW
+    'PO No',
     'GRN No',
     'AP No',
-    'Outgoing No', // ✅ NEW
+    'Outgoing No',
     'Vendor Name',
-    'Type', // ✅ NEW
+    'Type',
     'Invoice No',
     'Invoice Date',
     'Total Amount',
@@ -84,7 +84,8 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   void initState() {
     super.initState();
     _logic = PendingOutgoingLogic();
-
+    _logic.sortColumnNotifier.addListener(_refreshSorting);
+    _logic.sortAscendingNotifier.addListener(_refreshSorting);
     _logic.horizontalScrollController.addListener(_handleHorizontalScroll);
     _logic.verticalScrollController.addListener(_handleScroll);
     _logic.selectedRowsNotifier.value = [];
@@ -130,6 +131,22 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     // For now, keeping all columns visible
   }
 
+  void _refreshSorting() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isSorting = true;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (!mounted) return;
+
+    setState(() {
+      _isSorting = false;
+    });
+  }
+
   void _saveColumnPreferences(
     List<String> columns,
     Map<String, bool> visibility,
@@ -159,10 +176,17 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
   @override
   void dispose() {
     _logic.horizontalScrollController.removeListener(_handleHorizontalScroll);
+
     _logic.selectedIndicesNotifier.removeListener(_updateSelectedAmount);
+
+    _logic.sortColumnNotifier.removeListener(_refreshSorting);
+    _logic.sortAscendingNotifier.removeListener(_refreshSorting);
+
     _logic.dispose();
+
     _visibleColumnsNotifier.dispose();
     _columnVisibilityNotifier.dispose();
+
     super.dispose();
   }
 
@@ -201,14 +225,13 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                             _logic.sortAscendingNotifier.value =
                                 !_logic.sortAscendingNotifier.value;
                           } else {
-                            _logic.sortColumnNotifier.value = sortColumn!;
+                            _logic.sortColumnNotifier.value = sortColumn;
                             _logic.sortAscendingNotifier.value = true;
                           }
                         },
                   child: Tooltip(
                     message: text,
                     child: text == 'Select'
-                        // ✅ HEADER CHECKBOX
                         ? ValueListenableBuilder<List<bool>>(
                             valueListenable: _logic.selectedRowsNotifier,
                             builder: (context, selectedRows, _) {
@@ -224,8 +247,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                   final provider = context
                                       .read<OutgoingPaymentProvider>();
                                   final count = provider.payments.length;
-
-                                  // select / unselect all
                                   final newList = List<bool>.filled(
                                     count,
                                     value ?? false,
@@ -244,7 +265,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                               );
                             },
                           )
-                        // ✅ NORMAL HEADER
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             mainAxisSize: MainAxisSize.min,
@@ -320,7 +340,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
         height: 40,
         decoration: BoxDecoration(
           color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(10), // Same as column filter
+          borderRadius: BorderRadius.circular(10),
         ),
         child: provider.isLoadingVendors
             ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
@@ -365,7 +385,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                 fontSize: 12,
                                 color: Colors.black54,
                               ),
-                              // Removed prefixIcon
                               suffixIcon:
                                   controller.text.isNotEmpty &&
                                       controller.text != 'All Vendors'
@@ -453,7 +472,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
             height: 40,
             decoration: BoxDecoration(
               color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(10), // Same as column filter
+              borderRadius: BorderRadius.circular(10),
             ),
             child: TextField(
               controller: _logic.invoiceSearchController,
@@ -461,7 +480,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
               decoration: InputDecoration(
                 hintText: 'Search by Invoice',
                 hintStyle: const TextStyle(fontSize: 12, color: Colors.black54),
-                // Removed prefixIcon
                 suffixIcon: value.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 18),
@@ -492,7 +510,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     );
   }
 
-  // Column Filter Button
   Widget _buildColumnFilterButton() {
     return Container(
       height: 40,
@@ -557,7 +574,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
     );
   }
 
-  // Dynamic Data Row Builder
   Widget _buildDataRow(
     int index,
     Outgoing outgoing,
@@ -670,25 +686,44 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
           child: ValueListenableBuilder<Set<int>>(
             valueListenable: _logic.selectedIndicesNotifier,
             builder: (context, selectedIndices, _) {
+              final isMultiSelect = selectedIndices.length > 1;
+              final isVerified =
+                  ap != null &&
+                  ap.verifiedBy != null &&
+                  ap.verifiedBy!.isNotEmpty;
+
+              final GlobalKey iconKey = GlobalKey();
+
               return IconButton(
+                key: iconKey,
                 icon: Icon(
                   Icons.payment,
-                  color: selectedIndices.length > 1 ? Colors.grey : Colors.blue,
+                  color: isMultiSelect
+                      ? Colors.grey
+                      : isVerified
+                      ? Colors.blue
+                      : Colors.grey,
                   size: 18,
                 ),
-                onPressed: selectedIndices.length > 1
+                onPressed: isMultiSelect
                     ? null
-                    : () => _logic.showPaymentDialog(
-                        context,
-                        [outgoing],
-                        index,
-                        false,
-                      ),
+                    : () {
+                        if (!isVerified) {
+                          _logic.showPaymentTooltip(context, iconKey);
+                          return;
+                        }
+
+                        _logic.showPaymentDialog(
+                          context,
+                          [outgoing],
+                          index,
+                          false,
+                        );
+                      },
               );
             },
           ),
         );
-
       case 'PDF':
         return _buildContentCell(
           '',
@@ -978,8 +1013,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                   }
 
                   final sortedPayments = _logic.sortPayments(filtered);
-
-                  // Calculate total width based on visible columns
                   final totalWidth = _visibleColumnsNotifier.value.fold<double>(
                     0,
                     (sum, col) => sum + (_columnWidths[col] ?? 100),
@@ -1032,8 +1065,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-
-                                  // ✅ FIRST ROW: Vendor | Invoice Search | Column Filter
                                   Row(
                                     children: [
                                       _buildVendorFilterField(provider),
@@ -1046,7 +1077,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
 
                                   const SizedBox(height: 12),
 
-                                  // ✅ SECOND ROW: Multiple Pay Icon + Text | Selected Amount
                                   Row(
                                     children: [
                                       _buildMultiplePaymentButton(
@@ -1127,7 +1157,6 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                             CrossAxisAlignment
                                                                 .start,
                                                         children: [
-                                                          // Dynamic Header
                                                           Container(
                                                             decoration:
                                                                 const BoxDecoration(
@@ -1228,6 +1257,17 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                   child: Container(
                                                     color: Colors.white
                                                         .withOpacity(0.6),
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (_isSorting)
+                                                Positioned.fill(
+                                                  child: Container(
+                                                    color: Colors.white
+                                                        .withOpacity(0.4),
                                                     child: const Center(
                                                       child:
                                                           CircularProgressIndicator(),

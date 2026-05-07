@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class ServerTimeService {
   static Duration? _serverOffset;
-  static final Dio _dio = Dio();
-
+  static final Dio _dio = DioClient.dio;
   static Future<void> initialize() async {
     try {
       final response = await _dio.get("https://yenerp.com/liveapi/datetime");
@@ -25,7 +25,6 @@ class ServerTimeService {
       throw Exception("Unable to fetch server time");
     }
   }
-  
 
   static DateTime get now {
     if (_serverOffset == null) {

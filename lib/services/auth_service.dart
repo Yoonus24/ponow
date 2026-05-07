@@ -1,18 +1,17 @@
-// ignore_for_file: avoid_print
+// ignore_for_file: unused_local_variable, avoid_print
 
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:purchaseorders2/core/config/env.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/session_service.dart';
+import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 
 class AuthService {
-  // IMPORTANT: match this with backend expectation
-  static const String domain = "localhost:3000";
+   static String get domain => Env.domain;
 
-  /// =========================
-  /// LOGIN
-  /// =========================
+  // LOGIN
   static Future<Map<String, dynamic>?> login({
     required String username,
     required String password,
@@ -40,11 +39,13 @@ class AuthService {
       );
 
       final data = response.data;
-      print("✅ LOGIN RESPONSE: $data");
 
       final prefs = await SharedPreferences.getInstance();
 
-      await prefs.setString('token', data['access_token']);
+      //  STORE TOKEN SECURELY
+      await SecureStorageService.saveToken(data['access_token']);
+
+      //  KEEP NON-SENSITIVE DATA IN PREFS
       await prefs.setString('username', data['username']);
       await prefs.setString('role', data['role_name'] ?? '');
       await prefs.setString(
@@ -73,9 +74,7 @@ class AuthService {
     }
   }
 
-  /// =========================
-  /// LOGOUT
-  /// =========================
+  // LOGOUT
   static Future<void> logout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -97,18 +96,18 @@ class AuthService {
     // Stop session ping
     SessionService.stop();
 
-    //  Clear local session
+    // Clear local session
     await clearSession();
   }
 
-  /// =========================
-  /// KEEP SESSION ALIVE (PING)
-  /// =========================
+  // KEEP SESSION ALIVE (PING)
   static Future<void> ping() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final browserId = prefs.getString('browser_session_id');
-      final token = prefs.getString('token');
+
+      //  GET TOKEN FROM SECURE STORAGE (if needed later)
+      final token = await SecureStorageService.getToken();
 
       await DioClient.dio.post(
         "/ping",
@@ -121,27 +120,26 @@ class AuthService {
         ),
       );
     } catch (e) {
-      // ❌ Do NOT logout here
+      // Do NOT logout here
       print("⚠️ Ping failed, ignoring: $e");
     }
   }
 
-  /// =========================
-  /// CHECK LOGIN STATE
-  /// =========================
+  // CHECK LOGIN STATE
   static Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token') != null;
+    final token = await SecureStorageService.getToken();
+    return token != null;
   }
 
-  /// =========================
-  /// CLEAR SESSION (LOCAL)
-  /// =========================
+  // CLEAR SESSION (LOCAL)
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
 
+    // CLEAR SECURE TOKEN
+    await SecureStorageService.clearToken();
+
+    // CLEAR OTHER DATA
     await prefs.remove('permissions');
-    await prefs.remove('token');
     await prefs.remove('username');
     await prefs.remove('browser_session_id');
 

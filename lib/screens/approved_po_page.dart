@@ -160,12 +160,12 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
               onSurface: Colors.black, // normal text
               surface: Colors.white,
             ),
-            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
                 foregroundColor: Colors.blueAccent, // Cancel / Save buttons
               ),
             ),
+            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -468,7 +468,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                   Center(
                                     child: Column(
                                       children: [
-                                        /// 🔴 Icon
                                         const Icon(
                                           Icons.error_outline,
                                           color: Colors.redAccent,
@@ -477,7 +476,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                                         const SizedBox(height: 12),
 
-                                        /// ✅ USER FRIENDLY MESSAGE
                                         Text(
                                           provider.error ??
                                               "Something went wrong",
@@ -491,7 +489,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                                         const SizedBox(height: 14),
 
-                                        /// 🔁 RETRY BUTTON
                                         ElevatedButton(
                                           onPressed: _onRefresh,
                                           style: ElevatedButton.styleFrom(
@@ -508,7 +505,14 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                             );
                           }
 
-                          final list = provider.pos;
+                          final list = provider.pos
+                              .where(
+                                (po) =>
+                                    po.poStatus != "GRNConverted" &&
+                                    po.poStatus != "ConvertedToGRN",
+                              )
+                              .toList();
+
                           if (list.isEmpty) {
                             final hasFilters =
                                 vendorName.value.isNotEmpty ||
@@ -527,7 +531,9 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                                         color: Colors.grey,
                                       ),
                                     ),
+
                                     const SizedBox(height: 12),
+
                                     if (hasFilters)
                                       TextButton(
                                         onPressed: _clearAll,
@@ -548,8 +554,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                           return Expanded(
                             child: GridViewApproveWidget<PO>(
                               items: list,
-                              // shrinkWrap: true,
-                              // physics: const NeverScrollableScrollPhysics(),
                               itemBuilder: (_, i) => ApprovedPOWidget(
                                 po: list[i],
                                 poProvider: provider,

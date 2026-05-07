@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element_parameter, deprecated_member_use, unused_local_variable, dead_null_aware_expression, unnecessary_nullable_for_final_variable_declarations
+
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -46,14 +48,14 @@ class _AddItemDialogState extends State<AddItemDialog> {
   final ValueNotifier<bool> _isEachQtyFocused = ValueNotifier(false);
   final ValueNotifier<String?> _errorField = ValueNotifier(null);
   final ValueNotifier<bool> _shakeTrigger = ValueNotifier(false);
-  ValueNotifier<List<String>> _filteredItemOptions = ValueNotifier([]);
+  final ValueNotifier<List<String>> _filteredItemOptions = ValueNotifier([]);
 
   // Map to track validation errors for each field
   final Map<String, ValueNotifier<bool>> _fieldHasError = {};
   // Map to track shake triggers for each field
   final Map<String, ValueNotifier<bool>> _fieldShakeTrigger = {};
 
-  bool _itemsPreloaded = false;
+  final bool _itemsPreloaded = false;
 
   @override
   void initState() {
@@ -189,13 +191,13 @@ class _AddItemDialogState extends State<AddItemDialog> {
     /// 🔥 IMPORTANT FIX STARTS HERE
 
     final String befType =
-        (item.befTaxDiscountType != null && item.befTaxDiscountType!.isNotEmpty)
-        ? item.befTaxDiscountType!
+        (item.befTaxDiscountType.isNotEmpty)
+        ? item.befTaxDiscountType
         : "percentage";
 
     final String afType =
-        (item.afTaxDiscountType != null && item.afTaxDiscountType!.isNotEmpty)
-        ? item.afTaxDiscountType!
+        (item.afTaxDiscountType.isNotEmpty)
+        ? item.afTaxDiscountType
         : "percentage";
 
     final bool isAmountMode = befType == 'amount' || afType == 'amount';
@@ -209,7 +211,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
           .toStringAsFixed(2);
 
       _itemWiseDiscountMode.value = 'Amount ( ₹ )';
-      notifier.itemWiseDiscountMode = DiscountMode.fixedAmount;
+      notifier.itemWiseDiscountMode = DiscountMode.amount;
     } else {
       // ✅ Load % values
       _fieldControllers['befTaxDiscount']!.text = (item.befTaxDiscount ?? 0)
@@ -1000,7 +1002,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
                                           _itemWiseDiscountMode.value =
                                               "Amount ( ₹ )";
                                           notifier.itemWiseDiscountMode =
-                                              DiscountMode.fixedAmount;
+                                              DiscountMode.amount;
                                           // Clear discount error when mode changes
                                           if (_fieldHasError.containsKey(
                                             'discount',
@@ -1247,6 +1249,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
         purchasesubcategoryName: '',
         hsnCode: '',
         randomId: '',
+        locationId: '',
       ),
     );
 
@@ -1354,12 +1357,12 @@ class _AddItemDialogState extends State<AddItemDialog> {
           notifier.itemWiseDiscount + (notifier.overallDiscountAmount ?? 0.0);
 
       notifier.notifyListeners();
-    } catch (e) {}
+    } catch (e) {
+      return Future.error("Failed to calculate totals: $e");
+    }
   }
 
   Future<void> _addOrUpdateItem(PurchaseOrderNotifier notifier) async {
-    print("=========== ADD / UPDATE ITEM START ===========");
-
     if (!_formKey.currentState!.validate()) return;
 
     if (notifier.itemController.text.trim().isEmpty) {
@@ -1398,7 +1401,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
       final double totalQuantity = count * eachQty;
 
       final bool isAmountMode =
-          notifier.itemWiseDiscountMode == DiscountMode.fixedAmount;
+          notifier.itemWiseDiscountMode == DiscountMode.amount;
 
       final String befType = (befValue > 0 && afValue == 0)
           ? (isAmountMode ? "amount" : "percentage")
@@ -1428,7 +1431,9 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
       final PurchaseItem? selectedPurchaseItem = notifier.purchaseItems
           .firstWhere(
-            (item) => item.itemName == selectedItemName,
+            (item) =>
+                item.itemName.trim().toLowerCase() ==
+                selectedItemName.trim().toLowerCase(),
             orElse: () => PurchaseItem(
               itemName: '',
               itemCode: '',
@@ -1440,12 +1445,14 @@ class _AddItemDialogState extends State<AddItemDialog> {
               purchasesubcategoryName: '',
               hsnCode: '',
               randomId: '',
+              locationId: '',
             ),
           );
-
       final Item newItem = Item(
         itemId: selectedPurchaseItem?.purchaseItemId,
         itemName: notifier.itemController.text,
+        itemCode: selectedPurchaseItem?.itemCode ?? '',
+        locationId: selectedPurchaseItem?.locationId ?? '',
 
         /// IMPORTANT
         /// Use correct master randomId like PI1437
@@ -1567,7 +1574,6 @@ class _AddItemDialogState extends State<AddItemDialog> {
       }
     } finally {
       _submitButtonLoadingNotifier.value = false;
-      print("=========== ADD / UPDATE ITEM END ===========");
     }
   }
 }

@@ -44,20 +44,12 @@ class GRNPDF {
     if (vendorId.trim().isEmpty) return {};
 
     try {
-      final response = await Dio().get(
+      await DioClient.dio.get(
         'http://192.168.29.184:8000/purchasetestapi/vendors/$vendorId',
       );
-
-      print("🟡 Vendor API HIT: $vendorId");
-      print("📦 Vendor Response: ${response.data}");
-
-      if (response.data is Map<String, dynamic>) {
-        return response.data;
-      }
-
       return {};
     } catch (e) {
-      print("❌ Vendor API ERROR: $e");
+      debugPrint("❌ Vendor API ERROR: $e");
       return {};
     }
   }
@@ -441,10 +433,14 @@ class GRNPDF {
       /// STEP 1: Generate PDF
       final file = await GRNPDF().generateGRNPdf(grnId);
 
+      if (!context.mounted) return;
+
       debugPrint("✅ PDF generated at: ${file.path}");
 
-      /// STEP 2: Open PDF (IMPORTANT FIX)
+      /// STEP 2: Open PDF
       final result = await OpenFilex.open(file.path);
+
+      if (!context.mounted) return;
 
       debugPrint("📂 Open result: ${result.message}");
 
@@ -455,6 +451,8 @@ class GRNPDF {
         );
       }
     } catch (e) {
+      if (!context.mounted) return;
+
       debugPrint("❌ PDF Error: $e");
 
       ScaffoldMessenger.of(context).showSnackBar(

@@ -67,7 +67,6 @@ class _GRNPageState extends State<GRNPage> {
     _selectedButton.addListener(_onStatusFilterChanged);
   }
 
-
   void _onDateFilterChanged() {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
@@ -435,7 +434,12 @@ class _GRNPageState extends State<GRNPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             children: const [
               SizedBox(height: 200),
-              Center(child: Text("No GRNs found")),
+              Center(
+                child: Text(
+                  "No GRNs found",
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
             ],
           );
         }
@@ -547,10 +551,9 @@ class _GRNPageState extends State<GRNPage> {
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
-            ),
+            ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );

@@ -8,6 +8,7 @@ import 'package:purchaseorders2/providers/po_provider.dart';
 
 class AppInitializer extends StatefulWidget {
   final Widget child;
+
   const AppInitializer({super.key, required this.child});
 
   @override
@@ -19,35 +20,38 @@ class _AppInitializerState extends State<AppInitializer> {
   void initState() {
     super.initState();
 
+    // CONNECTIVITY PROVIDER
     final connectivityProvider = Provider.of<ConnectivityProvider>(
       context,
       listen: false,
     );
 
+    final poProvider = Provider.of<POProvider>(context, listen: false);
+
+    final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+
+    final apInvoiceProvider = Provider.of<APInvoiceProvider>(
+      context,
+      listen: false,
+    );
+
+    final outgoingPaymentProvider = Provider.of<OutgoingPaymentProvider>(
+      context,
+      listen: false,
+    );
+
+    // AUTO REFRESH ON INTERNET RECONNECT
     connectivityProvider.onReconnect = () async {
-
       try {
-        await Provider.of<POProvider>(
-          context,
-          listen: false,
-        ).fetchPOsWithFilters(clearExisting: true);
+        await poProvider.fetchPOsWithFilters(clearExisting: true);
 
-        await Provider.of<GRNProvider>(
-          context,
-          listen: false,
-        ).fetchFilteredGRNs();
+        await grnProvider.fetchFilteredGRNs();
 
-        await Provider.of<APInvoiceProvider>(
-          context,
-          listen: false,
-        ).fetchAPInvoices();
+        await apInvoiceProvider.fetchAPInvoices();
 
-        await Provider.of<OutgoingPaymentProvider>(
-          context,
-          listen: false,
-        ).fetchPayments();
+        await outgoingPaymentProvider.fetchPayments();
       } catch (e) {
-        // Handle errors if needed
+        debugPrint('Error during auto-refresh on reconnect: $e');
       }
     };
   }

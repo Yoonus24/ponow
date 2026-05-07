@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/bankdetails_models.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class PaymentDialogProvider with ChangeNotifier {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -177,9 +178,7 @@ class PaymentDialogProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final dio = Dio()
-        ..options.connectTimeout = const Duration(seconds: 10)
-        ..options.receiveTimeout = const Duration(seconds: 10);
+      final dio = DioClient.dio;
 
       final response = await dio.get(
         'https://yenerp.com/masterapi/bankmasters/',

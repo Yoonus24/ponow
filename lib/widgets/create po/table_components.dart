@@ -4,7 +4,7 @@ class TableHeaderCell extends StatelessWidget {
   final String label;
   final double flex;
 
-  const TableHeaderCell(this.label, {this.flex = 90});
+  const TableHeaderCell(this.label, {super.key, this.flex = 90});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +24,7 @@ class CustomTableCell extends StatelessWidget {
   final String text;
   final double flex;
 
-  const CustomTableCell({required this.text, this.flex = 90});
+  const CustomTableCell({super.key, required this.text, this.flex = 90});
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +47,7 @@ class MultiLineTableCell extends StatelessWidget {
   final String text;
   final double flex;
 
-  const MultiLineTableCell({required this.text, this.flex = 130});
+  const MultiLineTableCell({super.key, required this.text, this.flex = 130});
 
   @override
   Widget build(BuildContext context) {

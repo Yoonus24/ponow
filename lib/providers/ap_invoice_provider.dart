@@ -11,7 +11,7 @@ import 'package:purchaseorders2/models/grn.dart';
 import 'package:purchaseorders2/pdfs/apinvoice_pdf.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
-import 'package:purchaseorders2/services/dio_client.dart'; 
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class APInvoiceProvider extends ChangeNotifier {
   List<ApInvoice> _apInvoices = [];
@@ -173,15 +173,11 @@ class APInvoiceProvider extends ChangeNotifier {
     _setError(null);
 
     try {
-      // Use DioClient.dio instead of creating new Dio instance
       final response = await DioClient.dio.patch(
         '/apinvoices/convert-to-grn-from-returned/$invoiceId',
       );
 
       if (response.statusCode == 200) {
-        _apInvoices.removeWhere((inv) => inv.invoiceId == invoiceId);
-        notifyListeners();
-
         final grnProvider = Provider.of<GRNProvider>(context, listen: false);
         final outgoingProvider = Provider.of<OutgoingPaymentProvider>(
           context,
@@ -189,7 +185,7 @@ class APInvoiceProvider extends ChangeNotifier {
         );
 
         await Future.wait([
-          fetchAPInvoices(status: "Outgoing Posted", skip: 0, limit: 50),
+          fetchAPInvoices(status: null, skip: 0, limit: 50),
           grnProvider.fetchFilteredGRNs(),
           outgoingProvider.fetchFilteredOutgoings(),
         ]);
@@ -228,6 +224,25 @@ class APInvoiceProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> verifyAPInvoice(String invoiceId) async {
+    _setLoading(true);
+
+    try {
+      final response = await DioClient.dio.patch(
+        '/apinvoices/verify/$invoiceId',
+      );
+
+      if (response.statusCode == 200) {
+        await fetchAPInvoices(skip: 0, limit: 50);
+        return true;
+      }
+
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   String _getReadableError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionError:
@@ -252,8 +267,4 @@ class APInvoiceProvider extends ChangeNotifier {
     _error = error;
     notifyListeners();
   }
-
-  // void postOutgoingAndUpdateStatus(String s) {}
 }
-
-

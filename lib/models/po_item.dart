@@ -223,7 +223,7 @@ class Item {
       pendingTaxAmount: pendingTaxAmount ?? this.pendingTaxAmount,
       pendingDiscountAmount:
           pendingDiscountAmount ?? this.pendingDiscountAmount,
-      overallDiscountValue: overallDiscountValue ?? this.overallDiscountValue,
+      // overallDiscountValue: overallDiscountValue ?? this.overallDiscountValue,
       pendingOrderAmount: pendingOrderAmount ?? this.pendingOrderAmount,
       totalOrderAmount: totalOrderAmount ?? this.totalOrderAmount,
       pendingSgst: pendingSgst ?? this.pendingSgst,
