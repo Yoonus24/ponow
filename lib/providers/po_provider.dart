@@ -15,13 +15,14 @@ import 'package:purchaseorders2/models/purchase_tax_model.dart';
 import 'package:purchaseorders2/models/shippingandbillingaddress.dart';
 import 'package:purchaseorders2/models/vendorpurchasemodel.dart';
 import 'package:purchaseorders2/pdfs/approved_pdf.dart';
+import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class POProvider extends ChangeNotifier {
   // ==================== CONFIGURATION ====================
   final Dio _dio = DioClient.dio;
-
+  AIInvoiceResponse? pendingAIResponse;
   // ==================== STATE VARIABLES ====================
   // PO Lists
   List<PO> _pos = [];
@@ -1160,27 +1161,35 @@ class POProvider extends ChangeNotifier {
     double? totalFreightTaxAmount,
   }) async {
     debugPrint("🟢 updatePoDetails() CALLED");
+
     debugPrint("📌 PO ID: $poId");
 
     try {
       /// FORMAT DATE
       final dateFormatter = DateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+
       final formattedInvoiceDate = dateFormatter.format(invoiceDate);
 
       debugPrint("📅 Invoice Date (formatted): $formattedInvoiceDate");
+
       debugPrint("🧾 Invoice No: $invoiceNumber");
+
       debugPrint("🔄 Round Off Adjustment: ${roundOffAdjustment ?? 0.0}");
 
-      /// FIND PO
-      debugPrint("🔍 Finding PO in local list...");
-      final PO po = _pos.firstWhere(
-        (p) => p.purchaseOrderId == poId,
-        orElse: () => throw Exception("PO not found"),
-      );
-      debugPrint("✅ PO found: ${po.randomId}");
+      /// FETCH PO DIRECTLY FROM BACKEND
+      debugPrint("🌐 Fetching PO directly from backend...");
+
+      final PO? po = await fetchPOById(poId);
+
+      if (po == null) {
+        throw Exception("PO not found from backend");
+      }
+
+      debugPrint("✅ PO fetched: ${po.randomId}");
 
       /// PREPARE ITEMS
       debugPrint("📦 Preparing items for API...");
+
       final receivedItems = items.map((item) => item.copyWith()).toList();
 
       final itemsList = receivedItems.map((item) {
@@ -1191,26 +1200,44 @@ class POProvider extends ChangeNotifier {
         }
 
         debugPrint("=========== ITEM DEBUG START ===========");
+
         debugPrint("➡️ Item Name: ${item.itemName}");
+
         debugPrint("🆔 Item ID: ${item.itemId}");
+
         debugPrint("🎯 Random ID: ${item.randomId}");
+
         debugPrint("📥 Received Qty: ${item.receivedQuantity}");
+
         debugPrint("💰 New Price (grnPrice): ${item.newPrice}");
+
         debugPrint("🏷 Existing Price: ${item.existingPrice}");
+
         debugPrint("📉 BefTax Discount: ${item.befTaxDiscount}");
+
         debugPrint("📉 AfTax Discount: ${item.afTaxDiscount}");
+
         debugPrint("📅 Expiry Date: $formattedExpiryDate");
+
         debugPrint("📍 Location ID: ${item.locationId}");
+
         debugPrint("📦 Available Stock: ${item.availableStock}");
+
         debugPrint("=========== ITEM DEBUG END ===========");
 
         return {
           "itemId": item.itemId,
+
           "receivedQuantity": item.receivedQuantity ?? 0,
+
           "grnPrice": item.newPrice ?? 0.0,
+
           "damagedQuantity": 0.0,
+
           "befTaxDiscount": item.befTaxDiscount ?? 0.0,
+
           "afTaxDiscount": item.afTaxDiscount ?? 0.0,
+
           "expiryDate": formattedExpiryDate,
         };
       }).toList();
@@ -1220,18 +1247,28 @@ class POProvider extends ChangeNotifier {
       /// BUILD BODY
       final Map<String, dynamic> body = {
         "items": itemsList,
+
         "invoiceNo": invoiceNumber,
+
         "invoiceDate": formattedInvoiceDate,
+
         "discountPrice": 0,
+
         "grnRoundOffAmount": roundOffAdjustment ?? 0.0,
+
         "poId": poId,
+
         "freights": po.freights?.map((f) => f.toJson()).toList() ?? [],
+
         "totalFreightAmount": po.totalFreightAmount ?? 0.0,
+
         "totalFreightTaxAmount": po.totalFreightTaxAmount ?? 0.0,
       };
 
       debugPrint("=========== UPDATE PO API PAYLOAD START ===========");
+
       debugPrint(body.toString());
+
       debugPrint("=========== UPDATE PO API PAYLOAD END ===========");
 
       /// API CALL
@@ -1239,6 +1276,7 @@ class POProvider extends ChangeNotifier {
 
       final response = await _dio.patch(
         '/purchaseorders/receivedupdates/$poId',
+
         data: body,
       );
 
@@ -1246,44 +1284,59 @@ class POProvider extends ChangeNotifier {
 
       if (response.statusCode != 200) {
         debugPrint("❌ API FAILED");
+
         debugPrint("❌ Response Data: ${response.data}");
+
         throw Exception(response.data?["detail"] ?? "PO update failed");
       }
 
       debugPrint("=========== UPDATE PO RESPONSE START ===========");
+
       debugPrint(response.data.toString());
 
       /// CHECK MAIN RESPONSE
       debugPrint("🔎 GRN Created: ${response.data["grnCreated"]}");
+
       debugPrint("🆔 GRN ID: ${response.data["grnId"]}");
+
       debugPrint("🎯 GRN Random ID: ${response.data["grnRandomId"]}");
+
       debugPrint(
         "📦 Newly Received Items: ${response.data["newlyReceivedItems"]}",
       );
+
       debugPrint("📍 Location Used: ${response.data["locationUsed"]}");
+
       debugPrint("💰 Price Updates: ${response.data["priceUpdates"]}");
 
-      /// STOCK CHECK (VERY IMPORTANT)
+      /// STOCK CHECK
       debugPrint("=========== STOCK UPDATE DEBUG START ===========");
 
       if (response.data["stockUpdate"] != null) {
         final stockUpdate = response.data["stockUpdate"];
 
         debugPrint("✅ stockUpdate.success: ${stockUpdate["success"]}");
+
         debugPrint(
           "📦 stockUpdate.total_processed: ${stockUpdate["total_processed"]}",
         );
+
         debugPrint("✔ stockUpdate.successful: ${stockUpdate["successful"]}");
+
         debugPrint("❌ stockUpdate.failed: ${stockUpdate["failed"]}");
+
         debugPrint(
           "📈 stockUpdate.stock_updates: ${stockUpdate["stock_updates"]}",
         );
+
         debugPrint(
           "💰 stockUpdate.price_updates: ${stockUpdate["price_updates"]}",
         );
+
         debugPrint(
           "📍 stockUpdate.receiving_location: ${stockUpdate["receiving_location"]}",
         );
+
         debugPrint("📝 stockUpdate.items: ${stockUpdate["items"]}");
 
         if ((stockUpdate["stock_updates"] ?? 0) == 0) {
@@ -1302,6 +1355,7 @@ class POProvider extends ChangeNotifier {
       }
 
       debugPrint("=========== STOCK UPDATE DEBUG END ===========");
+
       debugPrint("=========== UPDATE PO RESPONSE END ===========");
 
       debugPrint("✅ updatePoDetails SUCCESS");
@@ -1309,7 +1363,9 @@ class POProvider extends ChangeNotifier {
       return response.data;
     } catch (e, stack) {
       debugPrint("❌ updatePoDetails FAILED: $e");
+
       debugPrintStack(stackTrace: stack);
+
       throw Exception("updatePoDetails failed: $e");
     }
   }
@@ -2264,6 +2320,7 @@ class POProvider extends ChangeNotifier {
   @override
   void dispose() {
     _searchTimer?.cancel();
+    _vendorSearchTimer?.cancel();
     vendorScrollController.dispose();
     vendorAllScrollController.dispose();
     itemScrollController.dispose();

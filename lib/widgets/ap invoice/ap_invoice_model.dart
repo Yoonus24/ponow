@@ -102,6 +102,17 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     super.dispose();
   }
 
+  double _calculateRowHeight(String text) {
+    const double minHeight = 38;
+    const int approxCharsPerLine = 11;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 15).toDouble();
+
+    return calculatedHeight < minHeight ? minHeight : calculatedHeight;
+  }
+
   @override
   Widget build(BuildContext context) {
     logic.setContext(context);
@@ -300,63 +311,87 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                           child: ListView.builder(
                                             controller:
                                                 logic.leftVerticalController,
+
                                             itemCount: items.length,
+
                                             itemBuilder: (context, index) {
-                                              return Row(
-                                                children: [
-                                                  Container(
-                                                    width: logic
-                                                        .columnWidths['S.No'],
-                                                    height: 45,
-                                                    alignment: Alignment.center,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          border: Border(
-                                                            bottom: BorderSide(
-                                                              color:
-                                                                  Colors.grey,
-                                                              width: 0.5,
+                                              final item = items[index];
+
+                                              final dynamicRowHeight =
+                                                  _calculateRowHeight(
+                                                    item.itemName ?? '',
+                                                  );
+
+                                              return SizedBox(
+                                                height: dynamicRowHeight,
+
+                                                child: Row(
+                                                  children: [
+                                                    Container(
+                                                      width: logic
+                                                          .columnWidths['S.No'],
+
+                                                      alignment:
+                                                          Alignment.center,
+
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            border: Border(
+                                                              bottom: BorderSide(
+                                                                color:
+                                                                    Colors.grey,
+                                                                width: 0.5,
+                                                              ),
                                                             ),
                                                           ),
-                                                        ),
-                                                    child: Text('${index + 1}'),
-                                                  ),
-                                                  Container(
-                                                    width: logic
-                                                        .columnWidths['Item Name'],
-                                                    height: 45,
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 8,
-                                                        ),
-                                                    alignment:
-                                                        Alignment.centerLeft,
-                                                    decoration:
-                                                        const BoxDecoration(
-                                                          border: Border(
-                                                            bottom: BorderSide(
-                                                              color:
-                                                                  Colors.grey,
-                                                              width: 0.5,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                    child: Tooltip(
-                                                      message:
-                                                          items[index]
-                                                              .itemName ??
-                                                          '',
-                                                      waitDuration:
-                                                          const Duration(
-                                                            milliseconds: 500,
-                                                          ),
+
                                                       child: Text(
-                                                        items[index].itemName ??
-                                                            '',
+                                                        '${index + 1}',
                                                       ),
                                                     ),
-                                                  ),
-                                                ],
+
+                                                    Container(
+                                                      width: logic
+                                                          .columnWidths['Item Name'],
+
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 2,
+                                                          ),
+
+                                                      alignment:
+                                                          Alignment.centerLeft,
+
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            border: Border(
+                                                              bottom: BorderSide(
+                                                                color:
+                                                                    Colors.grey,
+                                                                width: 0.5,
+                                                              ),
+                                                            ),
+                                                          ),
+
+                                                      child: Text(
+                                                        item.itemName ?? '',
+
+                                                        maxLines: null,
+
+                                                        overflow: TextOverflow
+                                                            .visible,
+
+                                                        softWrap: true,
+
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          height: 0.9,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               );
                                             },
                                           ),
@@ -599,8 +634,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                               );
 
                                               if (confirm == true) {
-                                                isVerifying.value =
-                                                    true; 
+                                                isVerifying.value = true;
 
                                                 final success = await context
                                                     .read<APInvoiceProvider>()
@@ -610,8 +644,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                                           .invoiceId!,
                                                     );
 
-                                                isVerifying.value =
-                                                    false; 
+                                                isVerifying.value = false;
 
                                                 if (success &&
                                                     context.mounted) {
@@ -632,8 +665,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                               }
                                             },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            Colors.blueAccent, 
+                                        backgroundColor: Colors.blueAccent,
                                         foregroundColor: Colors.white,
                                       ),
                                       child: const Text("Verify"),
@@ -650,28 +682,28 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                 ),
               ),
             ),
-           ValueListenableBuilder<bool>(
-  valueListenable: logic.isReturning,
-  builder: (context, isReturning, _) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: isVerifying,
-      builder: (context, isVerifyingNow, _) {
-        if (!isReturning && !isVerifyingNow) {
-          return const SizedBox.shrink();
-        }
+            ValueListenableBuilder<bool>(
+              valueListenable: logic.isReturning,
+              builder: (context, isReturning, _) {
+                return ValueListenableBuilder<bool>(
+                  valueListenable: isVerifying,
+                  builder: (context, isVerifyingNow, _) {
+                    if (!isReturning && !isVerifyingNow) {
+                      return const SizedBox.shrink();
+                    }
 
-        return Container(
-          color: Colors.black.withOpacity(0.3),
-          child: const Center(
-            child: CircularProgressIndicator(
-              color: Colors.blueAccent,
+                    return Container(
+                      color: Colors.black.withOpacity(0.3),
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ),
-        );
-      },
-    );
-  },
-),
           ],
         ),
       ),
@@ -1049,37 +1081,56 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
   }
 
   Widget _buildLandscapeItemLeft(ItemDetail item, int index) {
-    return Row(
-      children: [
-        Container(
-          width: logic.columnWidths['S.No'] ?? 40,
-          height: 45,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
+    final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
+    return SizedBox(
+      height: dynamicRowHeight,
+
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Container(
+            width: logic.columnWidths['S.No'] ?? 40,
+
+            alignment: Alignment.center,
+
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.grey, width: 0.5),
+              ),
+            ),
+
+            child: Text('${index + 1}', style: const TextStyle(fontSize: 11)),
           ),
-          child: Text('${index + 1}', style: const TextStyle(fontSize: 11)),
-        ),
-        Container(
-          width: logic.columnWidths['Item Name'] ?? 130,
-          height: 45,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          alignment: Alignment.centerLeft,
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
-          ),
-          child: Tooltip(
-            message: item.itemName ?? '',
-            waitDuration: const Duration(milliseconds: 500),
+
+          Container(
+            width: logic.columnWidths['Item Name'] ?? 220,
+
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+
+            alignment: Alignment.centerLeft,
+
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: Colors.grey, width: 0.5),
+              ),
+            ),
+
             child: Text(
               item.itemName ?? '',
-              style: const TextStyle(fontSize: 11),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+
+              style: const TextStyle(fontSize: 11, height: 0.9),
+
+              maxLines: null,
+
+              overflow: TextOverflow.visible,
+
+              softWrap: true,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1111,17 +1162,24 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
     int index,
     List<String> rightColumns,
   ) {
+    final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
     return Container(
-      height: 45,
+      height: dynamicRowHeight,
+
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
       ),
+
       child: Row(
         children: rightColumns.map((column) {
           return Container(
             width: logic.columnWidths[column] ?? 120,
+
             alignment: Alignment.center,
+
             padding: const EdgeInsets.symmetric(horizontal: 4),
+
             child: _buildLandscapeCellContent(column, item, index),
           );
         }).toList(),
@@ -1176,17 +1234,24 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
   }
 
   Widget _buildItemRow(dynamic item, int index, List<String> rightColumns) {
+    final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
     return Container(
-      height: 45,
+      height: dynamicRowHeight,
+
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
       ),
+
       child: Row(
         children: rightColumns.map((column) {
           return Container(
             width: logic.columnWidths[column] ?? 120,
+
             alignment: Alignment.center,
+
             padding: const EdgeInsets.symmetric(horizontal: 8),
+
             child: _buildCellContent(column, item, index),
           );
         }).toList(),

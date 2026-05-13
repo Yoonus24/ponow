@@ -86,7 +86,6 @@ class _GRNPageState extends State<GRNPage> {
   void dispose() {
     _debounceTimer?.cancel();
     _selectedButton.dispose();
-    // _vendorSearchController.dispose();
     _dateController.dispose();
     _vendorController.dispose();
     _vendorNotifier.dispose();
@@ -553,7 +552,8 @@ class _GRNPageState extends State<GRNPage> {
             ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
-            ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
+            ),
+            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -567,7 +567,7 @@ class _GRNPageState extends State<GRNPage> {
       _dateController.text =
           "${_formatDate(picked.start)} → ${_formatDate(picked.end)}";
 
-      _applyFilters();
+      // _applyFilters();
     }
   }
 

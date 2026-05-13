@@ -26,7 +26,7 @@ class APInvoiceModalLogic extends ChangeNotifier {
   // Column Widths
   final Map<String, double> columnWidths = {
     'S.No': 40,
-    'Item Name': 130,
+    'Item Name': 150,
     'UOM': 70,
     'Pkt Count': 80,
     'Qty': 70,
@@ -152,12 +152,10 @@ class APInvoiceModalLogic extends ChangeNotifier {
   Future<void> performReturn(BuildContext context) async {
     isReturning.value = true;
     try {
-      await context
-          .read<APInvoiceProvider>()
-          .convertToGrnFromApReturned(
-            apinvoice.invoiceId ?? '',
-            context,
-          );
+      await context.read<APInvoiceProvider>().convertToGrnFromApReturned(
+        apinvoice.invoiceId ?? '',
+        context,
+      );
       if (context.mounted) {
         Navigator.of(context).pop(true);
       }

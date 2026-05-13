@@ -86,6 +86,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   final POProvider poProvider;
 
   PurchaseOrderNotifier(this.poProvider) {
+    newPriceController.removeListener(updateVariance);
     newPriceController.addListener(updateVariance);
     overallDiscountController.text = '0';
     roundOffController.text = '0';
@@ -407,6 +408,7 @@ class PurchaseOrderNotifier extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _itemSearchTimer?.cancel();
+    newPriceController.removeListener(updateVariance);
 
     final controllers = [
       itemController,
@@ -420,6 +422,8 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       existingPriceController,
       newPriceController,
       varianceController,
+      befTaxDiscountController,
+      afTaxDiscountController,
       taxPercentageController,
       discountController,
       paymentTermsController,
@@ -1165,9 +1169,4 @@ class PurchaseOrderNotifier extends ChangeNotifier {
       return false;
     }
   }
-
-  // Future<void> applyOverallDiscount(POProvider poProvider) async {}
 }
-
-// ---------------------------------------------------------------------------
-// export 'purchase_order_notifier.dart';

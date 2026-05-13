@@ -29,6 +29,7 @@ class GRNReturnLogic extends ChangeNotifier {
   late ValueNotifier<String?> reasonErrorNotifier;
   late ValueNotifier<Map<int, String?>> quantityErrorsNotifier;
   late ValueNotifier<Map<int, String?>> reasonErrorsNotifier;
+  late ValueNotifier<bool> selectItemErrorNotifier;
   final ValueNotifier<bool> isSubmitting = ValueNotifier(false);
 
   // Scroll Controllers
@@ -65,6 +66,7 @@ class GRNReturnLogic extends ChangeNotifier {
     reasonErrorNotifier = ValueNotifier<String?>(null);
     quantityErrorsNotifier = ValueNotifier<Map<int, String?>>({});
     reasonErrorsNotifier = ValueNotifier<Map<int, String?>>({});
+    selectItemErrorNotifier = ValueNotifier<bool>(false);
   }
 
   void _initData() {
@@ -123,7 +125,7 @@ class GRNReturnLogic extends ChangeNotifier {
   List<ItemDetail> getItemDetails() => grn.itemDetails ?? [];
 
   double getReturnableQuantity(ItemDetail item) {
-    return (item.receivedQuantity ?? 0) - (item.returnedQuantity ?? 0);
+    return originalQuantities[item] ?? item.receivedQuantity ?? 0;
   }
 
   double getOriginalQuantity(ItemDetail item) {
@@ -132,9 +134,58 @@ class GRNReturnLogic extends ChangeNotifier {
 
   void updateSelectedRow(int index, bool value) {
     final updatedSelectedRows = List<bool>.from(selectedRowsNotifier.value);
+
     updatedSelectedRows[index] = value;
+
     selectedRowsNotifier.value = updatedSelectedRows;
+
+    // CLEAR ERRORS WHEN UNSELECTING
+    if (!value) {
+      // CLEAR QTY ERROR
+      final updatedQtyErrors = Map<int, String?>.from(
+        quantityErrorsNotifier.value,
+      );
+
+      updatedQtyErrors.remove(index);
+
+      quantityErrorsNotifier.value = updatedQtyErrors;
+
+      // CLEAR REASON ERROR
+      final updatedReasonErrors = Map<int, String?>.from(
+        reasonErrorsNotifier.value,
+      );
+
+      updatedReasonErrors.remove(index);
+
+      reasonErrorsNotifier.value = updatedReasonErrors;
+
+      // RESET VALUES
+      final item = grn.itemDetails![index];
+
+      item.returnedQuantity = 0;
+
+      item.receivedQuantity = originalQuantities[item] ?? item.receivedQuantity;
+
+      item.nos = 0;
+      item.eachQuantity = 0;
+
+      // CLEAR REASON
+      final updatedReasons = Map<int, String>.from(itemReasonsNotifier.value);
+
+      updatedReasons.remove(index);
+
+      itemReasonsNotifier.value = updatedReasons;
+
+      // FORCE UI REFRESH
+      quantityErrorsNotifier.notifyListeners();
+      reasonErrorsNotifier.notifyListeners();
+      itemReasonsNotifier.notifyListeners();
+      selectedRowsNotifier.notifyListeners();
+    }
+
     _updateItems();
+
+    notifyListeners();
   }
 
   void selectAllItems(bool value) {
@@ -160,13 +211,27 @@ class GRNReturnLogic extends ChangeNotifier {
 
   void disableReturnAll() {
     isReturnAllEnabledNotifier.value = false;
+
     scenarioNotifier.value = null;
+
     itemReasonsNotifier.value = {};
+
     itemsNotifier.value = null;
+
+    // CLEAR RETURN ALL ERROR
+    reasonErrorNotifier.value = null;
+
     selectedRowsNotifier.value = List<bool>.filled(
       grn.itemDetails?.length ?? 0,
       false,
     );
+
+    // FORCE UI REFRESH
+    reasonErrorNotifier.notifyListeners();
+    itemReasonsNotifier.notifyListeners();
+    selectedRowsNotifier.notifyListeners();
+
+    notifyListeners();
   }
 
   void enableSpecificQuantityReturn() {
@@ -184,13 +249,44 @@ class GRNReturnLogic extends ChangeNotifier {
 
   void disableSpecificQuantityReturn() {
     isSpecificQuantityReturnNotifier.value = false;
+
     scenarioNotifier.value = null;
+
     selectedRowsNotifier.value = List<bool>.filled(
       grn.itemDetails?.length ?? 0,
       false,
     );
+
     itemReasonsNotifier.value = {};
+
     itemsNotifier.value = null;
+
+    // CLEAR ALL INLINE ERRORS
+    quantityErrorsNotifier.value = {};
+
+    reasonErrorsNotifier.value = {};
+
+    // RESET ITEM VALUES
+    for (final item in grn.itemDetails ?? []) {
+      item.returnedQuantity = 0;
+
+      item.receivedQuantity = originalQuantities[item] ?? item.receivedQuantity;
+
+      item.nos = 0;
+
+      item.eachQuantity = 0;
+    }
+
+    // FORCE UI REFRESH
+    quantityErrorsNotifier.notifyListeners();
+
+    reasonErrorsNotifier.notifyListeners();
+
+    itemReasonsNotifier.notifyListeners();
+
+    selectedRowsNotifier.notifyListeners();
+
+    notifyListeners();
   }
 
   void setReturnAllReason(String reason) {
@@ -270,6 +366,8 @@ class GRNReturnLogic extends ChangeNotifier {
           ?.asMap()
           .entries
           .where((entry) => selectedRowsNotifier.value[entry.key])
+          // PREVENT ZERO QTY ITEMS
+          .where((entry) => (entry.value.returnedQuantity ?? 0) > 0)
           .where(
             (entry) =>
                 entry.value.itemId != null &&
@@ -279,6 +377,7 @@ class GRNReturnLogic extends ChangeNotifier {
           .map((entry) {
             final index = entry.key;
             final item = entry.value;
+
             return {
               'itemId': item.itemId,
               'nos': item.nos,
@@ -288,6 +387,7 @@ class GRNReturnLogic extends ChangeNotifier {
             };
           })
           .toList();
+
       itemsNotifier.value = updatedItems;
     }
   }
@@ -318,31 +418,74 @@ class GRNReturnLogic extends ChangeNotifier {
     return items;
   }
 
+  void scrollToIndex(int index, {bool scrollToReason = false}) {
+    const double rowHeight = 60.0;
+
+    final targetOffset = index * rowHeight;
+
+    // VERTICAL SCROLL
+    verticalScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+
+    fixedColumnScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+
+    // HORIZONTAL SCROLL
+    double horizontalOffset = 0;
+
+    if (scrollToReason) {
+      // Return Reason column
+      horizontalOffset = 650;
+    } else {
+      // Return Qty column
+      horizontalOffset = 300;
+    }
+
+    rightBodyHorizontal.animateTo(
+      horizontalOffset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+
+    rightHeaderHorizontal.animateTo(
+      horizontalOffset,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
+  }
+
   bool validateReturn() {
     if (scenarioNotifier.value == null) {
-      ScaffoldMessenger.of(_context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a return scenario'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showTopSnackBar('Please select return type');
+
       return false;
     }
+
+    // ===== RETURN ALL VALIDATION =====
 
     if (scenarioNotifier.value == 'full') {
       final reason = itemReasonsNotifier.value.isNotEmpty
           ? itemReasonsNotifier.value.values.first
           : '';
+
       if (reason.trim().isEmpty) {
-        ScaffoldMessenger.of(_context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter return reason'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        reasonErrorNotifier.value = 'Reason required';
+
+        showTopSnackBar('Please enter return reason');
+
         return false;
       }
+
+      reasonErrorNotifier.value = null;
     }
+
+    // ===== RETURN SPECIFIC VALIDATION =====
 
     if (scenarioNotifier.value == 'quantity_wise') {
       final selectedIndexes = selectedRowsNotifier.value
@@ -353,30 +496,100 @@ class GRNReturnLogic extends ChangeNotifier {
           .toList();
 
       if (selectedIndexes.isEmpty) {
-        ScaffoldMessenger.of(_context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select at least one item to return'),
-            backgroundColor: Colors.red,
-          ),
+        // SHOW SELECT COLUMN ERROR
+        selectItemErrorNotifier.value = true;
+
+        // SCROLL TO CHECKBOX COLUMN
+        rightBodyHorizontal.animateTo(
+          1200,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
         );
+
+        rightHeaderHorizontal.animateTo(
+          1200,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+
+        showTopSnackBar('Please select at least one item to return');
+
         return false;
       }
 
       for (final index in selectedIndexes) {
-        final reason = itemReasonsNotifier.value[index] ?? '';
-        if (reason.trim().isEmpty) {
-          ScaffoldMessenger.of(_context).showSnackBar(
-            const SnackBar(
-              content: Text('Please enter return reason for selected items'),
-              backgroundColor: Colors.red,
-            ),
-          );
+        final item = grn.itemDetails![index];
+
+        // ===== CLEAR OLD ERRORS =====
+
+        final updatedQtyErrors = Map<int, String?>.from(
+          quantityErrorsNotifier.value,
+        );
+
+        final updatedReasonErrors = Map<int, String?>.from(
+          reasonErrorsNotifier.value,
+        );
+
+        updatedQtyErrors.remove(index);
+        updatedReasonErrors.remove(index);
+
+        // ===== VALIDATE RETURN QUANTITY =====
+
+        if ((item.returnedQuantity ?? 0) <= 0) {
+          scrollToIndex(index);
+
+          updatedQtyErrors[index] = 'Qty must be > 0';
+
+          quantityErrorsNotifier.value = updatedQtyErrors;
+
+          showTopSnackBar('Return quantity must be greater than 0');
+
           return false;
         }
+
+        quantityErrorsNotifier.value = updatedQtyErrors;
+
+        // ===== VALIDATE REASON =====
+
+        final reason = itemReasonsNotifier.value[index] ?? '';
+
+        if (reason.trim().isEmpty) {
+          scrollToIndex(index, scrollToReason: true);
+
+          updatedReasonErrors[index] = 'Reason required';
+
+          reasonErrorsNotifier.value = updatedReasonErrors;
+
+          showTopSnackBar('Please enter return reason for selected items');
+
+          return false;
+        }
+
+        reasonErrorsNotifier.value = updatedReasonErrors;
       }
     }
 
     return true;
+  }
+
+  void showTopSnackBar(String message, {Color backgroundColor = Colors.red}) {
+    ScaffoldMessenger.of(_context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontSize: 13)),
+
+        backgroundColor: backgroundColor,
+
+        behavior: SnackBarBehavior.floating,
+
+        margin: const EdgeInsets.only(left: 20, right: 20, bottom: 80),
+
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> submitReturn(BuildContext context) async {
@@ -493,21 +706,14 @@ class GRNReturnLogic extends ChangeNotifier {
 
       if (context.mounted) {
         Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Return processed successfully'),
-            backgroundColor: Colors.green,
-          ),
+        showTopSnackBar(
+          'Return processed successfully',
+          backgroundColor: Colors.green,
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to process return: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showTopSnackBar('Failed to process return: $e');
       }
     }
   }
@@ -525,6 +731,7 @@ class GRNReturnLogic extends ChangeNotifier {
     reasonErrorNotifier.dispose();
     quantityErrorsNotifier.dispose();
     reasonErrorsNotifier.dispose();
+    selectItemErrorNotifier.dispose();
     originalQuantities.clear();
     originalEachQuantities.clear();
     verticalScrollController.dispose();

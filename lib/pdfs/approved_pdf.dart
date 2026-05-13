@@ -142,12 +142,22 @@ class PurchaseOrderService {
     final pendingOrderAmount = _safeNum(poData['pendingOrderAmount']);
     final amountInWords = _amountInWords(pendingOrderAmount);
 
-    // Calculate totals from items
+    // Calculate totals from items only (without freight)
     final subtotal = _calculateSubtotal(itemsRaw);
     final totalTax = _calculateTotalTax(itemsRaw);
-    final totalAmount = subtotal + totalTax;
+
+    // Get freight details - these will be shown separately
+    final totalFreightAmount = _safeNum(poData['totalFreightAmount']);
+    final totalFreightTaxAmount = _safeNum(poData['totalFreightTaxAmount']);
+
+    // Calculate total including freight (for final total only)
+    final totalAmount =
+        subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
+
+    // CGST and SGST from items only (without freight tax)
     final cgstAmount = totalTax / 2;
     final sgstAmount = totalTax / 2;
+
     final taxPercentage = _getTaxPercentage(itemsRaw);
 
     final pdf = pw.Document();
@@ -335,7 +345,7 @@ class PurchaseOrderService {
 
             // pw.SizedBox(height: 12),
 
-            // Totals Section - Matching sample PDF format
+            // Totals Section - Freight tax shown separately, not added to CGST/SGST
             pw.Table(
               border: pw.TableBorder.all(width: 0.5),
               columnWidths: {
@@ -348,6 +358,18 @@ class PurchaseOrderService {
                   'Total Discount',
                   _safeFixedString(_calculateTotalDiscount(itemsRaw)),
                 ),
+                // Add freight rows if freight exists
+                if (totalFreightAmount > 0) ...[
+                  _twoCellRow(
+                    'Freight Amount',
+                    _safeFixedString(totalFreightAmount),
+                  ),
+                  if (totalFreightTaxAmount > 0)
+                    _twoCellRow(
+                      'Freight Tax',
+                      _safeFixedString(totalFreightTaxAmount),
+                    ),
+                ],
                 _twoCellRow(
                   'CGST @$taxPercentage%',
                   _safeFixedString(cgstAmount),
@@ -396,7 +418,7 @@ class PurchaseOrderService {
               style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
             ),
             // pw.SizedBox(height: 6),
-            ..._buildTermsAndConditions(poData['termsAndConditions']),
+            ..._buildTermsAndConditions(poData['termsandConditions']),
 
             pw.SizedBox(height: 16),
 

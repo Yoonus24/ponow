@@ -92,7 +92,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
     _vendorController.dispose();
     _dateController.dispose();
     _allVendors.dispose();
-
+    _invoiceType.dispose();
     super.dispose();
   }
 
@@ -585,7 +585,6 @@ class _APInvoicePageState extends State<APInvoicePage> {
     );
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     return GestureDetector(

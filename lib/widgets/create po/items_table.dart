@@ -15,6 +15,7 @@ class ItemsTable extends StatefulWidget {
   final double Function(dynamic, String) getItemProperty;
   final DiscountMode itemWiseDiscountMode;
   final Function(List items)? onImport;
+
   const ItemsTable({
     super.key,
     this.notifier,
@@ -32,6 +33,7 @@ class ItemsTable extends StatefulWidget {
 
 class _ItemsTableState extends State<ItemsTable> {
   static const double rowHeight = 48.0;
+  static const double minRowHeight = 48.0;
   static const int maxVisibleRows = 7;
 
   final ScrollController horizontalController = ScrollController();
@@ -66,6 +68,16 @@ class _ItemsTableState extends State<ItemsTable> {
     }
   }
 
+  double _calculateRowHeight(String text) {
+    const int approxCharsPerLine = 11;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 20).toDouble();
+
+    return calculatedHeight < minRowHeight ? minRowHeight : calculatedHeight;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +107,7 @@ class _ItemsTableState extends State<ItemsTable> {
   Widget build(BuildContext context) {
     final purchaseNotifier =
         widget.notifier ?? Provider.of<PurchaseOrderNotifier>(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -103,7 +116,6 @@ class _ItemsTableState extends State<ItemsTable> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // ✅ IMPORT
               SizedBox(
                 height: 35,
                 child: ElevatedButton.icon(
@@ -137,7 +149,6 @@ class _ItemsTableState extends State<ItemsTable> {
 
               const SizedBox(width: 8),
 
-              // ✅ ADD FREIGHT
               SizedBox(
                 height: 35,
                 child: ElevatedButton.icon(
@@ -171,7 +182,6 @@ class _ItemsTableState extends State<ItemsTable> {
 
               const SizedBox(width: 8),
 
-              // ✅ ADD ITEM
               SizedBox(
                 height: 35,
                 child: ElevatedButton.icon(
@@ -194,7 +204,7 @@ class _ItemsTableState extends State<ItemsTable> {
         const SizedBox(height: 10),
 
         if (purchaseNotifier.poItems.isEmpty)
-          Center(
+          const Center(
             child: Padding(
               padding: EdgeInsets.all(40),
               child: Text(
@@ -214,39 +224,56 @@ class _ItemsTableState extends State<ItemsTable> {
                       ? items.length
                       : maxVisibleRows;
 
-                  final double tableHeight = rowHeight * (visibleRows + 1);
+                  double totalRowsHeight = 0;
 
-                  return SizedBox(
-                    height: tableHeight,
-                    child: Row( 
+                  for (final item in items) {
+                    totalRowsHeight += _calculateRowHeight(item.itemName ?? "");
+                  }
+
+                  final double tableHeight = totalRowsHeight + rowHeight;
+
+                  return Container(
+                    height: tableHeight > 500 ? 500 : tableHeight,
+
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
+
                       children: [
+                        // ================= LEFT SIDE =================
                         Column(
                           children: [
-                            // 🔹 HEADER
                             Container(
                               height: rowHeight,
-                              width: 160, // 50 + 110
+                              width: 160,
                               color: Colors.grey[200],
+
                               child: Row(
                                 children: const [
                                   TableHeaderCell("No", flex: 50),
+
                                   TableHeaderCell("Item Name", flex: 110),
                                 ],
                               ),
                             ),
 
-                            // 🔹 BODY
                             Expanded(
                               child: SingleChildScrollView(
                                 controller: leftVertical,
+
                                 child: Column(
                                   children: items.asMap().entries.map((entry) {
                                     final index = entry.key;
+
                                     final item = entry.value;
 
+                                    final rowDynamicHeight =
+                                        _calculateRowHeight(
+                                          item.itemName ?? "",
+                                        );
+
                                     return Container(
-                                      height: rowHeight,
+                                      height: rowDynamicHeight,
+
                                       decoration: BoxDecoration(
                                         border: Border(
                                           bottom: BorderSide(
@@ -254,17 +281,21 @@ class _ItemsTableState extends State<ItemsTable> {
                                           ),
                                         ),
                                       ),
+
                                       child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+
                                         children: [
-                                          // 🔸 SERIAL NUMBER
                                           CustomTableCell(
                                             text: (index + 1).toString(),
+
                                             flex: 50,
                                           ),
 
-                                          // 🔸 ITEM NAME
                                           MultiLineTableCell(
                                             text: item.itemName ?? "",
+
                                             flex: 110,
                                           ),
                                         ],
@@ -277,15 +308,18 @@ class _ItemsTableState extends State<ItemsTable> {
                           ],
                         ),
 
+                        // ================= RIGHT SIDE =================
                         Expanded(
                           child: SingleChildScrollView(
                             controller: horizontalController,
                             scrollDirection: Axis.horizontal,
+
                             child: Column(
                               children: [
                                 Container(
                                   height: rowHeight,
                                   color: Colors.grey[200],
+
                                   child: Row(
                                     children: const [
                                       TableHeaderCell("Qty"),
@@ -306,33 +340,49 @@ class _ItemsTableState extends State<ItemsTable> {
                                 Expanded(
                                   child: SingleChildScrollView(
                                     controller: rightVertical,
+
                                     child: Column(
                                       children: items.asMap().entries.map((
                                         entry,
                                       ) {
                                         final index = entry.key;
+
                                         final item = entry.value;
 
+                                        final rowDynamicHeight =
+                                            _calculateRowHeight(
+                                              item.itemName ?? "",
+                                            );
+
                                         final quantity = item.quantity ?? 0.0;
+
                                         final count = item.count ?? 0.0;
+
                                         final uom = item.uom ?? '';
+
                                         final eachQuantity =
                                             item.eachQuantity ?? 0.0;
+
                                         final existingPrice =
                                             item.existingPrice ?? 0.0;
+
                                         final newPrice = item.newPrice ?? 0.0;
+
                                         final taxPercentage =
                                             item.taxPercentage ?? 0.0;
+
                                         final finalPrice =
                                             item.finalPrice ?? 0.0;
 
                                         final befTaxDisplay =
                                             _getBefTaxDiscountDisplay(item);
+
                                         final afTaxDisplay =
                                             _getAfTaxDiscountDisplay(item);
 
                                         return Container(
-                                          height: rowHeight,
+                                          height: rowDynamicHeight,
+
                                           decoration: BoxDecoration(
                                             border: Border(
                                               bottom: BorderSide(
@@ -340,7 +390,11 @@ class _ItemsTableState extends State<ItemsTable> {
                                               ),
                                             ),
                                           ),
+
                                           child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+
                                             children: [
                                               CustomTableCell(
                                                 text: quantity.toStringAsFixed(
@@ -388,28 +442,37 @@ class _ItemsTableState extends State<ItemsTable> {
                                                     "₹${finalPrice.toStringAsFixed(2)}",
                                               ),
 
-                                              // ACTIONS
                                               SizedBox(
                                                 width: 120,
+
                                                 child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.center,
+
                                                   children: [
                                                     IconButton(
-                                                      icon: Icon(
+                                                      icon: const Icon(
                                                         Icons.edit,
                                                         color:
                                                             Colors.blueAccent,
                                                       ),
+
                                                       onPressed: () =>
                                                           widget.onEditItem(
                                                             context,
                                                             index,
                                                           ),
                                                     ),
+
                                                     IconButton(
-                                                      icon: Icon(
+                                                      icon: const Icon(
                                                         Icons.delete,
                                                         color: Colors.red,
                                                       ),
+
                                                       onPressed: () => widget
                                                           .onRemoveItem(item),
                                                     ),

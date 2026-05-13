@@ -242,16 +242,20 @@ class PurchaseOrderLogic {
     required GlobalKey vendorSectionKey,
     required GlobalKey billingSectionKey,
     required GlobalKey itemsSectionKey,
+    required GlobalKey expectedDateKey,
   }) async {
     if (isDisposed()) return;
 
     if (vendorController.text.isEmpty ||
         notifier.selectedVendor == null ||
         notifier.selectedVendor!.isEmpty) {
+      formKey.currentState!.validate();
+
       _showRequiredFieldSnackBar(
         'Please select a vendor',
         scrollKey: vendorSectionKey,
       );
+
       return;
     }
 
@@ -276,11 +280,28 @@ class PurchaseOrderLogic {
       return;
     }
 
-    if (!formKey.currentState!.validate()) {
+    if (notifier.expectedDeliveryDateController.text.trim().isEmpty) {
+      showValidationErrors.value = true;
+
+      /// ✅ Trigger validator -> red border
+      formKey.currentState!.validate();
+
       _showRequiredFieldSnackBar(
-        'Please fill all required fields before saving',
+        'Expected delivery date is required',
+        scrollKey: expectedDateKey,
+      );
+
+      return;
+    }
+
+    if (!formKey.currentState!.validate()) {
+      showValidationErrors.value = true;
+
+      _showRequiredFieldSnackBar(
+        'Please fill all required fields',
         scrollKey: vendorSectionKey,
       );
+
       return;
     }
 

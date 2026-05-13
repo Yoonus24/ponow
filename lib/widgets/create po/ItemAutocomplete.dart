@@ -221,6 +221,10 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
 
           await _filterItems(input);
 
+          if (_displayedItemsNotifier.value.isEmpty && input.isNotEmpty) {
+            return ['__NO_ITEM_FOUND__'];
+          }
+
           return _displayedItemsNotifier.value;
         },
         onSelected: (selectedItemName) async {
@@ -371,10 +375,12 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
               child: ValueListenableBuilder<List<String>>(
                 valueListenable: _displayedItemsNotifier,
                 builder: (context, displayedItems, _) {
+                  final optionList = options.toList();
+
                   return Container(
                     width: 250,
                     constraints: BoxConstraints(
-                      maxHeight: min(displayedItems.length * 50.0, 200),
+                      maxHeight: min(optionList.length * 50.0, 200),
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey[300]!),
@@ -396,27 +402,50 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                           return ListView.builder(
                             padding: EdgeInsets.zero,
                             itemCount:
-                                displayedItems.length + (isLoadingMore ? 1 : 0),
+                                optionList.length + (isLoadingMore ? 1 : 0),
+
                             itemBuilder: (context, index) {
-                              if (index < displayedItems.length) {
-                                final option = displayedItems[index];
+                              if (index < optionList.length) {
+                                final option = optionList[index];
+
+                                /// ✅ NO ITEM FOUND UI
+                                if (option == '__NO_ITEM_FOUND__') {
+                                  return const ListTile(
+                                    enabled: false,
+                                    title: Text(
+                                      'Item not found',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                /// ✅ NORMAL ITEMS
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 14,
                                     vertical: 2,
                                   ),
+
                                   minVerticalPadding: 0,
+
                                   visualDensity: const VisualDensity(
                                     vertical: -3,
                                   ),
+
                                   title: Text(
                                     option,
                                     style: const TextStyle(fontSize: 13),
                                     softWrap: true,
                                     maxLines: null,
                                   ),
+
                                   onTap: () {
                                     onSelected(option);
+
                                     Future.microtask(() {
                                       FocusManager.instance.primaryFocus
                                           ?.unfocus();
@@ -424,6 +453,8 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
                                   },
                                 );
                               }
+
+                              /// ✅ LOAD MORE LOADER
                               return const Center(
                                 child: Padding(
                                   padding: EdgeInsets.all(8.0),

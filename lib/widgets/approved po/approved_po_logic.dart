@@ -17,8 +17,6 @@ class ApprovedPOLogic {
   final VoidCallback onUpdated;
   bool updatingFromCalculator = false;
   bool suppressReceivedListener = false;
-
-  // MARK: - State Variables
   final Map<Item, TextEditingController> scanpendingCountController = {};
   final Map<Item, TextEditingController> scaneachQtyControllers = {};
   final Map<Item, TextEditingController> pendingCountController = {};
@@ -36,7 +34,6 @@ class ApprovedPOLogic {
   final Map<Item, double> originalAfTaxDiscount = {};
   final Map<Item, double> originalOrderedQty = {};
   final Map<Item, TextEditingController> priceControllersMap = {};
-
   final ValueNotifier<String> _invID = ValueNotifier<String>("");
   final ValueNotifier<String> formattedDate = ValueNotifier<String>("");
   final ValueNotifier<String?> invoiceValidationMessage =
@@ -67,6 +64,7 @@ class ApprovedPOLogic {
   double _approvedExtraDiscount = 0.0;
   double addedFreightAmount = 0.0;
   double addedFreightTaxAmount = 0.0;
+  bool _disposed = false;
 
   final ValueNotifier<List<String>> sharedColumns = ValueNotifier<List<String>>(
     [
@@ -99,7 +97,12 @@ class ApprovedPOLogic {
     0.0,
   );
   final ValueNotifier<int> uiRefresh = ValueNotifier(0);
-
+  final ValueNotifier<Set<Item>> aiHighlightedItems = ValueNotifier<Set<Item>>(
+    {},
+  );
+  final ValueNotifier<bool> isInvoiceHighlighted = ValueNotifier(false);
+  final Map<Item, GlobalKey> receivedFieldKeys = {};
+  final Map<Item, GlobalKey> expiryFieldKeys = {};
   void refreshUI() {
     uiRefresh.value++;
   }
@@ -124,7 +127,6 @@ class ApprovedPOLogic {
       _dialogMessengerKey;
 
   void initialize() {
-    // normalizePoDiscountsForApproval();
     _initializeControllers();
     _setupScrollSync();
 
@@ -169,6 +171,7 @@ class ApprovedPOLogic {
         '${now.day.toString().padLeft(2, '0')}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.year}';
+    _applyAIResponse();
   }
 
   bool validateRoundOff() {
@@ -183,47 +186,95 @@ class ApprovedPOLogic {
     return true;
   }
 
+  void _applyAIResponse() {
+    final aiResponse = poProvider.pendingAIResponse;
+
+    if (aiResponse == null) {
+      return;
+    }
+
+    invoiceNumberController.text = aiResponse.invoiceNumber;
+
+    try {
+      invoiceDateController.text = DateFormat(
+        'dd-MM-yyyy',
+      ).format(DateTime.parse(aiResponse.invoiceDate));
+    } catch (_) {
+      invoiceDateController.text = aiResponse.invoiceDate;
+    }
+
+    isInvoiceHighlighted.value = true;
+
+    for (final item in po.items) {
+      item.receivedQuantity = 0;
+
+      receivedQtyController[item]?.text = "0.00";
+    }
+
+    for (final aiItem in aiResponse.matchedItems) {
+      try {
+        final item = po.items.firstWhere(
+          (e) =>
+              e.itemName?.toLowerCase().trim() ==
+              aiItem.itemName.toLowerCase().trim(),
+        );
+
+        item.receivedQuantity = aiItem.receivedQuantity;
+        item.newPrice = aiItem.newPrice;
+        item.befTaxDiscount = aiItem.befTaxDiscount;
+        item.afTaxDiscount = aiItem.afTaxDiscount;
+        aiHighlightedItems.value = {...aiHighlightedItems.value, item};
+        receivedQtyController[item]?.text = aiItem.receivedQuantity
+            .toStringAsFixed(2);
+        priceControllersMap[item]?.text = aiItem.newPrice.toStringAsFixed(2);
+        befTaxControllers[item]?.text = aiItem.befTaxDiscount.toStringAsFixed(
+          2,
+        );
+        afTaxControllers[item]?.text = aiItem.afTaxDiscount.toStringAsFixed(2);
+      } catch (e) {
+        debugPrint("AI ITEM MATCH ERROR: $e");
+      }
+    }
+
+    Future.delayed(const Duration(seconds: 5), () {
+      if (_disposed) return;
+
+      aiHighlightedItems.value = {};
+
+      isInvoiceHighlighted.value = false;
+    });
+
+    poProvider.pendingAIResponse = null;
+
+    refreshUI();
+  }
+
   void _applyDiscountResponseToItems(Map<String, dynamic> data) {
     final List<dynamic> items = data["items"] ?? [];
 
     for (final res in items) {
       final item = po.items.firstWhere((i) => i.itemId == res["itemId"]);
 
-      /// BEFORE TAX
       item.befTaxDiscount = (res["befTaxDiscount"] as num?)?.toDouble() ?? 0.0;
-
-      /// AFTER TAX
       item.afTaxDiscount = (res["afTaxDiscount"] as num?)?.toDouble() ?? 0.0;
-
-      /// 🔥 IMPORTANT: UPDATE CONTROLLERS ALSO
       befTaxControllers[item]?.text = item.befTaxDiscount!.toStringAsFixed(2);
-
       afTaxControllers[item]?.text = item.afTaxDiscount!.toStringAsFixed(2);
-
-      /// OTHER FIELDS (keep your existing)
       item.pendingDiscountAmount =
           (res["pendingDiscountAmount"] as num?)?.toDouble() ?? 0.0;
-
       item.pendingTaxAmount =
           (res["pendingTaxAmount"] as num?)?.toDouble() ?? 0.0;
-
       item.pendingFinalPrice =
           (res["pendingFinalPrice"] as num?)?.toDouble() ?? 0.0;
     }
 
-    /// SUMMARY
     final summary = data["summary"] ?? {};
-
     po.pendingDiscountAmount =
         (summary["totalDiscountAmount"] as num?)?.toDouble() ?? 0.0;
-
     po.pendingTaxAmount =
         (summary["totalTaxAmount"] as num?)?.toDouble() ?? 0.0;
-
     po.totalOrderAmount =
         (summary["totalFinalAmount"] as num?)?.toDouble() ?? 0.0;
 
-    /// 🔥 FORCE UI UPDATE
     refreshUI();
   }
 
@@ -261,7 +312,6 @@ class ApprovedPOLogic {
         return;
       }
 
-      /// ✅ IMPORTANT (YOU MISSED THIS)
       isSummaryDiscountActive.value = true;
       isItemDiscountActive.value = false;
 
@@ -421,17 +471,10 @@ class ApprovedPOLogic {
 
   void updateTabletStatus(double screenWidth) {
     isTablet = screenWidth > 600;
+
     final allColumns = Map<String, bool>.fromEntries(
       sharedColumns.value.map((column) => MapEntry(column, true)),
     );
-
-    allColumns['Price'] = isTablet;
-    allColumns['BefTax'] = isTablet;
-    allColumns['AfTax'] = isTablet;
-    allColumns['Tax%'] = isTablet;
-    allColumns['Total Price'] = isTablet;
-    allColumns['Final'] = isTablet;
-
     sharedColumnVisibility.value = allColumns;
   }
 
@@ -551,6 +594,7 @@ class ApprovedPOLogic {
     afTaxControllers.clear();
     expiryDateControllers.clear();
     expiryDateErrors.clear();
+    priceControllersMap.clear();
 
     for (var item in po.items) {
       final count = item.pendingCount ?? item.count ?? 1;
@@ -582,11 +626,6 @@ class ApprovedPOLogic {
       pendingCountController[item] = TextEditingController(
         text: count.toStringAsFixed(2),
       );
-      for (var item in po.items) {
-        priceControllersMap[item] = TextEditingController(
-          text: (item.newPrice ?? 0.0).toStringAsFixed(2),
-        );
-      }
 
       eachQtyControllers[item] = TextEditingController(
         text: qty.toStringAsFixed(2),
@@ -600,7 +639,26 @@ class ApprovedPOLogic {
         text: (item.pendingAfTaxDiscountAmount ?? item.afTaxDiscountAmount ?? 0)
             .toStringAsFixed(2),
       );
+
+      receivedFieldKeys[item] = GlobalKey();
+      expiryFieldKeys[item] = GlobalKey();
+      priceControllersMap[item] = TextEditingController(
+        text: (item.newPrice ?? 0.0).toStringAsFixed(2),
+      );
     }
+  }
+
+  Future<void> scrollToField(GlobalKey key) async {
+    final context = key.currentContext;
+
+    if (context == null) return;
+
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+      alignment: 0.3,
+    );
   }
 
   void onPriceChanged(Item item, double newPrice) {
@@ -667,6 +725,34 @@ class ApprovedPOLogic {
     item.eachQuantity = originalEach;
     item.count = originalCount;
     final totalOrdered = originalEach * originalCount;
+  }
+
+  Future<void> recalculateReceivedSummary() async {
+    try {
+      final response = await poProvider.calculateGrnOverallDiscount(
+        items: po.items.map((item) {
+          return {
+            "itemId": item.itemId,
+            "receivedQuantity": item.receivedQuantity ?? 0,
+            "grnPrice": item.newPrice,
+            "befTaxDiscount": item.befTaxDiscount ?? 0,
+            "afTaxDiscount": item.afTaxDiscount ?? 0,
+            "taxPercentage": item.taxPercentage ?? 0.0,
+            "taxType": item.taxType ?? "cgst_sgst",
+          };
+        }).toList(),
+        discountAmount: po.pendingDiscountAmount ?? 0,
+        discountType: isBefTaxDiscount.value ? "before" : "after",
+      );
+
+      if (response["success"] == true) {
+        _applyDiscountResponseToItems(response);
+
+        refreshUI();
+      }
+    } catch (e) {
+      showTopError("Recalculation failed: $e");
+    }
   }
 
   void showNumericCalculator({
@@ -1042,12 +1128,17 @@ class ApprovedPOLogic {
   Future<void> convertPoToGRN(BuildContext context) async {
     debugPrint("convertPoToGRN() CALLED");
 
+    final navigator = Navigator.of(context);
+
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+
     if (isSaving.value) {
       debugPrint("Already saving, skipping...");
       return;
     }
 
     final poProvider = Provider.of<POProvider>(context, listen: false);
+
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
 
     try {
@@ -1055,48 +1146,48 @@ class ApprovedPOLogic {
 
       debugPrint("=========== GRN CONVERSION START ===========");
 
-      // VALIDATION
-      if (!validateForm()) {
-        debugPrint("Form validation failed");
-        isSaving.value = false;
-        return;
-      }
-
-      final isExpiryValid = validateExpiryDatesBasedOnReceived(po.items);
-
-      if (!isExpiryValid) {
-        showTopError("Expiry date required for received items");
-        isSaving.value = false;
-        return;
-      }
-
-      // SHOW LOADER
       showDialog(
         context: context,
         barrierDismissible: false,
         useRootNavigator: true,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
+        builder: (_) {
+          return const Center(child: CircularProgressIndicator());
+        },
       );
 
-      // NORMALIZE
       normalizeBeforeApi();
 
-      // PREPARE ITEMS
       final List<Item> receivedItems = po.items.map((item) {
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
+
           befTaxDiscount: item.befTaxDiscount ?? 0,
+
           afTaxDiscount: item.afTaxDiscount ?? 0,
+
           befTaxDiscountType: "percentage",
+
           afTaxDiscountType: "percentage",
+
           expiryDate: item.expiryDate,
         );
       }).toList();
 
-      // PARSE DATE
-      final pickedDate = DateFormat(
-        'dd-MM-yyyy',
-      ).parse(invoiceDateController.text.trim());
+      final rawDate = invoiceDateController.text.trim();
+
+      DateTime pickedDate;
+
+      try {
+        if (rawDate.contains('/')) {
+          pickedDate = DateFormat('MM/dd/yyyy').parseStrict(rawDate);
+        } else if (rawDate.contains('-') && rawDate.startsWith('20')) {
+          pickedDate = DateFormat('yyyy-MM-dd').parseStrict(rawDate);
+        } else {
+          pickedDate = DateFormat('dd-MM-yyyy').parseStrict(rawDate);
+        }
+      } catch (e) {
+        throw Exception("Invalid invoice date format: $rawDate");
+      }
 
       final now = ServerTimeService.now;
 
@@ -1109,51 +1200,34 @@ class ApprovedPOLogic {
         now.second,
       );
 
-      // API CALL
+      debugPrint("FINAL INVOICE DATE: $parsedInvoiceDate");
+
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
+
         receivedItems,
+
         invoiceNumberController.text.trim(),
+
         parsedInvoiceDate,
+
         0,
+
         roundOffAdjustment: roundOffAmount.value,
       );
 
-      // GRN CREATED CHECK
       if (response["grnCreated"] != true) {
         throw Exception("GRN creation failed");
       }
 
-      // STOCK UPDATE CHECK
       final stockUpdate = response["stockUpdate"];
 
       if (stockUpdate != null) {
         debugPrint("STOCK UPDATE SUCCESS: $stockUpdate");
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Stock updated successfully"),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       } else {
         debugPrint("STOCK UPDATE FAILED OR NOT RETURNED");
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Stock update failed"),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
 
-      // SAFE GRN NUMBER FETCH
       final String grnNumber =
           response["grnRandomId"] ??
           response["randomId"] ??
@@ -1165,14 +1239,10 @@ class ApprovedPOLogic {
 
       debugPrint("GRN CREATED: $grnNumber");
 
-      // CLOSE LOADER
-      final rootNavigator = Navigator.of(context, rootNavigator: true);
-
       if (context.mounted && rootNavigator.canPop()) {
         rootNavigator.pop();
       }
 
-      // REFRESH DATA
       if (context.mounted) {
         await poProvider.fetchApprovedPOsOnly();
       }
@@ -1181,7 +1251,6 @@ class ApprovedPOLogic {
         await grnProvider.fetchFilteredGRNs();
       }
 
-      // SUCCESS DIALOG
       if (context.mounted) {
         showDialog(
           context: context,
@@ -1189,30 +1258,39 @@ class ApprovedPOLogic {
           builder: (ctx) {
             return AlertDialog(
               backgroundColor: Colors.white,
+
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
+
               title: const Text(
                 "GRN Generated",
+
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
+
               content: Text(
                 "GRN has been generated successfully.\n\nGRN No: $grnNumber",
+
                 style: const TextStyle(fontSize: 15),
               ),
+
               actions: [
                 ElevatedButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
 
                     if (context.mounted) {
-                      Navigator.pop(context);
+                      navigator.pop();
                     }
                   },
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
+
                     foregroundColor: Colors.white,
                   ),
+
                   child: const Text("OK"),
                 ),
               ],
@@ -1224,36 +1302,97 @@ class ApprovedPOLogic {
       debugPrint("=========== GRN CONVERSION END ===========");
     } catch (e, stack) {
       debugPrint("Convert PO to GRN failed: $e");
-      debugPrintStack(stackTrace: stack);
 
-      final rootNavigator = Navigator.of(context, rootNavigator: true);
+      debugPrintStack(stackTrace: stack);
 
       if (context.mounted && rootNavigator.canPop()) {
         rootNavigator.pop();
       }
 
-      dialogMessengerKey.currentState?.showSnackBar(
-        const SnackBar(
-          content: Text("Failed to convert PO to GRN"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showTopError("Failed to convert PO to GRN");
     } finally {
       isSaving.value = false;
     }
   }
-  // void normalizePoDiscountsForApproval() {
-  //   for (var item in po.items) {
-  //     item.befTaxDiscount = 0.0;
-  //     item.afTaxDiscount = 0.0;
 
-  //     item.befTaxDiscountAmount = 0.0;
-  //     item.afTaxDiscountAmount = 0.0;
-  //     item.discountAmount = 0.0;
-  //   }
-  //   _poBaseDiscount = po.pendingDiscountAmount ?? 0.0;
-  //   _approvedExtraDiscount = 0.0;
-  // }
+  Future<bool> validateBeforeGRN() async {
+    /// INVOICE VALIDATION
+
+    if (invoiceNumberController.text.trim().isEmpty) {
+      invoiceValidationMessage.value = "error";
+
+      showTopError("Invoice number is required");
+
+      return false;
+    }
+
+    invoiceValidationMessage.value = null;
+
+    if (invoiceDateController.text.trim().isEmpty) {
+      invoiceDateValidationMessage.value = "error";
+
+      showTopError("Invoice date is required");
+
+      return false;
+    }
+
+    invoiceDateValidationMessage.value = null;
+
+    ///  ITEM VALIDATION
+
+    for (final item in po.items) {
+      final received = item.receivedQuantity ?? 0.0;
+
+      final expiry = expiryDateControllers[item]?.text.trim() ?? '';
+
+      /// RECEIVED EMPTY
+
+      if (received <= 0) {
+        receivedQtyErrors.value = {
+          ...receivedQtyErrors.value,
+          item: "Required",
+        };
+
+        refreshUI();
+
+        showTopError("Enter received quantity");
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        final key = receivedFieldKeys[item];
+
+        if (key != null) {
+          await scrollToField(key);
+        }
+
+        return false;
+      }
+
+      /// EXPIRY EMPTY
+
+      if (received > 0 && expiry.isEmpty) {
+        expiryDateErrors[item]?.value = "Required";
+
+        refreshUI();
+
+        showTopError("Select expiry date");
+
+        await Future.delayed(const Duration(milliseconds: 200));
+
+        final key = expiryFieldKeys[item];
+
+        if (key != null) {
+          await scrollToField(key);
+        }
+
+        return false;
+      }
+
+      expiryDateErrors[item]?.value = null;
+    }
+
+    return true;
+  }
 
   void resetPoDiscountsForApproval() {
     for (var item in po.items) {
@@ -1271,7 +1410,7 @@ class ApprovedPOLogic {
   double getColumnWidth(String column) {
     switch (column) {
       case 'Item':
-        return 130.0;
+        return 150.0;
       case 'UOM':
         return 45.0;
       case 'Count':
@@ -1377,47 +1516,104 @@ class ApprovedPOLogic {
       receivedQtyErrors;
 
   void dispose() {
+    _disposed = true;
+
+    _debounce?.cancel();
+
+    // SCROLL CONTROLLERS
     _orderedHorizontalController.dispose();
     _receivedHorizontalController.dispose();
     _orderedLeftVertical.dispose();
     _orderedRightVertical.dispose();
     _receivedLeftVertical.dispose();
     _receivedRightVertical.dispose();
+
+    // TEXT CONTROLLERS
     discountInputController.dispose();
+    discountPriceController.dispose();
+    invoiceDateController.dispose();
+    invoiceNumberController.dispose();
+
+    // VALUE NOTIFIERS
     roundOffAmount.dispose();
     appliedDiscount.dispose();
     roundOffErrorNotifier.dispose();
     isSaving.dispose();
+    isBefTaxDiscount.dispose();
+    receivedDiscountAmount.dispose();
 
+    invoiceValidationMessage.dispose();
+    invoiceDateValidationMessage.dispose();
+    receivedQtyErrors.dispose();
+
+    sharedColumns.dispose();
+    sharedColumnVisibility.dispose();
+
+    uiRefresh.dispose();
+
+    aiHighlightedItems.dispose();
+    isInvoiceHighlighted.dispose();
+
+    isSummaryDiscountActive.dispose();
+    isItemDiscountActive.dispose();
+
+    // MAP CONTROLLERS
     for (var controller in receivedQtyController.values) {
       controller.dispose();
     }
+
     for (var controller in expiryDateControllers.values) {
       controller.dispose();
     }
+
     for (var controller in befTaxControllers.values) {
       controller.dispose();
     }
+
     for (var controller in afTaxControllers.values) {
       controller.dispose();
     }
+
     for (var controller in scanpendingCountController.values) {
       controller.dispose();
     }
+
     for (var controller in scaneachQtyControllers.values) {
       controller.dispose();
     }
+
     for (var controller in pendingCountController.values) {
       controller.dispose();
     }
+
     for (var controller in eachQtyControllers.values) {
       controller.dispose();
     }
-    discountPriceController.dispose();
-    invoiceDateController.dispose();
-    invoiceNumberController.dispose();
-    _debounce?.cancel();
-    isBefTaxDiscount.dispose();
-    receivedDiscountAmount.dispose();
+
+    // ✅ PRICE CONTROLLERS DISPOSE FIX
+    for (var controller in priceControllersMap.values) {
+      controller.dispose();
+    }
+
+    // VALUE NOTIFIER MAPS
+    for (var notifier in expiryDateErrors.values) {
+      notifier.dispose();
+    }
+
+    for (var notifier in countTextColors.values) {
+      notifier.dispose();
+    }
+
+    for (var notifier in qtyTextColors.values) {
+      notifier.dispose();
+    }
+
+    for (var notifier in receivedQtyValues.values) {
+      notifier.dispose();
+    }
+
+    for (var notifier in expiryDateValues.values) {
+      notifier.dispose();
+    }
   }
 }

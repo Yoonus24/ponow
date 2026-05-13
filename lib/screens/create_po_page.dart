@@ -69,7 +69,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   final GlobalKey _vendorSectionKey = GlobalKey();
   final GlobalKey _billingSectionKey = GlobalKey();
   final GlobalKey _itemsSectionKey = GlobalKey();
-
+  final GlobalKey _expectedDateKey = GlobalKey();
   static const Color nonEditableColor = Color(0xFFF5F5F5);
   static const Color editableColor = Colors.white;
   static const Color borderColor = Color(0xFFE0E0E0);
@@ -274,6 +274,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
       formKey: _formKey,
       isDisposed: () => _isDisposed,
     );
+    notifier.removeListener(_updateTotalOrderAmount);
     notifier.addListener(_updateTotalOrderAmount);
   }
 
@@ -359,6 +360,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                               vendorSectionKey: _vendorSectionKey,
                               billingSectionKey: _billingSectionKey,
                               itemsSectionKey: _itemsSectionKey,
+                              expectedDateKey: _expectedDateKey,
                             );
                           } finally {
                             _isSaving.value = false;
@@ -957,31 +959,8 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                             ),
                                             const SizedBox(width: 16),
                                             Expanded(
-                                              child: VendorAutocomplete(
-                                                controller:
-                                                    _vendorAutocompleteController,
-                                                notifier: notifier,
-                                                poProvider: poProvider,
-                                                onVendorSelected:
-                                                    (selectedVendor) {
-                                                      logic.onVendorSelected(
-                                                        selectedVendor,
-                                                      );
-                                                      _triggerUIRefresh();
-                                                    },
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        SizedBox(height: isTablet ? 10 : 16),
-                                      ] else ...[
-                                        Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.center,
-                                          children: [
-                                            Expanded(
-                                              child: SizedBox(
-                                                height: 60,
+                                              child: Container(
+                                                key: _vendorSectionKey,
                                                 child: VendorAutocomplete(
                                                   controller:
                                                       _vendorAutocompleteController,
@@ -997,24 +976,60 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                                 ),
                                               ),
                                             ),
-                                            const SizedBox(width: 8),
+                                          ],
+                                        ),
+                                        SizedBox(height: isTablet ? 10 : 16),
+                                      ] else ...[
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
                                             Expanded(
-                                              child: SizedBox(
-                                                height: 60,
-                                                child:
-                                                    AddressFields.buildExpectedDeliveryDateField(
-                                                      notifier: notifier,
-                                                      parseDate:
-                                                          logic.parseDate,
-                                                      shouldHandleTap:
-                                                          _shouldHandleTap,
-                                                      inputDecoration:
-                                                          _inputDecoration,
-                                                    ),
+                                              child: Container(
+                                                key: _vendorSectionKey,
+                                                child: SizedBox(
+                                                  height: 60,
+                                                  child: VendorAutocomplete(
+                                                    controller:
+                                                        _vendorAutocompleteController,
+                                                    notifier: notifier,
+                                                    poProvider: poProvider,
+                                                    onVendorSelected:
+                                                        (selectedVendor) {
+                                                          logic
+                                                              .onVendorSelected(
+                                                                selectedVendor,
+                                                              );
+                                                          _triggerUIRefresh();
+                                                        },
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+
+                                            const SizedBox(width: 8),
+
+                                            Expanded(
+                                              child: Container(
+                                                key: _expectedDateKey,
+                                                child: SizedBox(
+                                                  height: 60,
+                                                  child:
+                                                      AddressFields.buildExpectedDeliveryDateField(
+                                                        notifier: notifier,
+                                                        parseDate:
+                                                            logic.parseDate,
+                                                        shouldHandleTap:
+                                                            _shouldHandleTap,
+                                                        inputDecoration:
+                                                            _inputDecoration,
+                                                      ),
+                                                ),
                                               ),
                                             ),
                                           ],
                                         ),
+
                                         const SizedBox(height: 1),
                                       ],
 
@@ -1101,17 +1116,23 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                                 ),
                                               ),
                                             ),
+
                                             const SizedBox(width: 16),
+
                                             Expanded(
-                                              child:
-                                                  AddressFields.buildExpectedDeliveryDateField(
-                                                    notifier: notifier,
-                                                    parseDate: logic.parseDate,
-                                                    shouldHandleTap:
-                                                        _shouldHandleTap,
-                                                    inputDecoration:
-                                                        _inputDecoration,
-                                                  ),
+                                              child: Container(
+                                                key: _expectedDateKey,
+                                                child:
+                                                    AddressFields.buildExpectedDeliveryDateField(
+                                                      notifier: notifier,
+                                                      parseDate:
+                                                          logic.parseDate,
+                                                      shouldHandleTap:
+                                                          _shouldHandleTap,
+                                                      inputDecoration:
+                                                          _inputDecoration,
+                                                    ),
+                                              ),
                                             ),
                                           ],
                                         ),

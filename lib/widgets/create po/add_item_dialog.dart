@@ -190,13 +190,11 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
     /// 🔥 IMPORTANT FIX STARTS HERE
 
-    final String befType =
-        (item.befTaxDiscountType.isNotEmpty)
+    final String befType = (item.befTaxDiscountType.isNotEmpty)
         ? item.befTaxDiscountType
         : "percentage";
 
-    final String afType =
-        (item.afTaxDiscountType.isNotEmpty)
+    final String afType = (item.afTaxDiscountType.isNotEmpty)
         ? item.afTaxDiscountType
         : "percentage";
 
@@ -500,21 +498,41 @@ class _AddItemDialogState extends State<AddItemDialog> {
         onValueSelected: (value) {
           controller.text = value.toStringAsFixed(2);
 
+          final notifier = Provider.of<PurchaseOrderNotifier>(
+            context,
+            listen: false,
+          );
+
+          /// ✅ Instant total quantity update
+          if (title.toLowerCase().contains("count") ||
+              title.toLowerCase().contains("quantity")) {
+            _updateTotalQuantity(notifier);
+          }
+
+          /// ✅ Instant variance update
+          if (title.toLowerCase().contains("price")) {
+            _updateVariance(notifier);
+          }
+
           if (type == "bef") {
             _fieldHasError['befDiscount']!.value = false;
           }
+
           if (type == "aft") {
             _fieldHasError['afDiscount']!.value = false;
           }
+
           if (type == "none") {
             if (title.toLowerCase().contains("count") &&
                 _fieldHasError.containsKey('count')) {
               _fieldHasError['count']!.value = false;
             }
+
             if (title.toLowerCase().contains("quantity") &&
                 _fieldHasError.containsKey('eachQuantity')) {
               _fieldHasError['eachQuantity']!.value = false;
             }
+
             if (title.toLowerCase().contains("price") &&
                 _fieldHasError.containsKey('newPrice')) {
               _fieldHasError['newPrice']!.value = false;
@@ -544,6 +562,7 @@ class _AddItemDialogState extends State<AddItemDialog> {
 
           final befVal =
               double.tryParse(_fieldControllers['befTaxDiscount']!.text) ?? 0;
+
           final aftVal =
               double.tryParse(_fieldControllers['afTaxDiscount']!.text) ?? 0;
 

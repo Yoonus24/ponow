@@ -24,6 +24,7 @@ dependencies:
   open_filex: ^4.3.2
   flutter_secure_storage: ^9.0.0
   flutter_dotenv: ^5.1.0
+  image_picker: 1.0.7
 
   uuid: any
 dev_dependencies:

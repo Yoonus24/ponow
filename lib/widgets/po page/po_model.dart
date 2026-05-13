@@ -175,6 +175,17 @@ class _POModalState extends State<POModal> {
     super.dispose();
   }
 
+  double _calculateRowHeight(String text) {
+    const double minHeight = 48;
+    const int approxCharsPerLine = 13;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 19).toDouble();
+
+    return calculatedHeight < minHeight ? minHeight : calculatedHeight;
+  }
+
   void updateCalculations(int index, BuildContext context) {
     final poModalProvider = Provider.of<POModalProvider>(
       context,
@@ -461,19 +472,31 @@ class _POModalState extends State<POModal> {
     List<String> visibleColumns,
     BuildContext context,
   ) {
+    final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
     return SizedBox(
-      height: 55,
+      height: dynamicRowHeight,
+
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 7.0),
+        padding: const EdgeInsets.symmetric(vertical: 0),
+
         decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
         ),
+
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+
           children: visibleColumns.map((column) {
             return Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6.0),
-                child: _buildCellContent(column, item, index, context),
+
+                child: Align(
+                  alignment: Alignment.center,
+
+                  child: _buildCellContent(column, item, index, context),
+                ),
               ),
             );
           }).toList(),
@@ -492,12 +515,22 @@ class _POModalState extends State<POModal> {
 
     switch (column) {
       case 'Item Name':
-        return Text(
-          item.itemName ?? '',
-          textAlign: TextAlign.left,
-          maxLines: 4,
-          softWrap: true,
-          style: const TextStyle(fontSize: 12),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 0),
+
+          child: Text(
+            item.itemName ?? '',
+
+            textAlign: TextAlign.left,
+
+            maxLines: null,
+
+            softWrap: true,
+
+            overflow: TextOverflow.visible,
+
+            style: const TextStyle(fontSize: 12, height: 1.1),
+          ),
         );
 
       case 'UOM':
@@ -890,19 +923,32 @@ class _POModalState extends State<POModal> {
                                                       child: ListView.builder(
                                                         controller:
                                                             _leftVerticalController,
+
                                                         itemCount: items.length,
+
                                                         itemBuilder: (context, index) {
                                                           final item =
                                                               items[index];
+
+                                                          final dynamicRowHeight =
+                                                              _calculateRowHeight(
+                                                                item.itemName ??
+                                                                    '',
+                                                              );
+
                                                           return SizedBox(
-                                                            height: 55,
+                                                            height:
+                                                                dynamicRowHeight,
+
                                                             child: Container(
                                                               alignment: Alignment
                                                                   .centerLeft,
+
                                                               padding:
                                                                   const EdgeInsets.only(
                                                                     left: 6,
                                                                   ),
+
                                                               decoration: const BoxDecoration(
                                                                 border: Border(
                                                                   bottom: BorderSide(
@@ -912,28 +958,57 @@ class _POModalState extends State<POModal> {
                                                                   ),
                                                                 ),
                                                               ),
+
                                                               child: Row(
+                                                                crossAxisAlignment:
+                                                                    CrossAxisAlignment
+                                                                        .center,
+
                                                                 children: [
                                                                   SizedBox(
                                                                     width: 30,
-                                                                    child: Text(
-                                                                      "${index + 1}",
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            12,
+
+                                                                    child: Center(
+                                                                      child: Text(
+                                                                        "${index + 1}",
+
+                                                                        style: const TextStyle(
+                                                                          fontSize:
+                                                                              12,
+                                                                        ),
                                                                       ),
                                                                     ),
                                                                   ),
+
                                                                   const SizedBox(
                                                                     width: 6,
                                                                   ),
+
                                                                   Expanded(
-                                                                    child: Text(
-                                                                      item.itemName ??
-                                                                          '',
-                                                                      style: const TextStyle(
-                                                                        fontSize:
-                                                                            12,
+                                                                    child: Align(
+                                                                      alignment:
+                                                                          Alignment
+                                                                              .centerLeft,
+
+                                                                      child: Text(
+                                                                        item.itemName ??
+                                                                            '',
+
+                                                                        maxLines:
+                                                                            null,
+
+                                                                        softWrap:
+                                                                            true,
+
+                                                                        overflow:
+                                                                            TextOverflow.visible,
+
+                                                                        style: const TextStyle(
+                                                                          fontSize:
+                                                                              12,
+                                                                          height:
+                                                                              1.1,
+                                                                        ),
                                                                       ),
                                                                     ),
                                                                   ),

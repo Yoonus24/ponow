@@ -139,124 +139,178 @@ class _GRNReturnState extends State<GRNReturn> {
         if (grnProvider.isLoading) {
           return const Center(child: CircularProgressIndicator());
         }
+
         if (grnProvider.error != null) {
           return Text(
             grnProvider.error!,
             style: const TextStyle(color: Colors.red, fontSize: 13.0),
           );
         }
+
         final reasons = List<String>.from(grnProvider.returnReasons);
+
         return ValueListenableBuilder<Map<int, String>>(
           valueListenable: logic.itemReasonsNotifier,
           builder: (context, itemReasons, _) {
-            return Autocomplete<String>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text.isEmpty) return reasons;
-                return reasons.where(
-                  (reason) => reason.toLowerCase().contains(
-                    textEditingValue.text.toLowerCase(),
-                  ),
-                );
-              },
-              onSelected: (String selection) {
-                if (isReturnAllEnabled) {
-                  logic.setReturnAllReason(selection);
-                }
-                FocusScope.of(context).unfocus();
-              },
-              fieldViewBuilder:
-                  (
-                    BuildContext context,
-                    TextEditingController textEditingController,
-                    FocusNode focusNode,
-                    VoidCallback onFieldSubmitted,
-                  ) {
-                    return ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: textEditingController,
-                      builder: (context, value, _) {
+            return ValueListenableBuilder<String?>(
+              valueListenable: logic.reasonErrorNotifier,
+              builder: (context, reasonError, _) {
+                return Autocomplete<String>(
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return reasons;
+                    }
+
+                    return reasons.where(
+                      (reason) => reason.toLowerCase().contains(
+                        textEditingValue.text.toLowerCase(),
+                      ),
+                    );
+                  },
+
+                  onSelected: (String selection) {
+                    if (isReturnAllEnabled) {
+                      logic.setReturnAllReason(selection);
+
+                      logic.reasonErrorNotifier.value = null;
+                    }
+
+                    FocusScope.of(context).unfocus();
+                  },
+
+                  fieldViewBuilder:
+                      (
+                        BuildContext context,
+                        TextEditingController textEditingController,
+                        FocusNode focusNode,
+                        VoidCallback onFieldSubmitted,
+                      ) {
                         return TextField(
                           controller: textEditingController,
                           focusNode: focusNode,
+
                           onTap: () => focusNode.requestFocus(),
+
                           onChanged: (value) {
                             if (isReturnAllEnabled) {
                               logic.setReturnAllReason(value);
+
+                              // CLEAR ERROR
+                              logic.reasonErrorNotifier.value = null;
                             }
                           },
+
                           decoration: InputDecoration(
                             labelText: 'Return all Reason',
+
                             labelStyle: const TextStyle(fontSize: 11),
+
                             floatingLabelStyle: const TextStyle(
                               fontSize: 11,
                               color: Colors.black,
                             ),
+
                             hintText: 'Reason',
+
                             hintStyle: TextStyle(
                               fontSize: 11,
                               color: Colors.grey.shade400,
                             ),
+
+                            suffixIcon: textEditingController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.close, size: 18),
+
+                                    onPressed: () {
+                                      textEditingController.clear();
+
+                                      logic.setReturnAllReason('');
+
+                                      logic.reasonErrorNotifier.value = null;
+                                    },
+                                  )
+                                : null,
+
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(
-                                color: Colors.grey.shade300,
-                              ),
                             ),
+
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
+
                               borderSide: BorderSide(
-                                color: Colors.grey.shade300,
+                                color: reasonError != null
+                                    ? Colors.red
+                                    : Colors.grey.shade300,
                               ),
                             ),
-                            focusedBorder: const OutlineInputBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(8),
-                              ),
+
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+
                               borderSide: BorderSide(
-                                color: Colors.blueAccent,
+                                color: reasonError != null
+                                    ? Colors.red
+                                    : Colors.blueAccent,
                                 width: 1.5,
                               ),
                             ),
+
+                            errorText: reasonError,
+
+                            errorStyle: const TextStyle(fontSize: 10),
+
                             isDense: true,
                           ),
+
                           enabled: isReturnAllEnabled && canReturnGRN,
                         );
                       },
-                    );
-                  },
-              optionsViewBuilder:
-                  (
-                    BuildContext context,
-                    AutocompleteOnSelected<String> onSelected,
-                    Iterable<String> options,
-                  ) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        color: Colors.white,
-                        elevation: 4.0,
-                        borderRadius: BorderRadius.circular(8),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (BuildContext context, int index) {
-                              final String option = options.elementAt(index);
-                              return ListTile(
-                                title: Text(
-                                  option,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                dense: true,
-                                onTap: () => onSelected(option),
-                              );
-                            },
+
+                  optionsViewBuilder:
+                      (
+                        BuildContext context,
+                        AutocompleteOnSelected<String> onSelected,
+                        Iterable<String> options,
+                      ) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            color: Colors.white,
+                            elevation: 4.0,
+                            borderRadius: BorderRadius.circular(8),
+
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 200),
+
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+
+                                itemBuilder: (BuildContext context, int index) {
+                                  final String option = options.elementAt(
+                                    index,
+                                  );
+
+                                  return ListTile(
+                                    title: Text(
+                                      option,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+
+                                    dense: true,
+
+                                    onTap: () => onSelected(option),
+                                  );
+                                },
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
+                );
+              },
             );
           },
         );
@@ -643,16 +697,9 @@ class _GRNReturnState extends State<GRNReturn> {
   Widget _buildReadOnlyField(String text, {double width = 120}) {
     return SizedBox(
       width: width,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: TextField(
-          controller: TextEditingController(text: text),
-          readOnly: true,
-          decoration: const InputDecoration(
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            border: OutlineInputBorder(),
-          ),
+      child: Center(
+        child: Text(
+          text,
           style: const TextStyle(fontSize: 12),
           textAlign: TextAlign.center,
         ),
@@ -671,46 +718,113 @@ class _GRNReturnState extends State<GRNReturn> {
       width: 120,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: TextField(
-          controller: controller,
-          readOnly: true,
-          enabled: isSpecificQuantityReturn && selectedRows[index],
-          onTap: isSpecificQuantityReturn && selectedRows[index]
-              ? () {
-                  showNumericCalculator(
-                    context: context,
-                    controller: controller,
-                    varianceName: 'Return Quantity',
-                    onValueSelected: () {
-                      double newReturnedQty =
-                          double.tryParse(controller.text) ?? 0;
-                      double originalQty = logic.getOriginalQuantity(item);
-                      if (newReturnedQty <= originalQty) {
-                        logic.updateReturnQuantity(item, index, newReturnedQty);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Returned quantity cannot exceed original received quantity',
-                            ),
-                          ),
-                        );
-                        controller.text =
-                            item.returnedQuantity?.toStringAsFixed(2) ?? '0.00';
-                      }
-                    },
-                    fieldType: '',
-                  );
-                }
-              : null,
-          decoration: const InputDecoration(
-            hintText: '0.00',
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-            border: OutlineInputBorder(),
-          ),
-          style: const TextStyle(fontSize: 12),
-          textAlign: TextAlign.center,
+        child: ValueListenableBuilder<Map<int, String?>>(
+          valueListenable: logic.quantityErrorsNotifier,
+          builder: (context, quantityErrors, _) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              final updatedValue =
+                  item.returnedQuantity?.toStringAsFixed(2) ?? '0.00';
+
+              if (controller.text != updatedValue) {
+                controller.text = updatedValue;
+              }
+            });
+
+            return TextField(
+              controller: controller,
+              readOnly: true,
+
+              enabled: isSpecificQuantityReturn && selectedRows[index],
+
+              onTap: isSpecificQuantityReturn && selectedRows[index]
+                  ? () {
+                      showNumericCalculator(
+                        context: context,
+                        controller: controller,
+                        varianceName: 'Return Quantity',
+
+                        onValueSelected: () {
+                          double enteredQty =
+                              double.tryParse(controller.text) ?? 0;
+
+                          // ORIGINAL RECEIVED QTY
+                          double originalQty = logic.getOriginalQuantity(item);
+
+                          // ALREADY RETURNED BEFORE
+                          double alreadyReturned = (item.returnedQuantity ?? 0);
+
+                          // AVAILABLE BALANCE
+                          double returnableBalance = originalQty;
+
+                          // VALIDATION
+                          if (enteredQty > returnableBalance) {
+                            logic.showTopSnackBar(
+                              'Only ${returnableBalance.toStringAsFixed(2)} qty available for return',
+                            );
+
+                            controller.text = alreadyReturned.toStringAsFixed(
+                              2,
+                            );
+
+                            return;
+                          }
+
+                          logic.updateReturnQuantity(item, index, enteredQty);
+
+                          // CLEAR ERROR WHEN VALID
+                          final updatedErrors = Map<int, String?>.from(
+                            logic.quantityErrorsNotifier.value,
+                          );
+
+                          updatedErrors.remove(index);
+
+                          logic.quantityErrorsNotifier.value = updatedErrors;
+                        },
+
+                        fieldType: '',
+                      );
+                    }
+                  : null,
+
+              decoration: InputDecoration(
+                hintText: '0.00',
+
+                isDense: true,
+
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 8,
+                ),
+
+                border: const OutlineInputBorder(),
+
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: quantityErrors[index] != null
+                        ? Colors.red
+                        : Colors.grey,
+                  ),
+                ),
+
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(
+                    color: quantityErrors[index] != null
+                        ? Colors.red
+                        : Colors.blue,
+                    width: 1.5,
+                  ),
+                ),
+
+                errorText: quantityErrors[index],
+
+                errorStyle: const TextStyle(fontSize: 10),
+              ),
+
+              style: const TextStyle(fontSize: 12),
+
+              textAlign: TextAlign.center,
+            );
+          },
         ),
       ),
     );
@@ -730,77 +844,178 @@ class _GRNReturnState extends State<GRNReturn> {
         child: Consumer<GRNProvider>(
           builder: (context, grnProvider, child) {
             final returnReasons = List<String>.from(grnProvider.returnReasons);
-            return Autocomplete<String>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text.isEmpty) return returnReasons;
-                return returnReasons.where(
-                  (reason) => reason.toLowerCase().contains(
-                    textEditingValue.text.toLowerCase(),
+
+            return ValueListenableBuilder<Map<int, String?>>(
+              valueListenable: logic.reasonErrorsNotifier,
+              builder: (context, reasonErrors, _) {
+                return Autocomplete<String>(
+                  key: ValueKey(
+                    '${selectedRows[index]}_${reasonErrors[index]}_${itemReasons[index]}',
                   ),
+
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return returnReasons;
+                    }
+
+                    return returnReasons.where(
+                      (reason) => reason.toLowerCase().contains(
+                        textEditingValue.text.toLowerCase(),
+                      ),
+                    );
+                  },
+
+                  onSelected: (String selection) {
+                    logic.setItemReason(index, selection);
+
+                    // CLEAR ERROR
+                    final updatedErrors = Map<int, String?>.from(
+                      logic.reasonErrorsNotifier.value,
+                    );
+
+                    updatedErrors.remove(index);
+
+                    logic.reasonErrorsNotifier.value = updatedErrors;
+
+                    FocusScope.of(context).unfocus();
+                  },
+
+                  fieldViewBuilder:
+                      (
+                        BuildContext context,
+                        TextEditingController textEditingController,
+                        FocusNode focusNode,
+                        VoidCallback onFieldSubmitted,
+                      ) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          final newValue = itemReasons[index] ?? '';
+
+                          if (textEditingController.text != newValue) {
+                            textEditingController.text = newValue;
+                          }
+                        });
+
+                        return TextField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+
+                          onChanged: (value) {
+                            logic.setItemReason(index, value);
+
+                            // CLEAR ERROR WHEN TYPING
+                            final updatedErrors = Map<int, String?>.from(
+                              logic.reasonErrorsNotifier.value,
+                            );
+
+                            updatedErrors.remove(index);
+
+                            logic.reasonErrorsNotifier.value = updatedErrors;
+                          },
+
+                          decoration: InputDecoration(
+                            suffixIcon: textEditingController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.close, size: 18),
+
+                                    onPressed: () {
+                                      textEditingController.clear();
+
+                                      logic.setItemReason(index, '');
+
+                                      final updatedErrors =
+                                          Map<int, String?>.from(
+                                            logic.reasonErrorsNotifier.value,
+                                          );
+
+                                      updatedErrors.remove(index);
+
+                                      logic.reasonErrorsNotifier.value =
+                                          updatedErrors;
+                                    },
+                                  )
+                                : null,
+
+                            hintText: 'Reason',
+
+                            isDense: true,
+
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 8,
+                            ),
+
+                            border: const OutlineInputBorder(),
+
+                            enabledBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: reasonErrors[index] != null
+                                    ? Colors.red
+                                    : Colors.grey,
+                              ),
+                            ),
+
+                            focusedBorder: OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: reasonErrors[index] != null
+                                    ? Colors.red
+                                    : Colors.blue,
+                                width: 1.5,
+                              ),
+                            ),
+
+                            errorText: reasonErrors[index],
+
+                            errorStyle: const TextStyle(fontSize: 10),
+                          ),
+
+                          enabled:
+                              isSpecificQuantityReturn && selectedRows[index],
+
+                          style: const TextStyle(fontSize: 12),
+                        );
+                      },
+
+                  optionsViewBuilder:
+                      (
+                        BuildContext context,
+                        AutocompleteOnSelected<String> onSelected,
+                        Iterable<String> options,
+                      ) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            color: Colors.white,
+                            elevation: 4.0,
+
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 200),
+
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+
+                                itemBuilder: (BuildContext context, int idx) {
+                                  final String option = options.elementAt(idx);
+
+                                  return ListTile(
+                                    title: Text(
+                                      option,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+
+                                    dense: true,
+
+                                    onTap: () => onSelected(option),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                 );
               },
-              onSelected: (String selection) {
-                logic.setItemReason(index, selection);
-                FocusScope.of(context).unfocus();
-              },
-              fieldViewBuilder:
-                  (
-                    BuildContext context,
-                    TextEditingController textEditingController,
-                    FocusNode focusNode,
-                    VoidCallback onFieldSubmitted,
-                  ) {
-                    textEditingController.text = itemReasons[index] ?? '';
-                    return TextField(
-                      controller: textEditingController,
-                      focusNode: focusNode,
-                      onChanged: (value) => logic.setItemReason(index, value),
-                      decoration: const InputDecoration(
-                        hintText: 'Reason',
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 8,
-                        ),
-                        border: OutlineInputBorder(),
-                      ),
-                      enabled: isSpecificQuantityReturn && selectedRows[index],
-                      style: const TextStyle(fontSize: 12),
-                    );
-                  },
-              optionsViewBuilder:
-                  (
-                    BuildContext context,
-                    AutocompleteOnSelected<String> onSelected,
-                    Iterable<String> options,
-                  ) {
-                    return Align(
-                      alignment: Alignment.topLeft,
-                      child: Material(
-                        color: Colors.white,
-                        elevation: 4.0,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxHeight: 200),
-                          child: ListView.builder(
-                            padding: EdgeInsets.zero,
-                            shrinkWrap: true,
-                            itemCount: options.length,
-                            itemBuilder: (BuildContext context, int idx) {
-                              final String option = options.elementAt(idx);
-                              return ListTile(
-                                title: Text(
-                                  option,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                dense: true,
-                                onTap: () => onSelected(option),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
             );
           },
         ),
@@ -816,11 +1031,66 @@ class _GRNReturnState extends State<GRNReturn> {
     return SizedBox(
       width: 80,
       child: Center(
-        child: Checkbox(
-          value: selectedRows[index],
-          onChanged: isSpecificQuantityReturn
-              ? (bool? value) => logic.updateSelectedRow(index, value ?? false)
-              : null,
+        child: ValueListenableBuilder<Map<int, String?>>(
+          valueListenable: logic.quantityErrorsNotifier,
+          builder: (context, quantityErrors, _) {
+            return ValueListenableBuilder<Map<int, String?>>(
+              valueListenable: logic.reasonErrorsNotifier,
+              builder: (context, reasonErrors, _) {
+                return ValueListenableBuilder<bool>(
+                  valueListenable: logic.selectItemErrorNotifier,
+                  builder: (context, selectItemError, _) {
+                    final hasError =
+                        quantityErrors[index] != null ||
+                        reasonErrors[index] != null ||
+                        (selectItemError && !selectedRows[index]);
+
+                    return Checkbox(
+                      value: selectedRows[index],
+
+                      activeColor: hasError ? Colors.red : Colors.blue,
+
+                      side: BorderSide(
+                        color: hasError ? Colors.red : Colors.grey,
+                        width: 2,
+                      ),
+
+                      onChanged: isSpecificQuantityReturn
+                          ? (bool? value) {
+                              logic.updateSelectedRow(index, value ?? false);
+
+                              // CLEAR SELECT ERROR
+                              logic.selectItemErrorNotifier.value = false;
+
+                              // CLEAR ERRORS WHEN UNCHECKING
+                              if (!(value ?? false)) {
+                                final updatedQtyErrors = Map<int, String?>.from(
+                                  logic.quantityErrorsNotifier.value,
+                                );
+
+                                final updatedReasonErrors =
+                                    Map<int, String?>.from(
+                                      logic.reasonErrorsNotifier.value,
+                                    );
+
+                                updatedQtyErrors.remove(index);
+
+                                updatedReasonErrors.remove(index);
+
+                                logic.quantityErrorsNotifier.value =
+                                    updatedQtyErrors;
+
+                                logic.reasonErrorsNotifier.value =
+                                    updatedReasonErrors;
+                              }
+                            }
+                          : null,
+                    );
+                  },
+                );
+              },
+            );
+          },
         ),
       ),
     );

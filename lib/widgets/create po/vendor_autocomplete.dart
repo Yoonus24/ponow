@@ -168,6 +168,11 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
       builder: (context, vendorList, _) {
         return Autocomplete<String>(
           optionsBuilder: (value) {
+            /// ✅ No vendor found
+            if (vendorList.isEmpty && value.text.trim().isNotEmpty) {
+              return ['__NO_VENDOR_FOUND__'];
+            }
+
             return vendorList;
           },
 
@@ -177,6 +182,8 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
             widget.notifier.vendorAllList = _allVendors;
             widget.notifier.setSelectedVendor(name);
             widget.onVendorSelected(name);
+
+            Form.of(context)?.validate();
 
             FocusManager.instance.primaryFocus?.unfocus();
           },
@@ -192,7 +199,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                 child: Container(
                   width: 250,
                   constraints: BoxConstraints(
-                    maxHeight: min(vendorList.length * 48.0, 200),
+                    maxHeight: min(options.length * 48.0, 200),
                   ),
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey[300]!),
@@ -213,33 +220,58 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                     child: ValueListenableBuilder<bool>(
                       valueListenable: _isLoadingMore,
                       builder: (_, loadingMore, __) {
+                        final optionList = options.toList();
+
                         return ListView.builder(
                           shrinkWrap: true,
                           padding: EdgeInsets.zero,
-                          itemCount: vendorList.length + (loadingMore ? 1 : 0),
-                          itemBuilder: (_, i) {
-                            if (i < vendorList.length) {
-                              final option = vendorList[i];
 
+                          itemCount: optionList.length + (loadingMore ? 1 : 0),
+
+                          itemBuilder: (_, i) {
+                            if (i < optionList.length) {
+                              final option = optionList[i];
+
+                              ///NO VENDOR FOUND
+                              if (option == '__NO_VENDOR_FOUND__') {
+                                return const ListTile(
+                                  enabled: false,
+                                  title: Text(
+                                    'Vendor not found',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              ///NORMAL VENDOR
                               return ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 2,
                                 ),
+
                                 minVerticalPadding: 0,
+
                                 visualDensity: const VisualDensity(
                                   vertical: -3,
                                 ),
+
                                 title: Text(
                                   option,
                                   style: const TextStyle(fontSize: 13),
                                   softWrap: true,
                                   maxLines: null,
                                 ),
+
                                 onTap: () => onSelected(option),
                               );
                             }
 
+                            ///LOAD MORE
                             return const Center(
                               child: Padding(
                                 padding: EdgeInsets.all(8),
@@ -277,6 +309,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                     fontSize: 14,
                     color: Colors.black54,
                   ),
+                  errorStyle: const TextStyle(height: 0, fontSize: 0),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8.0),
                     borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
@@ -344,7 +377,7 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please select a vendor';
+                    return '';
                   }
                   return null;
                 },

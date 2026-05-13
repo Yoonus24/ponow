@@ -31,7 +31,9 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
       'Item Name': (item) => Text(
         item.itemName ?? '',
         style: const TextStyle(fontSize: 14),
-        overflow: TextOverflow.ellipsis,
+        maxLines: null,
+        softWrap: true,
+        overflow: TextOverflow.visible,
         textAlign: TextAlign.left,
       ),
       'UOM': (item) => Text(
@@ -144,7 +146,7 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
 
   final Map<String, double> columnWidths = {
     'S.No': 40,
-    'Item Name': 130,
+    'Item Name': 150,
     'UOM': 70,
     'Count': 70,
     'Qty': 70,
@@ -168,6 +170,17 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
     super.dispose();
   }
 
+  double _calculateRowHeight(String text) {
+    const double minHeight = 34;
+    const int approxCharsPerLine = 11;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 20).toDouble();
+
+    return calculatedHeight < minHeight ? minHeight : calculatedHeight;
+  }
+
   String _formatDate(String? date) {
     if (date == null || date.isEmpty) return 'No Date';
     try {
@@ -176,11 +189,6 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
     } catch (e) {
       return date;
     }
-  }
-
-  String _formatCurrency(double? value) {
-    if (value == null) return '0.00';
-    return value.toStringAsFixed(2);
   }
 
   Widget _buildHeaderRow(List<String> columns) {
@@ -207,17 +215,26 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
   }
 
   Widget _buildItemRow(dynamic item, int index, List<String> rightColumns) {
+    final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
     return Container(
-      height: 45,
+      height: dynamicRowHeight,
+
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey, width: 0.5)),
       ),
+
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+
         children: rightColumns.map((column) {
           return Container(
             width: columnWidths[column] ?? 120,
+
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
+
             child: _buildCellContent(column, item, index),
           );
         }).toList(),
@@ -401,14 +418,29 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                                     Expanded(
                                       child: ListView.builder(
                                         controller: _leftVerticalController,
+
                                         itemCount: items.length,
+
                                         itemBuilder: (context, index) {
+                                          final item = items[index];
+
+                                          final dynamicRowHeight =
+                                              _calculateRowHeight(
+                                                item.itemName ?? '',
+                                              );
+
                                           return Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+
                                             children: [
                                               Container(
                                                 width: columnWidths['S.No'],
-                                                height: 45,
+
+                                                height: dynamicRowHeight,
+
                                                 alignment: Alignment.center,
+
                                                 decoration: const BoxDecoration(
                                                   border: Border(
                                                     bottom: BorderSide(
@@ -417,17 +449,31 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                                                     ),
                                                   ),
                                                 ),
-                                                child: Text('${index + 1}'),
+
+                                                child: Text(
+                                                  '${index + 1}',
+
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    height: 0.9,
+                                                  ),
+                                                ),
                                               ),
+
                                               Container(
                                                 width:
                                                     columnWidths['Item Name'],
-                                                height: 45,
+
+                                                height: dynamicRowHeight,
+
                                                 padding:
                                                     const EdgeInsets.symmetric(
-                                                      horizontal: 8,
+                                                      horizontal: 6,
+                                                      vertical: 0,
                                                     ),
+
                                                 alignment: Alignment.centerLeft,
+
                                                 decoration: const BoxDecoration(
                                                   border: Border(
                                                     bottom: BorderSide(
@@ -436,13 +482,21 @@ class _APViewInvoiceModalState extends State<APViewInvoiceModal> {
                                                     ),
                                                   ),
                                                 ),
+
                                                 child: Text(
-                                                  items[index].itemName ?? '',
+                                                  item.itemName ?? '',
+
                                                   style: const TextStyle(
                                                     fontSize: 14,
+                                                    height: 0.9,
                                                   ),
+
+                                                  maxLines: null,
+
+                                                  softWrap: true,
+
                                                   overflow:
-                                                      TextOverflow.ellipsis,
+                                                      TextOverflow.visible,
                                                 ),
                                               ),
                                             ],

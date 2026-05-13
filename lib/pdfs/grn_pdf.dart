@@ -104,8 +104,23 @@ class GRNPDF {
         ? safeFormatDate(grnData['invoiceDate'].toString())
         : 'N/A';
 
-    final totalReceivedAmount = _safeNum(grnData['totalReceivedAmount']);
-    final amountInWords = _amountInWords(totalReceivedAmount);
+    // Calculate totals from items
+    final subtotal = _calculateSubtotal(itemsRaw);
+    final totalTax = _calculateTotalTax(itemsRaw);
+
+    // Get freight details
+    final totalFreightAmount = _safeNum(grnData['totalFreightAmount']);
+    final totalFreightTaxAmount = _safeNum(grnData['totalFreightTaxAmount']);
+
+    // Calculate total including freight
+    final totalAmount =
+        subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
+    final amountInWords = _amountInWords(totalAmount);
+
+    // CGST and SGST from items only (without freight tax)
+    final cgstAmount = _calculateCgst(itemsRaw);
+    final sgstAmount = _calculateSgst(itemsRaw);
+    final taxPercentage = _getTaxPercentage(itemsRaw);
 
     final pdf = pw.Document();
 
@@ -240,15 +255,10 @@ class GRNPDF {
                           vendorData['vendorName'] ??
                               grnData['vendorName'] ??
                               'Unknown Vendor',
-
                           'GSTIN: ${vendorData['gstNumber'] ?? 'N/A'}',
-
                           'Address: ${vendorData['address'] ?? 'N/A'}',
-
                           'City: ${vendorData['city'] ?? 'N/A'}',
-
                           'State: ${vendorData['state'] ?? 'N/A'}',
-
                           'Country: ${vendorData['country'] ?? 'India'}',
                         ], separator: '\n'),
                       ),
@@ -281,6 +291,8 @@ class GRNPDF {
                 ),
               ],
             ),
+
+            pw.SizedBox(height: 12),
 
             // Items Table - Wrap in pw.Column to allow breaking
             pw.Column(
@@ -322,7 +334,9 @@ class GRNPDF {
               ],
             ),
 
-            // Summary Table
+            pw.SizedBox(height: 12),
+
+            // Summary Table with Freight
             pw.Container(
               width: double.infinity,
               child: pw.Table(
@@ -332,21 +346,30 @@ class GRNPDF {
                   1: pw.FlexColumnWidth(1),
                 },
                 children: [
-                  _twoCellRow(
-                    'Total Amount',
-                    _safeFixedString(grnData['totalReceivedAmount']),
-                  ),
+                  _twoCellRow('Total Amount', _safeFixedString(subtotal)),
                   _twoCellRow(
                     'Total Discount',
                     _safeFixedString(grnData['totalDiscount']),
                   ),
+                  // Add freight rows if freight exists
+                  if (totalFreightAmount > 0) ...[
+                    _twoCellRow(
+                      'Freight Amount',
+                      _safeFixedString(totalFreightAmount),
+                    ),
+                    if (totalFreightTaxAmount > 0)
+                      _twoCellRow(
+                        'Freight Tax',
+                        _safeFixedString(totalFreightTaxAmount),
+                      ),
+                  ],
                   _twoCellRow(
-                    'CGST @ ${_getTaxPercentage(itemsRaw)}%',
-                    _safeFixedString(_calculateCgst(itemsRaw)),
+                    'CGST @$taxPercentage%',
+                    _safeFixedString(cgstAmount),
                   ),
                   _twoCellRow(
-                    'SGST @ ${_getTaxPercentage(itemsRaw)}%',
-                    _safeFixedString(_calculateSgst(itemsRaw)),
+                    'SGST @$taxPercentage%',
+                    _safeFixedString(sgstAmount),
                   ),
                   _twoCellRow(
                     'Round Off Amount',
@@ -464,41 +487,56 @@ class GRNPDF {
     }
   }
 
+  // Helper methods
+  double _calculateSubtotal(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += _safeNum(item['totalPrice'] ?? 0);
+      }
+    }
+    return total;
+  }
+
+  double _calculateTotalTax(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += (_safeNum(item['cgst']) + _safeNum(item['sgst']));
+      }
+    }
+    return total;
+  }
+
   double _getTaxPercentage(List<dynamic> items) {
     for (var item in items) {
       if (item is Map<String, dynamic>) {
-        final tax = _safeNum(item['purchasetaxName']); // ✅ correct key
-
+        final tax = _safeNum(item['purchasetaxName']);
         if (tax > 0) {
           return tax / 2; // CGST/SGST split
         }
       }
     }
-
     return 0;
   }
 
   double _calculateCgst(List<dynamic> items) {
     double total = 0;
-
     for (var item in items) {
       if (item is Map<String, dynamic>) {
-        total += _safeNum(item['cgst']); // ✅ correct key
+        total += _safeNum(item['cgst']);
       }
     }
-
     return total;
   }
 
   double _calculateSgst(List<dynamic> items) {
     double total = 0;
-
     for (var item in items) {
       if (item is Map<String, dynamic>) {
-        total += _safeNum(item['sgst']); // ✅ correct key
+        total += _safeNum(item['sgst']);
       }
     }
-
     return total;
   }
 

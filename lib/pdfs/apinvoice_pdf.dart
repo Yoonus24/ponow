@@ -1,4 +1,4 @@
-// ap_invoice_pdf.dart - Fixed round off
+// ap_invoice_pdf.dart - Fixed round off with freight
 // ignore_for_file: unused_element
 
 import 'dart:io';
@@ -156,17 +156,29 @@ class APInvoicePDF {
         ? safeFormatDate(invoiceData['dueDate'].toString())
         : 'N/A';
 
-    final invoiceAmount = _safeNum(invoiceData['invoiceAmount']);
-    final amountInWords = _amountInWords(invoiceAmount);
+    // Calculate totals from items
+    final subtotal = _calculateSubtotal(itemsRaw);
+    final totalTax = _calculateTotalTax(itemsRaw);
+
+    // Get freight details
+    final totalFreightAmount = _safeNum(invoiceData['totalFreightAmount']);
+    final totalFreightTaxAmount = _safeNum(
+      invoiceData['totalFreightTaxAmount'],
+    );
+
+    // Calculate total including freight
+    final totalAmount =
+        subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
+    final amountInWords = _amountInWords(totalAmount);
 
     // Calculate tax percentage from items
     final taxPercentage = _getTaxPercentage(itemsRaw);
 
-    // Calculate CGST and SGST totals
+    // Calculate CGST and SGST totals (items only, no freight tax)
     final cgstTotal = _calculateCgst(itemsRaw);
     final sgstTotal = _calculateSgst(itemsRaw);
 
-    // Get round off amount from API response - FIXED
+    // Get round off amount from API response
     final roundOffAmount = _safeNum(invoiceData['apRoundOff']);
 
     final pdf = pw.Document();
@@ -340,6 +352,8 @@ class APInvoicePDF {
               ],
             ),
 
+            pw.SizedBox(height: 12),
+
             // Items Table - Wrap in pw.Column to allow breaking across pages
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -380,7 +394,9 @@ class APInvoicePDF {
               ],
             ),
 
-            // Summary Table - EXACT same layout as GRN
+            pw.SizedBox(height: 12),
+
+            // Summary Table with Freight - EXACT same layout as GRN
             pw.Container(
               width: double.infinity,
               child: pw.Table(
@@ -390,14 +406,23 @@ class APInvoicePDF {
                   1: pw.FlexColumnWidth(1),
                 },
                 children: [
-                  _twoCellRow(
-                    'Total Amount',
-                    _safeFixedString(invoiceData['invoiceAmount']),
-                  ),
+                  _twoCellRow('Total Amount', _safeFixedString(subtotal)),
                   _twoCellRow(
                     'Total Discount',
                     _safeFixedString(invoiceData['discountDetails']),
                   ),
+                  // Add freight rows if freight exists
+                  if (totalFreightAmount > 0) ...[
+                    _twoCellRow(
+                      'Freight Amount',
+                      _safeFixedString(totalFreightAmount),
+                    ),
+                    if (totalFreightTaxAmount > 0)
+                      _twoCellRow(
+                        'Freight Tax',
+                        _safeFixedString(totalFreightTaxAmount),
+                      ),
+                  ],
                   if (taxPercentage > 0) ...[
                     _twoCellRow(
                       'CGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
@@ -413,9 +438,7 @@ class APInvoicePDF {
                   ],
                   _twoCellRow(
                     'Round Off Amount',
-                    roundOffAmount.toStringAsFixed(
-                      2,
-                    ), // FIXED: Using apRoundOff from API
+                    roundOffAmount.toStringAsFixed(2),
                   ),
                   pw.TableRow(
                     children: [
@@ -430,7 +453,7 @@ class APInvoicePDF {
                       pw.Padding(
                         padding: pw.EdgeInsets.all(6),
                         child: pw.Text(
-                          'Total: ${_safeFixedString(invoiceData['invoiceAmount'])}',
+                          'Total : ${_safeFixedString(totalAmount)}',
                           style: pw.TextStyle(fontSize: 12),
                           textAlign: pw.TextAlign.right,
                         ),
@@ -489,6 +512,27 @@ class APInvoicePDF {
     final file = File('${output.path}/$filename');
     await file.writeAsBytes(await pdf.save());
     return file;
+  }
+
+  // Helper methods
+  double _calculateSubtotal(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += _safeNum(item['totalPrice'] ?? 0);
+      }
+    }
+    return total;
+  }
+
+  double _calculateTotalTax(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += (_safeNum(item['cgst']) + _safeNum(item['sgst']));
+      }
+    }
+    return total;
   }
 
   double _getTaxPercentage(List<dynamic> items) {

@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable, deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/models/po_item.dart';
@@ -18,6 +20,16 @@ class ApprovedPOTable extends StatelessWidget {
     required this.rowHeight,
     required this.minVisibleRows,
   });
+  double _calculateRowHeight(String text) {
+    const double minHeight = 38;
+    const int approxCharsPerLine = 11;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 15).toDouble();
+
+    return calculatedHeight < minHeight ? minHeight : calculatedHeight;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +53,7 @@ class ApprovedPOTable extends StatelessWidget {
 
         return ValueListenableBuilder<Map<String, bool>>(
           valueListenable: logic.sharedColumnVisibility,
+
           builder: (context, visibility, _) {
             final double totalColumnsWidth = logic.calculateTotalWidth(
               logic.sharedColumns.value,
@@ -54,44 +67,70 @@ class ApprovedPOTable extends StatelessWidget {
             final bool needsHorizontalScroll =
                 totalColumnsWidth > availableForDataColumns;
 
+            double totalRowsHeight = 0;
+
+            for (final item in items) {
+              totalRowsHeight += _calculateRowHeight(item.itemName ?? "");
+            }
+
+            final double tableHeight = totalRowsHeight + rowHeight;
+
+            final double maxTableHeight =
+                MediaQuery.of(context).size.height * 0.45;
+
             return SizedBox(
-              height:
-                  rowHeight *
-                  (items.length < minVisibleRows
-                      ? items.length + 1
-                      : minVisibleRows + 1),
+              height: tableHeight > maxTableHeight
+                  ? maxTableHeight
+                  : tableHeight,
+
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
+
                 children: [
                   _buildFixedItemColumn(items),
+
                   Expanded(
                     child: SingleChildScrollView(
                       controller: isOrdered
                           ? logic.orderedHorizontalController
                           : logic.receivedHorizontalController,
+
                       scrollDirection: Axis.horizontal,
+
                       physics: needsHorizontalScroll
                           ? const AlwaysScrollableScrollPhysics()
                           : const NeverScrollableScrollPhysics(),
+
                       child: SizedBox(
                         width: totalColumnsWidth,
+
                         child: Column(
                           children: [
                             SizedBox(
                               height: 32,
+
                               child: Row(
                                 children: logic.sharedColumns.value
                                     .where((column) {
-                                      if (column == 'Item') return false;
+                                      if (column == 'Item') {
+                                        return false;
+                                      }
+
                                       final isVisible =
                                           visibility[column] ?? true;
-                                      if (!isVisible) return false;
+
+                                      if (!isVisible) {
+                                        return false;
+                                      }
+
                                       if (isOrdered && column == 'Received') {
                                         return false;
                                       }
+
                                       if (!isOrdered && column == 'Total') {
                                         return false;
                                       }
+
                                       return true;
                                     })
                                     .map((column) {
@@ -103,37 +142,55 @@ class ApprovedPOTable extends StatelessWidget {
                                     .toList(),
                               ),
                             ),
+
                             Expanded(
                               child: SingleChildScrollView(
                                 controller: isOrdered
                                     ? logic.orderedRightVertical
                                     : logic.receivedRightVertical,
+
                                 physics: const AlwaysScrollableScrollPhysics(),
+
                                 child: Column(
                                   children: items.asMap().entries.map((entry) {
                                     final index = entry.key;
+
                                     final item = entry.value;
 
+                                    final dynamicRowHeight =
+                                        _calculateRowHeight(
+                                          item.itemName ?? "",
+                                        );
+
                                     return Container(
-                                      height: rowHeight,
+                                      height: dynamicRowHeight,
+
                                       color: Colors.white,
+
                                       child: Row(
                                         children: logic.sharedColumns.value
                                             .where((column) {
                                               if (column == 'Item') {
                                                 return false;
                                               }
+
                                               final isVisible =
                                                   visibility[column] ?? true;
-                                              if (!isVisible) return false;
+
+                                              if (!isVisible) {
+                                                return false;
+                                              }
+
                                               if (isOrdered &&
                                                   column == 'Received') {
                                                 return false;
                                               }
+
                                               if (!isOrdered &&
                                                   column == 'Total') {
                                                 return false;
                                               }
+
                                               return true;
                                             })
                                             .map((column) {
@@ -141,6 +198,7 @@ class ApprovedPOTable extends StatelessWidget {
                                                 width: logic.getColumnWidth(
                                                   column,
                                                 ),
+
                                                 child: isOrdered
                                                     ? _buildOrderedItemCell(
                                                         item,
@@ -182,66 +240,89 @@ class ApprovedPOTable extends StatelessWidget {
           children: [
             SizedBox(
               width: 40,
+
               child: TableHeaderCell(
                 "S.No",
                 width: 40,
                 alignment: Alignment.center,
               ),
             ),
+
             SizedBox(
               width: logic.getColumnWidth('Item') - 40,
+
               child: TableHeaderCell(
                 "Item Name",
+
                 width: logic.getColumnWidth('Item') - 40,
+
                 alignment: Alignment.centerLeft,
               ),
             ),
           ],
         ),
+
         Expanded(
           child: SingleChildScrollView(
             controller: isOrdered
                 ? logic.orderedLeftVertical
                 : logic.receivedLeftVertical,
+
             physics: const AlwaysScrollableScrollPhysics(),
+
             child: Column(
               children: items.asMap().entries.map((entry) {
                 final index = entry.key;
+
                 final item = entry.value;
+
+                final dynamicRowHeight = _calculateRowHeight(
+                  item.itemName ?? "",
+                );
+
                 return Container(
-                  height: rowHeight,
+                  height: dynamicRowHeight,
+
                   color: Colors.white,
+
                   child: Row(
                     children: [
-                      // S.NO
                       SizedBox(
                         width: 40,
+
                         child: Center(
                           child: Text(
                             "${index + 1}",
+
                             style: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ),
 
-                      // ITEM NAME
                       SizedBox(
                         width: logic.getColumnWidth('Item') - 40,
+
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
-                            vertical: 6,
+                            vertical: 1,
                           ),
+
                           alignment: Alignment.centerLeft,
+
                           child: Text(
                             item.itemName ?? "",
+
                             maxLines: null,
+
                             overflow: TextOverflow.visible,
+
                             softWrap: true,
+
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              height: 1,
+                              height: 0.9,
                             ),
                           ),
                         ),
@@ -382,65 +463,120 @@ class ApprovedPOTable extends StatelessWidget {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        return ValueListenableBuilder<Map<Item, String?>>(
-          valueListenable: logic.receivedQtyErrorsValue,
-          builder: (context, errorMap, _) {
-            final error = errorMap[item];
-            final hasError = (error ?? '').isNotEmpty;
+        return ValueListenableBuilder<Set<Item>>(
+          valueListenable: logic.aiHighlightedItems,
 
-            return Container(
-              width: logic.getColumnWidth(column),
-              color: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: InkWell(
-                onTap: () {
-                  final errors = Map<Item, String?>.from(
-                    logic.receivedQtyErrorsValue.value,
-                  );
-                  errors.remove(item);
-                  logic.receivedQtyErrorsValue.value = errors;
+          builder: (context, highlightedItems, _) {
+            final isAIHighlighted = highlightedItems.contains(item);
 
-                  logic.showNumericCalculator(
-                    controller: controller,
-                    varianceName: 'Enter Received Quantity',
-                    item: item, 
-                    onValueSelected: () {
-                      logic.updateQtyWhenReceivedChanges(item);
+            return ValueListenableBuilder<Map<Item, String?>>(
+              valueListenable: logic.receivedQtyErrorsValue,
+
+              builder: (context, errorMap, _) {
+                final error = errorMap[item];
+
+                final hasError = (error ?? '').isNotEmpty;
+
+                return Container(
+                  key: logic.receivedFieldKeys[item], // ✅ ADD THIS
+
+                  width: logic.getColumnWidth(column),
+
+                  color: Colors.white,
+
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+
+                  child: InkWell(
+                    onTap: () {
+                      final errors = Map<Item, String?>.from(
+                        logic.receivedQtyErrorsValue.value,
+                      );
+
+                      errors.remove(item);
+
+                      logic.receivedQtyErrorsValue.value = errors;
+
+                      logic.showNumericCalculator(
+                        controller: controller,
+
+                        varianceName: 'Enter Received Quantity',
+
+                        item: item,
+
+                        onValueSelected: () async {
+                          logic.updateQtyWhenReceivedChanges(item);
+
+                          await logic.recalculateReceivedSummary();
+                        },
+                      );
                     },
-                  );
-                },
 
-                child: IgnorePointer(
-                  child: SizedBox(
-                    height: rowHeight - 2,
-                    child: TextField(
-                      key: ValueKey(hasError),
-                      controller: controller,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.only(
-                          bottom: 2,
-                          top: 2,
-                        ),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: hasError ? Colors.red : Colors.grey,
-                            width: hasError ? 2 : 1,
+                    child: IgnorePointer(
+                      child: SizedBox(
+                        height: rowHeight - 2,
+
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+
+                          curve: Curves.easeInOut,
+
+                          decoration: BoxDecoration(
+                            color: isAIHighlighted
+                                ? const Color.fromARGB(
+                                    255,
+                                    255,
+                                    251,
+                                    2,
+                                  ).withOpacity(0.35)
+                                : Colors.white,
+
+                            borderRadius: BorderRadius.circular(4),
                           ),
-                        ),
-                        focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: hasError ? Colors.red : Colors.blue,
-                            width: hasError ? 2 : 1,
+
+                          child: TextField(
+                            key: ValueKey(hasError),
+
+                            controller: controller,
+
+                            textAlign: TextAlign.center,
+
+                            style: const TextStyle(fontSize: 12),
+
+                            decoration: InputDecoration(
+                              filled: true,
+
+                              fillColor: Colors.transparent,
+
+                              isDense: true,
+
+                              contentPadding: const EdgeInsets.only(
+                                bottom: 2,
+                                top: 2,
+                              ),
+
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: hasError ? Colors.red : Colors.grey,
+
+                                  width: hasError ? 2 : 1,
+                                ),
+                              ),
+
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: hasError ? Colors.red : Colors.blue,
+
+                                  width: hasError ? 2 : 1,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
@@ -452,96 +588,74 @@ class ApprovedPOTable extends StatelessWidget {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        return Container(
-          width: logic.getColumnWidth(column),
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: InkWell(
-            onTap: () {
-              logic.showNumericCalculator(
-                controller: priceController,
-                varianceName: 'Enter Price',
-                item: item, // ✅ MUST
-                onValueSelected: () {
-                  final newPrice = double.tryParse(priceController.text) ?? 0.0;
+        return ValueListenableBuilder<Set<Item>>(
+          valueListenable: logic.aiHighlightedItems,
+          builder: (context, highlightedItems, _) {
+            final isAIHighlighted = highlightedItems.contains(item);
 
-                  item.newPrice = newPrice;
-                  logic.onPriceChanged(item, newPrice);
-                },
-              );
-            },
+            return Container(
+              width: logic.getColumnWidth(column),
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
 
-            child: IgnorePointer(
-              child: SizedBox(
-                height: rowHeight - 2,
-                child: TextField(
-                  controller: priceController,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12),
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.only(bottom: 2, top: 2),
-                    enabledBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.grey),
-                    ),
-                    focusedBorder: UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.blue),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      case 'BefTax':
-        final controller = logic.befTaxControllers[item];
+              child: InkWell(
+                onTap: () {
+                  logic.showNumericCalculator(
+                    controller: priceController,
+                    varianceName: 'Enter Price',
+                    item: item,
 
-        if (controller == null) {
-          return Container(width: logic.getColumnWidth(column));
-        }
+                    onValueSelected: () {
+                      final newPrice =
+                          double.tryParse(priceController.text) ?? 0.0;
 
-        return ValueListenableBuilder<bool>(
-          valueListenable: logic.isBefTaxDiscount,
-          builder: (context, isBefTaxMode, _) {
-            final isDisabled = !isBefTaxMode;
+                      item.newPrice = newPrice;
 
-            return Opacity(
-              opacity: isDisabled ? 0.4 : 1, // 🔥 BLUR EFFECT
-              child: IgnorePointer(
-                ignoring: isDisabled, // 🔥 DISABLE TOUCH
-                child: Container(
-                  width: logic.getColumnWidth(column),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: InkWell(
-                    onTap: () {
-                      logic.onDiscountChanged(isBefTax: true);
-
-                      logic.showNumericCalculator(
-                        controller: controller,
-                        varianceName: 'Enter Before Tax Discount',
-                        item: item,
-                        onValueSelected: () {
-                          final value = double.tryParse(controller.text) ?? 0.0;
-                          item.befTaxDiscount = value;
-                        },
-                      );
+                      logic.onPriceChanged(item, newPrice);
                     },
-                    child: IgnorePointer(
-                      child: SizedBox(
-                        height: rowHeight - 2,
-                        child: TextField(
-                          controller: controller,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.only(bottom: 2, top: 2),
-                            enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.blue),
-                            ),
+                  );
+                },
+
+                child: IgnorePointer(
+                  child: SizedBox(
+                    height: rowHeight - 2,
+
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+
+                      decoration: BoxDecoration(
+                        color: isAIHighlighted
+                            ? const Color.fromARGB(
+                                255,
+                                255,
+                                251,
+                                2,
+                              ).withOpacity(0.35)
+                            : Colors.white,
+
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+
+                      child: TextField(
+                        controller: priceController,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 12),
+
+                        decoration: const InputDecoration(
+                          filled: true,
+                          fillColor: Colors.transparent,
+
+                          isDense: true,
+
+                          contentPadding: EdgeInsets.only(bottom: 2, top: 2),
+
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.grey),
+                          ),
+
+                          focusedBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.blue),
                           ),
                         ),
                       ),
@@ -552,6 +666,117 @@ class ApprovedPOTable extends StatelessWidget {
             );
           },
         );
+
+      case 'BefTax':
+        final controller = logic.befTaxControllers[item];
+
+        if (controller == null) {
+          return Container(width: logic.getColumnWidth(column));
+        }
+
+        return ValueListenableBuilder<Set<Item>>(
+          valueListenable: logic.aiHighlightedItems,
+          builder: (context, highlightedItems, _) {
+            final isAIHighlighted = highlightedItems.contains(item);
+
+            return ValueListenableBuilder<bool>(
+              valueListenable: logic.isBefTaxDiscount,
+
+              builder: (context, isBefTaxMode, _) {
+                final isDisabled = !isBefTaxMode;
+
+                return Opacity(
+                  opacity: isDisabled ? 0.4 : 1,
+
+                  child: IgnorePointer(
+                    ignoring: isDisabled,
+
+                    child: Container(
+                      width: logic.getColumnWidth(column),
+
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+
+                      child: InkWell(
+                        onTap: () {
+                          logic.onDiscountChanged(isBefTax: true);
+
+                          logic.showNumericCalculator(
+                            controller: controller,
+
+                            varianceName: 'Enter Before Tax Discount',
+
+                            item: item,
+
+                            onValueSelected: () {
+                              final value =
+                                  double.tryParse(controller.text) ?? 0.0;
+
+                              item.befTaxDiscount = value;
+                            },
+                          );
+                        },
+
+                        child: IgnorePointer(
+                          child: SizedBox(
+                            height: rowHeight - 2,
+
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeInOut,
+
+                              decoration: BoxDecoration(
+                                color: isAIHighlighted
+                                    ? const Color.fromARGB(
+                                        255,
+                                        255,
+                                        251,
+                                        2,
+                                      ).withOpacity(0.35)
+                                    : Colors.white,
+
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+
+                              child: TextField(
+                                controller: controller,
+
+                                textAlign: TextAlign.center,
+
+                                style: const TextStyle(fontSize: 12),
+
+                                decoration: const InputDecoration(
+                                  filled: true,
+
+                                  fillColor: Colors.transparent,
+
+                                  isDense: true,
+
+                                  contentPadding: EdgeInsets.only(
+                                    bottom: 2,
+                                    top: 2,
+                                  ),
+
+                                  enabledBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.grey),
+                                  ),
+
+                                  focusedBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.blue),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+
       case 'AfTax':
         final controller = logic.afTaxControllers[item];
 
@@ -559,55 +784,105 @@ class ApprovedPOTable extends StatelessWidget {
           return Container(width: logic.getColumnWidth(column));
         }
 
-        return ValueListenableBuilder<bool>(
-          valueListenable: logic.isBefTaxDiscount,
-          builder: (context, isBefTaxMode, _) {
-            final isDisabled = isBefTaxMode;
+        return ValueListenableBuilder<Set<Item>>(
+          valueListenable: logic.aiHighlightedItems,
+          builder: (context, highlightedItems, _) {
+            final isAIHighlighted = highlightedItems.contains(item);
 
-            return Opacity(
-              opacity: isDisabled ? 0.4 : 1, // 🔥 BLUR EFFECT
-              child: IgnorePointer(
-                ignoring: isDisabled,
-                child: Container(
-                  width: logic.getColumnWidth(column),
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: InkWell(
-                    onTap: () {
-                      logic.onDiscountChanged(isBefTax: false);
+            return ValueListenableBuilder<bool>(
+              valueListenable: logic.isBefTaxDiscount,
 
-                      logic.showNumericCalculator(
-                        controller: controller,
-                        varianceName: 'Enter After Tax Discount',
-                        item: item,
-                        onValueSelected: () {
-                          final value = double.tryParse(controller.text) ?? 0.0;
-                          item.afTaxDiscount = value;
+              builder: (context, isBefTaxMode, _) {
+                final isDisabled = isBefTaxMode;
+
+                return Opacity(
+                  opacity: isDisabled ? 0.4 : 1,
+
+                  child: IgnorePointer(
+                    ignoring: isDisabled,
+
+                    child: Container(
+                      width: logic.getColumnWidth(column),
+
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+
+                      child: InkWell(
+                        onTap: () {
+                          logic.onDiscountChanged(isBefTax: false);
+
+                          logic.showNumericCalculator(
+                            controller: controller,
+
+                            varianceName: 'Enter After Tax Discount',
+
+                            item: item,
+
+                            onValueSelected: () {
+                              final value =
+                                  double.tryParse(controller.text) ?? 0.0;
+
+                              item.afTaxDiscount = value;
+                            },
+                          );
                         },
-                      );
-                    },
-                    child: IgnorePointer(
-                      child: SizedBox(
-                        height: rowHeight - 2,
-                        child: TextField(
-                          controller: controller,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            contentPadding: EdgeInsets.only(bottom: 2, top: 2),
-                            enabledBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.grey),
-                            ),
-                            focusedBorder: UnderlineInputBorder(
-                              borderSide: BorderSide(color: Colors.blue),
+
+                        child: IgnorePointer(
+                          child: SizedBox(
+                            height: rowHeight - 2,
+
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeInOut,
+
+                              decoration: BoxDecoration(
+                                color: isAIHighlighted
+                                    ? const Color.fromARGB(
+                                        255,
+                                        255,
+                                        251,
+                                        2,
+                                      ).withOpacity(0.35)
+                                    : Colors.white,
+
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+
+                              child: TextField(
+                                controller: controller,
+
+                                textAlign: TextAlign.center,
+
+                                style: const TextStyle(fontSize: 12),
+
+                                decoration: const InputDecoration(
+                                  filled: true,
+
+                                  fillColor: Colors.transparent,
+
+                                  isDense: true,
+
+                                  contentPadding: EdgeInsets.only(
+                                    bottom: 2,
+                                    top: 2,
+                                  ),
+
+                                  enabledBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.grey),
+                                  ),
+
+                                  focusedBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(color: Colors.blue),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );
@@ -618,16 +893,23 @@ class ApprovedPOTable extends StatelessWidget {
 
         return ValueListenableBuilder<String?>(
           valueListenable: logic.expiryDateErrorsMap[item]!,
+
           builder: (context, error, _) {
             return Container(
+              key: logic.expiryFieldKeys[item], // ✅ ADD THIS
+
               width: logic.getColumnWidth(column),
+
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+
               child: InkWell(
                 onTap: () async {
                   DateTime initialDate = ServerTimeService.now;
+
                   if ((item.expiryDate).isNotEmpty) {
                     try {
                       final parts = item.expiryDate.split('-');
+
                       initialDate = DateTime(
                         int.parse(parts[2]),
                         int.parse(parts[1]),
@@ -638,9 +920,13 @@ class ApprovedPOTable extends StatelessWidget {
 
                   final DateTime? picked = await showDatePicker(
                     context: context,
+
                     initialDate: initialDate,
+
                     firstDate: ServerTimeService.now,
+
                     lastDate: DateTime(2101),
+
                     builder: (context, child) {
                       return Theme(
                         data: Theme.of(context).copyWith(
@@ -650,12 +936,18 @@ class ApprovedPOTable extends StatelessWidget {
                             onPrimary: Colors.white,
                             onSurface: Colors.black,
                           ),
+
                           textButtonTheme: TextButtonThemeData(
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.blueAccent,
                             ),
-                          ), dialogTheme: DialogThemeData(backgroundColor: Colors.white),
+                          ),
+
+                          dialogTheme: DialogThemeData(
+                            backgroundColor: Colors.white,
+                          ),
                         ),
+
                         child: child!,
                       );
                     },
@@ -663,47 +955,64 @@ class ApprovedPOTable extends StatelessWidget {
 
                   if (picked != null) {
                     final formatted = DateFormat('dd-MM-yyyy').format(picked);
+
                     item.expiryDate = formatted;
+
                     expiryController.text = formatted;
+
                     logic.expiryDateErrorsMap[item]!.value = null;
                   } else {
                     logic.expiryDateErrorsMap[item]!.value = "";
                   }
                 },
+
                 child: SizedBox(
                   height: 30,
+
                   child: AbsorbPointer(
                     child: TextField(
                       controller: expiryController,
+
                       readOnly: true,
+
                       decoration: InputDecoration(
                         hintText: "select date",
+
                         hintStyle: const TextStyle(
                           fontSize: 8,
                           color: Colors.grey,
                         ),
+
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
+
                           borderSide: BorderSide(
                             color: error != null ? Colors.red : Colors.grey,
+
                             width: error != null ? 1.4 : 1,
                           ),
                         ),
+
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(4),
+
                           borderSide: BorderSide(
                             color: error != null
                                 ? Colors.red
                                 : Colors.blueAccent,
+
                             width: error != null ? 1.4 : 1,
                           ),
                         ),
+
                         isDense: true,
+
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 6,
                           vertical: 6,
                         ),
                       ),
+
                       style: const TextStyle(fontSize: 9),
                     ),
                   ),

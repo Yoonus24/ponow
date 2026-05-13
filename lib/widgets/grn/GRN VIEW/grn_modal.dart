@@ -32,6 +32,17 @@ class _GRNModalState extends State<GRNModal> {
     super.dispose();
   }
 
+  double _calculateRowHeight(String text) {
+    const double minHeight = 38;
+    const int approxCharsPerLine = 11;
+
+    final int lineCount = (text.length / approxCharsPerLine).ceil();
+
+    final double calculatedHeight = (lineCount * 15).toDouble();
+
+    return calculatedHeight < minHeight ? minHeight : calculatedHeight;
+  }
+
   @override
   Widget build(BuildContext context) {
     final permission = context.watch<PermissionProvider>();
@@ -461,37 +472,60 @@ class _GRNModalState extends State<GRNModal> {
   Widget _buildItemNameColumn(double itemNameWidth) {
     return SizedBox(
       width: itemNameWidth,
+
       child: Column(
         children: (logic.grn.itemDetails ?? []).asMap().entries.map((entry) {
           final index = entry.key;
+
           final item = entry.value;
+
+          final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
           return Container(
-            height: GRNLogic.rowHeight,
+            height: dynamicRowHeight,
+
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            margin: const EdgeInsets.only(bottom: 8),
+
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
             ),
+
             child: Align(
-              alignment: logic.getColumnAlignment('Item Name'),
+              alignment: Alignment.centerLeft,
+
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+
                 children: [
                   SizedBox(
-                    width: 30,
-                    child: Center(
+                    width: 35,
+
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+
                       child: Text(
                         "${index + 1}",
+
                         style: const TextStyle(fontSize: 12),
                       ),
                     ),
                   ),
+
                   Expanded(
-                    child: Text(
-                      item.itemName ?? '',
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: true,
-                      style: const TextStyle(fontSize: 13, height: 0.95),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 1),
+
+                      child: Text(
+                        item.itemName ?? '',
+
+                        maxLines: null,
+
+                        overflow: TextOverflow.visible,
+
+                        softWrap: true,
+
+                        style: const TextStyle(fontSize: 13, height: 0.9),
+                      ),
                     ),
                   ),
                 ],
@@ -509,22 +543,31 @@ class _GRNModalState extends State<GRNModal> {
   ) {
     return SizedBox(
       width: totalRightColumnsWidth,
+
       child: Column(
         children: (logic.grn.itemDetails ?? []).asMap().entries.map((entry) {
           final index = entry.key;
+
           final item = entry.value;
+
           final itemId = item.itemId ?? 'item_$index';
+
+          final dynamicRowHeight = _calculateRowHeight(item.itemName ?? '');
+
           return Container(
-            height: GRNLogic.rowHeight,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            margin: const EdgeInsets.only(bottom: 8),
+            height: dynamicRowHeight,
+
+            padding: const EdgeInsets.symmetric(vertical: 1),
+
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
             ),
+
             child: Row(
               children: rightColumns.map((column) {
                 return SizedBox(
                   width: logic.getColumnWidth(column),
+
                   child: _buildCellContent(item, column, itemId),
                 );
               }).toList(),

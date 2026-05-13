@@ -52,99 +52,78 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
     print("_showConvertToGRNConfirmation START");
 
     if (!mounted) {
-      print("Widget not mounted. Aborting dialog.");
       return;
     }
+    final isValid = await _logic.validateBeforeGRN();
 
-    print("Showing confirmation dialog...");
+    if (!isValid) {
+      return;
+    }
 
     final bool? confirmed = await showDialog<bool>(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
       builder: (ctx) {
-        print("Dialog builder executed");
-
         return AlertDialog(
           backgroundColor: Colors.white,
+
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+
           title: const Text(
             'Confirm Conversion',
+
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
             ),
           ),
+
           content: const Text(
             'Are you sure you want to convert this PO to GRN?',
+
             style: TextStyle(fontSize: 16, color: Colors.black87, height: 1.4),
           ),
+
           actionsPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+
           actionsAlignment: MainAxisAlignment.end,
+
           actions: [
             TextButton(
               onPressed: () {
-                print("User pressed CANCEL");
                 Navigator.of(ctx).pop(false);
               },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blueAccent,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 10,
-                ),
-              ),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
+
+              style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
+
+              child: const Text('Cancel'),
             ),
-            const SizedBox(width: 8),
+
             ElevatedButton(
               onPressed: () {
                 Navigator.of(ctx).pop(true);
               },
+
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                elevation: 2,
               ),
-              child: const Text(
-                'Confirm',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              ),
+
+              child: const Text('Confirm'),
             ),
           ],
         );
       },
     );
 
-    print("Dialog result: $confirmed");
-
-    if (!mounted) {
-      print("Widget unmounted after dialog");
-      return;
-    }
 
     if (confirmed == true && mounted) {
-      print("User confirmed. Starting PO → GRN conversion");
-
       await _logic.convertPoToGRN(context);
-    } else {
-      print("Conversion cancelled by user");
     }
-
-    print("_showConvertToGRNConfirmation END");
   }
 
   void _openFreightDialog() {
@@ -191,6 +170,13 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _logic.dispose();
+
+    super.dispose();
   }
 
   @override
@@ -292,60 +278,105 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   Widget _buildInvoiceNumberField() {
     return ValueListenableBuilder<String?>(
       valueListenable: _logic.invoiceValidationMessage,
+
       builder: (context, error, _) {
-        return TextFormField(
-          controller: _logic.invoiceNumberController,
-          style: const TextStyle(fontSize: 11),
-          maxLength: 50,
-          inputFormatters: [
-            LengthLimitingTextInputFormatter(50),
-            FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9\-_\/]')),
-          ],
-          buildCounter:
-              (
-                context, {
-                required int currentLength,
-                required bool isFocused,
-                int? maxLength,
-              }) => null,
+        return ValueListenableBuilder<bool>(
+          valueListenable: _logic.isInvoiceHighlighted,
 
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: 7,
-              horizontal: 6,
-            ),
+          builder: (context, isHighlighted, _) {
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
 
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(3),
-              borderSide: BorderSide(
-                color: error != null ? Colors.red : Colors.grey.shade400,
-                width: error != null ? 2.0 : 1.0,
+              curve: Curves.easeInOut,
+
+              decoration: BoxDecoration(
+                color: isHighlighted
+                    ? const Color.fromARGB(255, 255, 251, 2).withOpacity(0.30)
+                    : Colors.transparent,
+
+                borderRadius: BorderRadius.circular(4),
               ),
-            ),
 
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(3),
-              borderSide: BorderSide(
-                color: error != null ? Colors.red : Colors.grey.shade400,
-                width: error != null ? 2.0 : 1.0,
+              child: TextFormField(
+                controller: _logic.invoiceNumberController,
+
+                style: const TextStyle(fontSize: 11),
+
+                maxLength: 50,
+
+                inputFormatters: [
+                  LengthLimitingTextInputFormatter(50),
+
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'[A-Za-z0-9\-_\/]'),
+                  ),
+                ],
+
+                buildCounter:
+                    (
+                      context, {
+                      required int currentLength,
+                      required bool isFocused,
+                      int? maxLength,
+                    }) => null,
+
+                decoration: InputDecoration(
+                  filled: true,
+
+                  fillColor: isHighlighted
+                      ? const Color.fromARGB(255, 255, 251, 2).withOpacity(0.20)
+                      : Colors.white,
+
+                  isDense: true,
+
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 7,
+                    horizontal: 6,
+                  ),
+
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(3),
+
+                    borderSide: BorderSide(
+                      color: error != null ? Colors.red : Colors.grey.shade400,
+
+                      width: error != null ? 2.0 : 1.0,
+                    ),
+                  ),
+
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(3),
+
+                    borderSide: BorderSide(
+                      color: error != null ? Colors.red : Colors.grey.shade400,
+
+                      width: error != null ? 2.0 : 1.0,
+                    ),
+                  ),
+
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(3),
+
+                    borderSide: BorderSide(
+                      color: error != null ? Colors.red : Colors.blueAccent,
+
+                      width: error != null ? 2.0 : 1.0,
+                    ),
+                  ),
+
+                  hintText: "Invoice No",
+
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+
+                onChanged: (value) {
+                  _validateInvoiceNumber(value);
+                },
               ),
-            ),
-
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(3),
-              borderSide: BorderSide(
-                color: error != null ? Colors.red : Colors.blueAccent,
-                width: error != null ? 2.0 : 1.0,
-              ),
-            ),
-
-            hintText: "Invoice No",
-            hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-          ),
-
-          onChanged: (value) {
-            _validateInvoiceNumber(value);
+            );
           },
         );
       },
@@ -1073,12 +1104,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         ],
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _logic.dispose();
-    super.dispose();
   }
 }
 

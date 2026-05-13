@@ -1,5 +1,5 @@
 // outgoing_pdf.dart
-// ignore_for_file: unused_element
+// ignore_for_file: unused_local_variable, unused_element
 
 import 'dart:io';
 import 'package:pdf/pdf.dart';
@@ -120,15 +120,29 @@ class OutgoingPdf {
         ? safeFormatDate(outgoingData['apinvoiceDate'].toString())
         : 'N/A';
 
+    // Calculate totals from items
+    final subtotal = _calculateSubtotal(itemsRaw);
+    final totalTax = _calculateTotalTax(itemsRaw);
+
+    // Get freight details
+    final totalFreightAmount = _safeNum(outgoingData['totalFreightAmount']);
+    final totalFreightTaxAmount = _safeNum(
+      outgoingData['totalFreightTaxAmount'],
+    );
+
+    // Calculate total including freight
+    final totalAmount =
+        subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
+
     final totalPayableAmount = _safeNum(outgoingData['totalPayableAmount']);
     final paidAmount = _safeNum(outgoingData['paidAmount']);
-    final remainingAmount = totalPayableAmount - paidAmount;
+    final remainingAmount = totalPayableAmount;
     final amountInWords = _amountInWords(totalPayableAmount);
 
     // Calculate tax percentage from items
     final taxPercentage = _getTaxPercentage(itemsRaw);
 
-    // Calculate CGST and SGST totals
+    // Calculate CGST and SGST totals (items only, no freight tax)
     final cgstTotal = _calculateCgst(itemsRaw);
     final sgstTotal = _calculateSgst(itemsRaw);
 
@@ -317,6 +331,8 @@ class OutgoingPdf {
               ],
             ),
 
+            pw.SizedBox(height: 12),
+
             // Items Table - Wrap in pw.Column to allow breaking across pages
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -357,7 +373,9 @@ class OutgoingPdf {
               ],
             ),
 
-            // Summary Table - EXACT same layout
+            pw.SizedBox(height: 12),
+
+            // Summary Table with Freight - EXACT same layout
             pw.Container(
               width: double.infinity,
               child: pw.Table(
@@ -367,14 +385,23 @@ class OutgoingPdf {
                   1: pw.FlexColumnWidth(1),
                 },
                 children: [
-                  _twoCellRow(
-                    'Total Amount',
-                    _safeFixedString(outgoingData['totalPrice']),
-                  ),
+                  _twoCellRow('Total Amount', _safeFixedString(subtotal)),
                   _twoCellRow(
                     'Total Discount',
                     _safeFixedString(outgoingData['discountDetails']),
                   ),
+                  // Add freight rows if freight exists
+                  if (totalFreightAmount > 0) ...[
+                    _twoCellRow(
+                      'Freight Amount',
+                      _safeFixedString(totalFreightAmount),
+                    ),
+                    if (totalFreightTaxAmount > 0)
+                      _twoCellRow(
+                        'Freight Tax',
+                        _safeFixedString(totalFreightTaxAmount),
+                      ),
+                  ],
                   if (taxPercentage > 0) ...[
                     _twoCellRow(
                       'CGST @ ${(taxPercentage / 2).toStringAsFixed(2)}%',
@@ -496,6 +523,27 @@ class OutgoingPdf {
     final file = File('${output.path}/$filename');
     await file.writeAsBytes(await pdf.save());
     return file;
+  }
+
+  // Helper methods
+  double _calculateSubtotal(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += _safeNum(item['totalPrice'] ?? 0);
+      }
+    }
+    return total;
+  }
+
+  double _calculateTotalTax(List<dynamic> items) {
+    double total = 0;
+    for (var item in items) {
+      if (item is Map<String, dynamic>) {
+        total += (_safeNum(item['cgst']) + _safeNum(item['sgst']));
+      }
+    }
+    return total;
   }
 
   double _getTaxPercentage(List<dynamic> items) {

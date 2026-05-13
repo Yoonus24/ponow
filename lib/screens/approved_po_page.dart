@@ -31,7 +31,6 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   List<String> _displayedVendors = [];
 
   @override
-  @override
   void initState() {
     super.initState();
 
@@ -92,6 +91,9 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
     vendorCtrl.dispose();
     dateCtrl.dispose();
     _scrollController.dispose();
+    isInitialized.dispose();
+    selectedDateRange.dispose();
+    vendorName.dispose();
     super.dispose();
   }
 

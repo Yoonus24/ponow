@@ -1,6 +1,5 @@
 // ignore_for_file: sized_box_for_whitespace, deprecated_member_use, avoid_print, use_build_context_synchronously
 
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -55,6 +54,9 @@ class _LoginPageState extends State<LoginPage>
   }
 
   Future<void> _login() async {
+    // Prevent multiple taps
+    if (_isLoading.value) return;
+
     FocusScope.of(context).unfocus();
     _formSubmitted.value = true;
 
@@ -77,18 +79,17 @@ class _LoginPageState extends State<LoginPage>
     }
 
     try {
-      /// LOGIN API CALL
       final result = await AuthService.login(
         username: username,
         password: password,
         browserSessionId: browserSessionId,
       );
-      _isLoading.value = false;
+
+      if (!mounted) return;
 
       if (result != null) {
-        // Start session
         SessionService.start();
-        // Load into Provider
+
         try {
           final permissionProvider = Provider.of<PermissionProvider>(
             context,
@@ -96,16 +97,16 @@ class _LoginPageState extends State<LoginPage>
           );
 
           await permissionProvider.loadPermissions();
+          if (!mounted) return;
 
           print(permissionProvider.permissions);
         } catch (e) {
           print("⚠️ Provider not loaded: $e");
         }
 
-        // Autofill complete
         TextInput.finishAutofillContext();
 
-        // Navigate
+        if (!mounted) return;
         Navigator.pushReplacementNamed(
           context,
           '/home',
@@ -113,7 +114,7 @@ class _LoginPageState extends State<LoginPage>
         );
       }
     } catch (e) {
-      _isLoading.value = false;
+      if (!mounted) return;
 
       print("❌ LOGIN ERROR:");
       print(e);
@@ -135,6 +136,10 @@ class _LoginPageState extends State<LoginPage>
           duration: const Duration(seconds: 3),
         ),
       );
+    } finally {
+      if (mounted) {
+        _isLoading.value = false;
+      }
     }
   }
 

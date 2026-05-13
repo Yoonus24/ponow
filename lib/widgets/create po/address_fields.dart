@@ -72,10 +72,13 @@ class AddressFields {
 
               if (selectedValue != null) {
                 final date = orderDate.add(Duration(days: selectedValue));
+
                 notifier.expectedDeliveryDateController.text =
                     "${date.day.toString().padLeft(2, '0')}-"
                     "${date.month.toString().padLeft(2, '0')}-"
                     "${date.year}";
+
+                Form.of(context)?.validate();
               }
             },
             child: AbsorbPointer(
@@ -88,20 +91,23 @@ class AddressFields {
                   textAlignVertical: TextAlignVertical.center,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return '';
+                      return 'Expected delivery date is required';
                     }
                     return null;
                   },
                   decoration: inputDecoration("Expected Date").copyWith(
+                    errorStyle: const TextStyle(height: 0, fontSize: 0),
+
                     filled: true,
                     fillColor: Colors.white,
                     floatingLabelBehavior: FloatingLabelBehavior.auto,
                     hintText: '',
-                    errorStyle: const TextStyle(height: 0, fontSize: 0),
+
                     contentPadding: const EdgeInsets.symmetric(
                       vertical: 14,
                       horizontal: 12,
                     ),
+
                     suffixIcon: Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: Icon(
@@ -109,6 +115,7 @@ class AddressFields {
                         color: Colors.grey[600],
                       ),
                     ),
+
                     suffixIconConstraints: const BoxConstraints(
                       minWidth: 30,
                       minHeight: 30,

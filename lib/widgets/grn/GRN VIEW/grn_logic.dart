@@ -570,7 +570,7 @@ class GRNLogic {
   double getColumnWidth(String column) {
     switch (column) {
       case 'Item Name':
-        return 150;
+        return 170;
       case 'UOM':
         return 70;
       case 'Expiry Date':

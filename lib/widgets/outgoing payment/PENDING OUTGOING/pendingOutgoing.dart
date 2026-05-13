@@ -999,18 +999,18 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (!provider.isLoadingOutgoings && filtered.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No pending outgoing',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    );
-                  }
+                  // if (!provider.isLoadingOutgoings && filtered.isEmpty) {
+                  //   return const Center(
+                  //     child: Text(
+                  //       'No pending outgoing',
+                  //       style: TextStyle(
+                  //         fontSize: 16,
+                  //         color: Colors.grey,
+                  //         fontWeight: FontWeight.w500,
+                  //       ),
+                  //     ),
+                  //   );
+                  // }
 
                   final sortedPayments = _logic.sortPayments(filtered);
                   final totalWidth = _visibleColumnsNotifier.value.fold<double>(
@@ -1200,6 +1200,27 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                                     isLoadingMore,
                                                                     _,
                                                                   ) {
+                                                                    // EMPTY TABLE STATE
+                                                                    if (sortedPayments
+                                                                        .isEmpty) {
+                                                                      return SizedBox(
+                                                                        width:
+                                                                            totalWidth,
+                                                                        height:
+                                                                            250,
+                                                                        child: const Center(
+                                                                          child: Text(
+                                                                            'No matching records found',
+                                                                            style: TextStyle(
+                                                                              fontSize: 14,
+                                                                              color: Colors.grey,
+                                                                              fontWeight: FontWeight.w500,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                      );
+                                                                    }
+
                                                                     return Scrollbar(
                                                                       controller:
                                                                           _logic
@@ -1232,6 +1253,7 @@ class _PendingOutgoingState extends State<PendingOutgoing> {
                                                                                     ),
                                                                                   );
                                                                                 }
+
                                                                                 return _buildDataRow(
                                                                                   index,
                                                                                   sortedPayments[index],
