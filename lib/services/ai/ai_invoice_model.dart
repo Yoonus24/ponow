@@ -5,11 +5,19 @@ class AIInvoiceResponse {
 
   final String poNumber;
 
+  final double confidence;
+
   final String invoiceNumber;
+
   final String vendorName;
+
   final String invoiceDate;
 
   final List<AIMatchedItem> matchedItems;
+
+  final String aiSummary;
+
+  final String summaryConfidence;
 
   AIInvoiceResponse({
     required this.success,
@@ -20,9 +28,17 @@ class AIInvoiceResponse {
 
     required this.invoiceNumber,
 
+    required this.confidence,
+
     required this.invoiceDate,
-required this.vendorName,
+
+    required this.vendorName,
+
     required this.matchedItems,
+
+    required this.aiSummary,
+
+    required this.summaryConfidence,
   });
 
   factory AIInvoiceResponse.fromJson(Map<String, dynamic> json) {
@@ -39,9 +55,15 @@ required this.vendorName,
 
       vendorName: json["vendorName"] ?? "",
 
+      confidence: (json["confidence"] ?? 95).toDouble(),
+
       matchedItems: (json["matchedItems"] as List? ?? [])
           .map((e) => AIMatchedItem.fromJson(e))
           .toList(),
+
+      aiSummary: json["analysis"]?["summary"] ?? "",
+
+      summaryConfidence: json["analysis"]?["riskLevel"] ?? "medium",
     );
   }
 }

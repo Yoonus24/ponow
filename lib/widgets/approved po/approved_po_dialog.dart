@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
 import 'package:purchaseorders2/widgets/approved po/approved_po_logic.dart';
 import 'package:purchaseorders2/widgets/create%20po/FREIGHT/freight_dialog.dart';
 import 'approved_po_tables.dart';
@@ -14,12 +15,13 @@ class ApprovedPODialog extends StatefulWidget {
   final PO po;
   final POProvider poProvider;
   final VoidCallback onUpdated;
-
+  final AIInvoiceResponse? aiResponse;
   const ApprovedPODialog({
     super.key,
     required this.po,
     required this.poProvider,
     required this.onUpdated,
+    this.aiResponse,
   });
 
   @override
@@ -37,6 +39,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       poProvider: widget.poProvider,
       context: context,
       onUpdated: widget.onUpdated,
+      aiResponse: widget.aiResponse,
     );
 
     _logic.initialize();
@@ -119,7 +122,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
         );
       },
     );
-
 
     if (confirmed == true && mounted) {
       await _logic.convertPoToGRN(context);

@@ -42,13 +42,10 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       //LEFT SIDE SCAN / UPLOAD
       leading: IconButton(
         tooltip: "Scan Invoice",
-
         onPressed: () async {
           final selected = await showModalBottomSheet<String>(
             context: context,
-
             backgroundColor: Colors.white,
-
             builder: (_) {
               return const ScanInvoiceSheet();
             },
@@ -60,22 +57,20 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
           await scanAndOpenPOFlow(
             context: context,
-
             source: selected == "camera"
                 ? ImageSource.camera
                 : ImageSource.gallery,
           );
         },
-
         icon: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
-
           children: [
-            Icon(Icons.document_scanner, color: Colors.white, size: 22),
-
+            Icon(Icons.auto_awesome, color: Colors.white, size: 22), // AI icon
             SizedBox(height: 2),
-
-            Text("Scan", style: TextStyle(color: Colors.white, fontSize: 10)),
+            Text(
+              "AI Scan",
+              style: TextStyle(color: Colors.white, fontSize: 10),
+            ),
           ],
         ),
       ),

@@ -21,6 +21,10 @@ class ItemDetail {
   final double? afTaxDiscount;
   final double? befTaxDiscountAmount;
   final double? afTaxDiscountAmount;
+  final double? returnedQuantity;
+  final double? grnReturnNos;
+  final double? grnReturnEachQuantity;
+  final double? totalQuantity;
 
   ItemDetail({
     required this.itemId,
@@ -45,6 +49,10 @@ class ItemDetail {
     this.befTaxDiscountAmount,
     this.afTaxDiscountAmount,
     this.igst,
+    this.returnedQuantity,
+    this.grnReturnNos,
+    this.grnReturnEachQuantity,
+    this.totalQuantity,
   });
 
   factory ItemDetail.fromJson(Map<String, dynamic> json) {
@@ -84,16 +92,20 @@ class ItemDetail {
       afTaxDiscount: parseTax(json['afTaxDiscount']),
       befTaxDiscountAmount: parseTax(json['befTaxDiscountAmount']),
       afTaxDiscountAmount: parseTax(json['afTaxDiscountAmount']),
+      returnedQuantity: parseTax(json['returnedQuantity']),
+      grnReturnNos: parseTax(json['grnReturnNos']),
+      grnReturnEachQuantity: parseTax(json['grnReturnEachQuantity']),
+      totalQuantity: parseTax(json['totalQuantity']),
     );
   }
 
-  get grnReturnNos => null;
+  // get grnReturnNos => null;
 
-  get grnReturnEachQuantity => null;
+  // get grnReturnEachQuantity => null;
 
-  get returnedQuantity => null;
+  // get returnedQuantity => null;
 
-  get totalQuantity => null;
+  // get totalQuantity => null;
 
   Map<String, dynamic> toJson() {
     return {
@@ -118,6 +130,10 @@ class ItemDetail {
       'afTaxDiscount': afTaxDiscount,
       'befTaxDiscountAmount': befTaxDiscountAmount,
       'afTaxDiscountAmount': afTaxDiscountAmount,
+      'returnedQuantity': returnedQuantity,
+      'grnReturnNos': grnReturnNos,
+      'grnReturnEachQuantity': grnReturnEachQuantity,
+      'totalQuantity': totalQuantity,
     };
   }
 }

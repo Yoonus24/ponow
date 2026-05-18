@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +8,7 @@ import 'package:purchaseorders2/models/po.dart';
 import 'package:purchaseorders2/models/po_item.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/numeric_calculator.dart';
 import '../column_filter.dart';
@@ -65,7 +68,7 @@ class ApprovedPOLogic {
   double addedFreightAmount = 0.0;
   double addedFreightTaxAmount = 0.0;
   bool _disposed = false;
-
+  final AIInvoiceResponse? aiResponse;
   final ValueNotifier<List<String>> sharedColumns = ValueNotifier<List<String>>(
     [
       'Item',
@@ -100,6 +103,9 @@ class ApprovedPOLogic {
   final ValueNotifier<Set<Item>> aiHighlightedItems = ValueNotifier<Set<Item>>(
     {},
   );
+  final ValueNotifier<bool> isInvoiceDrivenMode = ValueNotifier(false);
+  final ValueNotifier<List<Item>> invoiceReceivedItems =
+      ValueNotifier<List<Item>>([]);
   final ValueNotifier<bool> isInvoiceHighlighted = ValueNotifier(false);
   final Map<Item, GlobalKey> receivedFieldKeys = {};
   final Map<Item, GlobalKey> expiryFieldKeys = {};
@@ -114,6 +120,7 @@ class ApprovedPOLogic {
     required this.poProvider,
     required this.context,
     required this.onUpdated,
+    this.aiResponse,
   }) : roundOffAmount = ValueNotifier<double>(po.roundOffAdjustment ?? 0.0) {
     _dialogMessengerKey = GlobalKey<ScaffoldMessengerState>(
       debugLabel: "dialog_messenger_${DateTime.now().microsecondsSinceEpoch}",
@@ -130,10 +137,15 @@ class ApprovedPOLogic {
     _initializeControllers();
     _setupScrollSync();
 
+    /// RESET AI MODE
+    isInvoiceDrivenMode.value = false;
+    invoiceReceivedItems.value = [];
     originalBefTaxDiscount.clear();
     originalAfTaxDiscount.clear();
 
     _poBaseDiscount = 0.0;
+
+    /// STORE ORIGINAL DISCOUNTS
 
     for (var item in po.items) {
       originalBefTaxDiscount[item] = item.befTaxDiscount ?? 0.0;
@@ -147,17 +159,25 @@ class ApprovedPOLogic {
     roundOffAmount.value = ro;
     discountPriceController.text = ro.toStringAsFixed(2);
 
-    for (var item in po.items) {
-      final double pendingQty = item.pendingTotalQuantity ?? 0.0;
+    /// MANUAL MODE AUTO LOAD
+    /// AI MODE WILL OVERRIDE LATER
 
+    for (var item in po.items) {
       double qtyToLoad = 0.0;
 
-      if (pendingQty > 0) {
-        qtyToLoad = pendingQty;
-      } else {
-        qtyToLoad = (item.poQuantity ?? 0) > 0
-            ? item.poQuantity!
-            : ((item.count ?? 1) * (item.eachQuantity ?? 0));
+      /// MANUAL FLOW
+      /// LOAD PENDING QTY
+
+      if (!isInvoiceDrivenMode.value) {
+        final double pendingQty = item.pendingTotalQuantity ?? 0.0;
+
+        if (pendingQty > 0) {
+          qtyToLoad = pendingQty;
+        } else {
+          qtyToLoad = (item.poQuantity ?? 0) > 0
+              ? item.poQuantity!
+              : ((item.count ?? 1) * (item.eachQuantity ?? 0));
+        }
       }
 
       item.receivedQuantity = qtyToLoad;
@@ -166,11 +186,17 @@ class ApprovedPOLogic {
         receivedQtyController[item]!.text = qtyToLoad.toStringAsFixed(2);
       }
     }
+
+    /// DEFAULT INVOICE DATE
+
     final now = ServerTimeService.now;
     invoiceDateController.text =
         '${now.day.toString().padLeft(2, '0')}-'
         '${now.month.toString().padLeft(2, '0')}-'
         '${now.year}';
+
+    /// APPLY AI RESPONSE IF EXISTS
+
     _applyAIResponse();
   }
 
@@ -186,67 +212,160 @@ class ApprovedPOLogic {
     return true;
   }
 
+  List<Item> get activeReceivedItems {
+    return isInvoiceDrivenMode.value ? invoiceReceivedItems.value : po.items;
+  }
+
   void _applyAIResponse() {
-    final aiResponse = poProvider.pendingAIResponse;
-
-    if (aiResponse == null) {
-      return;
-    }
-
-    invoiceNumberController.text = aiResponse.invoiceNumber;
-
     try {
-      invoiceDateController.text = DateFormat(
-        'dd-MM-yyyy',
-      ).format(DateTime.parse(aiResponse.invoiceDate));
-    } catch (_) {
-      invoiceDateController.text = aiResponse.invoiceDate;
-    }
+      final response = aiResponse;
 
-    isInvoiceHighlighted.value = true;
+      print("========== AI RESPONSE APPLY START ==========");
 
-    for (final item in po.items) {
-      item.receivedQuantity = 0;
+      if (response == null) {
+        print("❌ AI RESPONSE NULL");
 
-      receivedQtyController[item]?.text = "0.00";
-    }
-
-    for (final aiItem in aiResponse.matchedItems) {
-      try {
-        final item = po.items.firstWhere(
-          (e) =>
-              e.itemName?.toLowerCase().trim() ==
-              aiItem.itemName.toLowerCase().trim(),
-        );
-
-        item.receivedQuantity = aiItem.receivedQuantity;
-        item.newPrice = aiItem.newPrice;
-        item.befTaxDiscount = aiItem.befTaxDiscount;
-        item.afTaxDiscount = aiItem.afTaxDiscount;
-        aiHighlightedItems.value = {...aiHighlightedItems.value, item};
-        receivedQtyController[item]?.text = aiItem.receivedQuantity
-            .toStringAsFixed(2);
-        priceControllersMap[item]?.text = aiItem.newPrice.toStringAsFixed(2);
-        befTaxControllers[item]?.text = aiItem.befTaxDiscount.toStringAsFixed(
-          2,
-        );
-        afTaxControllers[item]?.text = aiItem.afTaxDiscount.toStringAsFixed(2);
-      } catch (e) {
-        debugPrint("AI ITEM MATCH ERROR: $e");
+        return;
       }
+
+      print("✅ AI RESPONSE FOUND");
+
+      print("📦 Matched Items: ${response.matchedItems.length}");
+
+      /// ENABLE INVOICE MODE
+      isInvoiceDrivenMode.value = true;
+
+      /// AUTO FILL INVOICE NUMBER
+      invoiceNumberController.text = response.invoiceNumber;
+
+      print("🧾 Invoice Number Applied: ${response.invoiceNumber}");
+
+      /// AUTO FILL INVOICE DATE
+      if (response.invoiceDate.isNotEmpty) {
+        try {
+          final parsedDate = DateTime.parse(response.invoiceDate);
+
+          invoiceDateController.text = DateFormat(
+            'dd-MM-yyyy',
+          ).format(parsedDate);
+
+          print("📅 Invoice Date Applied: ${response.invoiceDate}");
+        } catch (e) {
+          print("❌ DATE PARSE ERROR: $e");
+        }
+      }
+
+      /// HIGHLIGHT INVOICE FIELD
+      isInvoiceHighlighted.value = true;
+
+      Future.delayed(const Duration(seconds: 3), () {
+        isInvoiceHighlighted.value = false;
+      });
+
+      /// RESET ALL ITEMS
+      for (final item in po.items) {
+        item.receivedQuantity = 0;
+
+        item.newPrice = item.newPrice ?? 0;
+
+        item.befTaxDiscount = 0;
+
+        item.afTaxDiscount = 0;
+
+        expiryDateControllers[item]?.text = "";
+
+        item.expiryDate = "";
+
+        /// RESET RECEIVED FIELD UI
+        receivedQtyController[item]?.text = "0.00";
+
+        receivedQtyValues[item]?.value = "0.00";
+      }
+
+      print("🧹 RESET OLD VALUES");
+
+      /// CLEAR OLD AI ITEMS
+      invoiceReceivedItems.value = [];
+
+      /// MATCH AI ITEMS TO PO ITEMS
+      for (final aiItem in response.matchedItems) {
+        print("🔍 MATCHING AI ITEM: ${aiItem.itemName}");
+
+        Item? matchedPOItem;
+
+        for (final poItem in po.items) {
+          final poName = (poItem.itemName ?? "").trim().toLowerCase();
+
+          final aiName = aiItem.itemName.trim().toLowerCase();
+
+          if (poName == aiName) {
+            matchedPOItem = poItem;
+
+            break;
+          }
+        }
+
+        /// NO MATCH FOUND
+        if (matchedPOItem == null) {
+          print("❌ NO MATCH FOUND: ${aiItem.itemName}");
+
+          continue;
+        }
+
+        print("✅ MATCH FOUND: ${matchedPOItem.itemName}");
+
+        /// APPLY RECEIVED QTY
+        matchedPOItem.receivedQuantity = aiItem.receivedQuantity;
+
+        /// IMPORTANT FIX
+        /// UPDATE RECEIVED FIELD UI ALSO
+        receivedQtyController[matchedPOItem]?.text = aiItem.receivedQuantity
+            .toStringAsFixed(2);
+
+        receivedQtyValues[matchedPOItem]?.value = aiItem.receivedQuantity
+            .toStringAsFixed(2);
+
+        /// APPLY PRICE
+        matchedPOItem.newPrice = aiItem.newPrice;
+
+        /// APPLY DISCOUNTS
+        matchedPOItem.befTaxDiscount = aiItem.befTaxDiscount;
+
+        matchedPOItem.afTaxDiscount = aiItem.afTaxDiscount;
+
+        /// APPLY EXPIRY DATE
+        if (aiItem.expiryDate.isNotEmpty) {
+          matchedPOItem.expiryDate = aiItem.expiryDate;
+
+          expiryDateControllers[matchedPOItem]?.text = aiItem.expiryDate;
+        }
+
+        /// ONLY ADD MATCHED ITEMS
+        invoiceReceivedItems.value = [
+          ...invoiceReceivedItems.value,
+          matchedPOItem,
+        ];
+      }
+
+      print(
+        "📦 FINAL INVOICE ITEMS: "
+        "${invoiceReceivedItems.value.length}",
+      );
+
+      /// RECALCULATE SUMMARY
+      recalculateReceivedSummary();
+
+      recalculateFinalAmountAfterDiscount();
+
+      /// REFRESH UI
+      refreshUI();
+
+      print("✅ AI RESPONSE APPLIED SUCCESSFULLY");
+
+      print("========== AI RESPONSE APPLY END ==========");
+    } catch (e) {
+      print("❌ APPLY AI RESPONSE ERROR: $e");
     }
-
-    Future.delayed(const Duration(seconds: 5), () {
-      if (_disposed) return;
-
-      aiHighlightedItems.value = {};
-
-      isInvoiceHighlighted.value = false;
-    });
-
-    poProvider.pendingAIResponse = null;
-
-    refreshUI();
   }
 
   void _applyDiscountResponseToItems(Map<String, dynamic> data) {
@@ -371,7 +490,10 @@ class ApprovedPOLogic {
   }
 
   double get receivedSubTotal {
-    return po.items.fold(0.0, (sum, i) => sum + (i.pendingTotalPrice ?? 0.0));
+    return activeReceivedItems.fold(
+      0.0,
+      (sum, i) => sum + (i.pendingTotalPrice ?? 0.0),
+    );
   }
 
   double get pendingDiscountFromItems {
@@ -383,7 +505,7 @@ class ApprovedPOLogic {
   }
 
   double get receivedFinalAmount {
-    final double itemsFinal = po.items.fold(
+    final double itemsFinal = activeReceivedItems.fold(
       0.0,
       (sum, item) => sum + (item.pendingFinalPrice ?? 0.0),
     );
@@ -663,8 +785,6 @@ class ApprovedPOLogic {
 
   void onPriceChanged(Item item, double newPrice) {
     item.newPrice = newPrice;
-
-    // 🔥 IMPORTANT: recalc using API (same as discount flow)
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () async {
       await _recalculateAfterPriceChange();
@@ -678,7 +798,7 @@ class ApprovedPOLogic {
           return {
             "itemId": item.itemId,
             "receivedQuantity": item.receivedQuantity ?? 0,
-            "grnPrice": item.newPrice, // ✅ UPDATED PRICE USED
+            "grnPrice": item.newPrice,
             "befTaxDiscount": item.befTaxDiscount ?? 0,
             "afTaxDiscount": item.afTaxDiscount ?? 0,
             "taxPercentage": item.taxPercentage ?? 0.0,
@@ -730,7 +850,7 @@ class ApprovedPOLogic {
   Future<void> recalculateReceivedSummary() async {
     try {
       final response = await poProvider.calculateGrnOverallDiscount(
-        items: po.items.map((item) {
+        items: activeReceivedItems.map((item) {
           return {
             "itemId": item.itemId,
             "receivedQuantity": item.receivedQuantity ?? 0,
@@ -761,7 +881,7 @@ class ApprovedPOLogic {
     double? initialValue,
     required VoidCallback onValueSelected,
     bool isItemField = true,
-    Item? item, // ✅ NEW
+    Item? item, 
   }) {
     suppressReceivedListener = true;
 
@@ -777,7 +897,6 @@ class ApprovedPOLogic {
 
           final formatted = value.toStringAsFixed(2);
 
-          /// 🔹 NON ITEM FIELD (discount etc)
           if (!isItemField) {
             controller.text = formatted;
             onValueSelected();
@@ -785,13 +904,11 @@ class ApprovedPOLogic {
             return;
           }
 
-          /// 🔥 IMPORTANT FIX → no more firstWhere crash
           if (item == null) {
             suppressReceivedListener = false;
             return;
           }
 
-          /// 🔹 RECEIVED QTY FIELD ONLY VALIDATION
           if (receivedQtyController[item] == controller) {
             final double orderedQty = (item.poQuantity ?? 0) > 0
                 ? item.poQuantity!
@@ -807,7 +924,6 @@ class ApprovedPOLogic {
               return;
             }
 
-            /// clear error
             final newMap = Map<Item, String?>.from(receivedQtyErrors.value);
             newMap.remove(item);
             receivedQtyErrors.value = newMap;
@@ -818,7 +934,6 @@ class ApprovedPOLogic {
             updateQtyWhenReceivedChanges(item);
           }
 
-          /// 🔹 COMMON UPDATE (PRICE / QTY)
           controller.text = formatted;
 
           onValueSelected();
@@ -886,10 +1001,8 @@ class ApprovedPOLogic {
   }
 
   void onDiscountChanged({required bool isBefTax}) {
-    /// 🔥 Toggle mode
     isBefTaxDiscount.value = isBefTax;
 
-    /// Reset opposite discount for ALL items
     for (var item in po.items) {
       if (isBefTax) {
         item.afTaxDiscount = 0.0;
@@ -1157,7 +1270,7 @@ class ApprovedPOLogic {
 
       normalizeBeforeApi();
 
-      final List<Item> receivedItems = po.items.map((item) {
+      final List<Item> receivedItems = activeReceivedItems.map((item) {
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
 
@@ -1338,9 +1451,14 @@ class ApprovedPOLogic {
 
     invoiceDateValidationMessage.value = null;
 
-    ///  ITEM VALIDATION
+    /// IMPORTANT FIX
+    /// USE ONLY ACTIVE RECEIVED ITEMS
 
-    for (final item in po.items) {
+    final itemsToValidate = activeReceivedItems;
+
+    /// ITEM VALIDATION
+
+    for (final item in itemsToValidate) {
       final received = item.receivedQuantity ?? 0.0;
 
       final expiry = expiryDateControllers[item]?.text.trim() ?? '';

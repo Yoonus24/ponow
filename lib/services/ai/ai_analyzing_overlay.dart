@@ -75,7 +75,7 @@ class AIAnalyzingOverlay extends StatelessWidget {
               const SizedBox(height: 12),
 
               const Text(
-                "AI is extracting data and matching with the correct PO",
+                "AI is analyzing invoice data and finding matching purchase orders",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Color(0xFF6B7280),

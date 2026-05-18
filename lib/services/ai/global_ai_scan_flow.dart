@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:purchaseorders2/providers/po_provider.dart';
 import 'package:purchaseorders2/services/ai/ai_analyzing_overlay.dart';
 import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
+import 'package:purchaseorders2/widgets/ai/ai_match_summary_dialog.dart';
 import 'package:purchaseorders2/widgets/approved%20po/approved_po_dialog.dart';
 
 import 'ai_invoice_service.dart';
@@ -36,7 +37,13 @@ Future<void> scanAndOpenPOFlow({
     // GET ALL PO ITEM NAMES
     final List<String> allPoItems = provider.pos
         .expand<String>((po) {
-          return (po.items ?? []).map<String>((e) => e.itemName ?? "");
+          final pendingItems = (po.items ?? []).where((item) {
+            final pendingQty = item.pendingTotalQuantity ?? 0;
+
+            return pendingQty > 0;
+          });
+
+          return pendingItems.map<String>((e) => e.itemName ?? "");
         })
         .where((e) => e.isNotEmpty)
         .toSet()
@@ -112,24 +119,29 @@ Future<void> scanAndOpenPOFlow({
     }
 
     // ✅ FETCH MATCHED PO
-    final po = await provider.fetchPOById(response.poId);
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
 
+      builder: (_) =>
+          AIMatchSummaryDialog(aiResponse: response, poProvider: provider),
+    );
     // ✅ PO FETCH FAILED
-    if (po == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.red,
+    // if (po == null) {
+    //   if (context.mounted) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(
+    //         backgroundColor: Colors.red,
 
-            content: Text("Unable to load matched PO"),
-          ),
-        );
-      }
+    //         content: Text("Unable to load matched PO"),
+    //       ),
+    //     );
+    //   }
 
-      provider.pendingAIResponse = null;
+    //   provider.pendingAIResponse = null;
 
-      return;
-    }
+    //   return;
+    // }
 
     // ✅ CONTEXT SAFETY
     if (!context.mounted) {
@@ -139,23 +151,23 @@ Future<void> scanAndOpenPOFlow({
     }
 
     // ✅ OPEN APPROVED PO DIALOG
-    await showDialog(
-      context: context,
+    // await showDialog(
+    //   context: context,
 
-      barrierDismissible: false,
+    //   barrierDismissible: false,
 
-      builder: (_) {
-        return ApprovedPODialog(
-          po: po,
+    //   builder: (_) {
+    //     return ApprovedPODialog(
+    //       po: po,
 
-          poProvider: provider,
+    //       poProvider: provider,
 
-          onUpdated: () async {
-            await provider.fetchApprovedPOsOnly();
-          },
-        );
-      },
-    );
+    //       onUpdated: () async {
+    //         await provider.fetchApprovedPOsOnly();
+    //       },
+    //     );
+    //   },
+    // );
 
     // ✅ SUCCESS MESSAGE
     if (context.mounted) {

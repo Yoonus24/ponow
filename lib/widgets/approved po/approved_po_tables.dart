@@ -33,139 +33,98 @@ class ApprovedPOTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = logic.po.items;
+    return ValueListenableBuilder<bool>(
+      valueListenable: logic.isInvoiceDrivenMode,
 
-    if (items.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: Text(
-            isOrdered ? "No ordered items" : "No received items",
-            style: const TextStyle(color: Colors.grey, fontSize: 16),
-          ),
-        ),
-      );
-    }
+      builder: (context, isInvoiceMode, _) {
+        return ValueListenableBuilder<List<Item>>(
+          valueListenable: logic.invoiceReceivedItems,
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double availableWidth = constraints.maxWidth;
+          builder: (context, invoiceItems, _) {
+            final items = isOrdered
+                ? logic.po.items
+                : isInvoiceMode
+                ? invoiceItems
+                : logic.po.items;
 
-        return ValueListenableBuilder<Map<String, bool>>(
-          valueListenable: logic.sharedColumnVisibility,
-
-          builder: (context, visibility, _) {
-            final double totalColumnsWidth = logic.calculateTotalWidth(
-              logic.sharedColumns.value,
-              visibility,
-              isOrdered: isOrdered,
-            );
-
-            final double availableForDataColumns =
-                availableWidth - logic.getColumnWidth('Item');
-
-            final bool needsHorizontalScroll =
-                totalColumnsWidth > availableForDataColumns;
-
-            double totalRowsHeight = 0;
-
-            for (final item in items) {
-              totalRowsHeight += _calculateRowHeight(item.itemName ?? "");
+            if (items.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(40),
+                  child: Text(
+                    isOrdered ? "No ordered items" : "No received items",
+                    style: const TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                ),
+              );
             }
 
-            final double tableHeight = totalRowsHeight + rowHeight;
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final double availableWidth = constraints.maxWidth;
 
-            final double maxTableHeight =
-                MediaQuery.of(context).size.height * 0.45;
+                return ValueListenableBuilder<Map<String, bool>>(
+                  valueListenable: logic.sharedColumnVisibility,
 
-            return SizedBox(
-              height: tableHeight > maxTableHeight
-                  ? maxTableHeight
-                  : tableHeight,
+                  builder: (context, visibility, _) {
+                    final double totalColumnsWidth = logic.calculateTotalWidth(
+                      logic.sharedColumns.value,
+                      visibility,
+                      isOrdered: isOrdered,
+                    );
 
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                    final double availableForDataColumns =
+                        availableWidth - logic.getColumnWidth('Item');
 
-                children: [
-                  _buildFixedItemColumn(items),
+                    final bool needsHorizontalScroll =
+                        totalColumnsWidth > availableForDataColumns;
 
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: isOrdered
-                          ? logic.orderedHorizontalController
-                          : logic.receivedHorizontalController,
+                    double totalRowsHeight = 0;
 
-                      scrollDirection: Axis.horizontal,
+                    for (final item in items) {
+                      totalRowsHeight += _calculateRowHeight(
+                        item.itemName ?? "",
+                      );
+                    }
 
-                      physics: needsHorizontalScroll
-                          ? const AlwaysScrollableScrollPhysics()
-                          : const NeverScrollableScrollPhysics(),
+                    final double tableHeight = totalRowsHeight + rowHeight;
 
-                      child: SizedBox(
-                        width: totalColumnsWidth,
+                    final double maxTableHeight =
+                        MediaQuery.of(context).size.height * 0.45;
 
-                        child: Column(
-                          children: [
-                            SizedBox(
-                              height: 32,
+                    return SizedBox(
+                      height: tableHeight > maxTableHeight
+                          ? maxTableHeight
+                          : tableHeight,
 
-                              child: Row(
-                                children: logic.sharedColumns.value
-                                    .where((column) {
-                                      if (column == 'Item') {
-                                        return false;
-                                      }
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
 
-                                      final isVisible =
-                                          visibility[column] ?? true;
+                        children: [
+                          /// FIXED ITEM COLUMN
+                          _buildFixedItemColumn(items),
 
-                                      if (!isVisible) {
-                                        return false;
-                                      }
+                          /// DATA COLUMNS
+                          Expanded(
+                            child: SingleChildScrollView(
+                              controller: isOrdered
+                                  ? logic.orderedHorizontalController
+                                  : logic.receivedHorizontalController,
 
-                                      if (isOrdered && column == 'Received') {
-                                        return false;
-                                      }
+                              scrollDirection: Axis.horizontal,
 
-                                      if (!isOrdered && column == 'Total') {
-                                        return false;
-                                      }
+                              physics: needsHorizontalScroll
+                                  ? const AlwaysScrollableScrollPhysics()
+                                  : const NeverScrollableScrollPhysics(),
 
-                                      return true;
-                                    })
-                                    .map((column) {
-                                      return TableHeaderCell(
-                                        column,
-                                        width: logic.getColumnWidth(column),
-                                      );
-                                    })
-                                    .toList(),
-                              ),
-                            ),
-
-                            Expanded(
-                              child: SingleChildScrollView(
-                                controller: isOrdered
-                                    ? logic.orderedRightVertical
-                                    : logic.receivedRightVertical,
-
-                                physics: const AlwaysScrollableScrollPhysics(),
+                              child: SizedBox(
+                                width: totalColumnsWidth,
 
                                 child: Column(
-                                  children: items.asMap().entries.map((entry) {
-                                    final index = entry.key;
-
-                                    final item = entry.value;
-
-                                    final dynamicRowHeight =
-                                        _calculateRowHeight(
-                                          item.itemName ?? "",
-                                        );
-
-                                    return Container(
-                                      height: dynamicRowHeight,
-
-                                      color: Colors.white,
+                                  children: [
+                                    /// HEADER
+                                    SizedBox(
+                                      height: 32,
 
                                       child: Row(
                                         children: logic.sharedColumns.value
@@ -194,38 +153,113 @@ class ApprovedPOTable extends StatelessWidget {
                                               return true;
                                             })
                                             .map((column) {
-                                              return SizedBox(
+                                              return TableHeaderCell(
+                                                column,
                                                 width: logic.getColumnWidth(
                                                   column,
                                                 ),
-
-                                                child: isOrdered
-                                                    ? _buildOrderedItemCell(
-                                                        item,
-                                                        column,
-                                                        index.isEven,
-                                                      )
-                                                    : _buildReceivedItemCell(
-                                                        item,
-                                                        column,
-                                                        index.isEven,
-                                                      ),
                                               );
                                             })
                                             .toList(),
                                       ),
-                                    );
-                                  }).toList(),
+                                    ),
+
+                                    /// BODY
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        controller: isOrdered
+                                            ? logic.orderedRightVertical
+                                            : logic.receivedRightVertical,
+
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+
+                                        child: Column(
+                                          children: items.asMap().entries.map((
+                                            entry,
+                                          ) {
+                                            final index = entry.key;
+
+                                            final item = entry.value;
+
+                                            final dynamicRowHeight =
+                                                _calculateRowHeight(
+                                                  item.itemName ?? "",
+                                                );
+
+                                            return Container(
+                                              height: dynamicRowHeight,
+
+                                              color: Colors.white,
+
+                                              child: Row(
+                                                children: logic
+                                                    .sharedColumns
+                                                    .value
+                                                    .where((column) {
+                                                      if (column == 'Item') {
+                                                        return false;
+                                                      }
+
+                                                      final isVisible =
+                                                          visibility[column] ??
+                                                          true;
+
+                                                      if (!isVisible) {
+                                                        return false;
+                                                      }
+
+                                                      if (isOrdered &&
+                                                          column ==
+                                                              'Received') {
+                                                        return false;
+                                                      }
+
+                                                      if (!isOrdered &&
+                                                          column == 'Total') {
+                                                        return false;
+                                                      }
+
+                                                      return true;
+                                                    })
+                                                    .map((column) {
+                                                      return SizedBox(
+                                                        width: logic
+                                                            .getColumnWidth(
+                                                              column,
+                                                            ),
+
+                                                        child: isOrdered
+                                                            ? _buildOrderedItemCell(
+                                                                item,
+                                                                column,
+                                                                index.isEven,
+                                                              )
+                                                            : _buildReceivedItemCell(
+                                                                item,
+                                                                column,
+                                                                index.isEven,
+                                                              ),
+                                                      );
+                                                    })
+                                                    .toList(),
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  },
+                );
+              },
             );
           },
         );
