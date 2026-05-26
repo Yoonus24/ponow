@@ -6,7 +6,7 @@ import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
-import '../../../models/outgoing.dart';
+import '../../../models/outgoing/outgoing.dart';
 import '../../../providers/outgoing_payment_provider.dart';
 
 class Ledger extends StatefulWidget {
@@ -652,32 +652,41 @@ class _LedgerState extends State<Ledger> {
   Widget _buildEmptyWidget() {
     return RefreshIndicator(
       onRefresh: _loadData,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const SizedBox(height: 300),
-          Center(
-            child: Column(
-              children: [
-                Icon(
-                  Icons.receipt_long_outlined,
-                  size: 64,
-                  color: Colors.grey[400],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: constraints.maxHeight,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.receipt_long_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'No ledger entries found',
+                      style: TextStyle(fontSize: 17, color: Colors.grey),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      'Try adjusting your search or date filter',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'No ledger entries found',
-                  style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Try adjusting your search or date filter',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

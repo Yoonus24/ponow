@@ -1,9 +1,8 @@
-// ignore_for_file: dead_code
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/connectivity_banner.dart';
 import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 import 'package:purchaseorders2/providers/import_provider.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
@@ -11,7 +10,7 @@ import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/navigation_service.dart';
 import 'package:purchaseorders2/AppInitializer.dart';
 import 'package:purchaseorders2/home_shell.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
@@ -38,10 +37,10 @@ Future<void> main() async {
   /// Init Dio
   await DioClient.init();
 
-  ///Get stored token
+  /// Get stored token
   final token = await SecureStorageService.getToken();
 
-  ///SIMPLE AUTH CHECK (NO validateToken)
+  /// SIMPLE AUTH CHECK (NO validateToken)
   bool isAuthenticated = token != null;
 
   runApp(MyApp(isAuthenticated: isAuthenticated));
@@ -61,8 +60,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GRNProvider()),
         ChangeNotifierProvider(create: (_) => APInvoiceProvider()),
         ChangeNotifierProvider(create: (_) => OutgoingPaymentProvider()),
-        ChangeNotifierProvider(
-          create: (_) => PurchaseOrderNotifier(POProvider()),
+        ChangeNotifierProxyProvider<POProvider, PurchaseOrderNotifier>(
+          create: (context) =>
+              PurchaseOrderNotifier(context.read<POProvider>()),
+          update: (context, poProvider, notifier) {
+            notifier?.updatePOProvider(poProvider);
+            return notifier!;
+          },
         ),
         ChangeNotifierProvider(
           create: (_) => PaymentDialogProvider(
@@ -80,68 +84,9 @@ class MyApp extends StatelessWidget {
         navigatorKey: NavigationService.navigatorKey,
         debugShowCheckedModeBanner: false,
 
-        ///Connectivity Banner Wrapper
+        /// Connectivity Banner Wrapper - Now clean and separated
         builder: (context, child) {
-          final bottomInset = MediaQuery.of(context).padding.bottom;
-
-          return AppInitializer(
-            child: Consumer<ConnectivityProvider>(
-              builder: (context, net, _) {
-                final bool showOffline = !net.isConnected;
-                final bool showOnline = net.showBackOnline;
-
-                return Stack(
-                  children: [
-                    child!,
-
-                    /// 🔴 Offline / 🟢 Online Banner
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      left: 16,
-                      right: 16,
-                      bottom: (showOffline || showOnline)
-                          ? kBottomNavigationBarHeight + bottomInset + 32.0
-                          : -100.0,
-
-                      child: Material(
-                        elevation: 6,
-                        borderRadius: BorderRadius.circular(30),
-                        color: showOffline
-                            ? Colors.grey.shade900
-                            : Colors.green.shade600,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                showOffline ? Icons.wifi_off : Icons.wifi,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                showOffline ? 'You are offline' : 'Back online',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          );
+          return AppInitializer(child: ConnectivityBanner(child: child!));
         },
 
         theme: ThemeData(
@@ -158,9 +103,8 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
-        ///ROUTES
+        /// ROUTES
         initialRoute: isAuthenticated ? '/home' : '/login',
-
         routes: {
           '/login': (_) => const LoginPage(),
           '/home': (_) => const HomeShell(),

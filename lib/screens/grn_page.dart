@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../models/grn.dart';
+import '../models/grn/grn.dart';
 import '../providers/grn_provider.dart';
 import '../widgets/grn/grn_widget.dart';
 import '../widgets/grn/grn_return_widget.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/grn/grid_view_widget.dart';
-import '../providers/po_provider.dart';
+import '../providers/po/po_provider.dart';
 
 class GRNPage extends StatefulWidget {
   const GRNPage({super.key});
@@ -429,17 +429,21 @@ class _GRNPageState extends State<GRNPage> {
         }
 
         if (provider.grns.isEmpty) {
-          return ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: const [
-              SizedBox(height: 200),
-              Center(
-                child: Text(
-                  "No GRNs found",
-                  style: TextStyle(color: Colors.grey),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: SizedBox(
+                  height: constraints.maxHeight,
+                  child: const Center(
+                    child: Text(
+                      "No GRNs found",
+                      style: TextStyle(color: Colors.grey, fontSize: 17),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              );
+            },
           );
         }
 

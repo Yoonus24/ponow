@@ -1,11 +1,11 @@
-// ignore_for_file: sized_box_for_whitespace, deprecated_member_use, avoid_print, use_build_context_synchronously
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/session_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:purchaseorders2/services/auth_service.dart';
 
@@ -60,22 +60,25 @@ class _LoginPageState extends State<LoginPage>
     FocusScope.of(context).unfocus();
     _formSubmitted.value = true;
 
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
 
     _isLoading.value = true;
 
     final username = _usernameController.text.trim();
+
     final password = _passwordController.text.trim();
 
-    final prefs = await SharedPreferences.getInstance();
     final uuid = const Uuid();
 
     /// Get or create browser_session_id
-    String? browserSessionId = prefs.getString('browser_session_id');
+    String? browserSessionId = await SecureStorageService.getBrowserSessionId();
 
     if (browserSessionId == null) {
       browserSessionId = uuid.v4();
-      await prefs.setString('browser_session_id', browserSessionId);
+
+      await SecureStorageService.saveBrowserSessionId(browserSessionId);
     }
 
     try {
@@ -97,45 +100,31 @@ class _LoginPageState extends State<LoginPage>
           );
 
           await permissionProvider.loadPermissions();
-          if (!mounted) return;
 
-          print(permissionProvider.permissions);
+          if (!mounted) return;
         } catch (e) {
-          print("⚠️ Provider not loaded: $e");
+          throw Exception("Failed to load permissions");
         }
 
         TextInput.finishAutofillContext();
 
         if (!mounted) return;
+
         Navigator.pushReplacementNamed(
           context,
           '/home',
           arguments: {"loginSuccess": true},
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (!mounted) return;
 
-      print("❌ LOGIN ERROR:");
-      print(e);
+      debugPrint("❌ LOGIN ERROR:");
+      debugPrint(e.toString());
 
-      String message = "Something went wrong";
+      final appError = AppErrorHandler.handle(e, stackTrace: stackTrace);
 
-      if (e.toString().contains("SESSION_EXISTS")) {
-        message = "Already logged in another device";
-      } else if (e.toString().contains("INVALID_CREDENTIALS")) {
-        message = "Invalid username or password";
-      } else if (e.toString().contains("LOGIN_FAILED")) {
-        message = "Login failed. Please try again";
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      AppSnackbar.showError(context, appError);
     } finally {
       if (mounted) {
         _isLoading.value = false;
@@ -243,7 +232,7 @@ class _LoginPageState extends State<LoginPage>
                             builder: (context, value, child) {
                               return Transform.scale(
                                 scale: value,
-                                child: Container(
+                                child: SizedBox(
                                   height: 100,
                                   child: Image.asset(
                                     'assets/bestmummy.jpg',

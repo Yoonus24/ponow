@@ -1,5 +1,3 @@
-// ignore_for_file: file_names, library_private_types_in_public_api, must_be_immutable, prefer_interpolation_to_compose_strings, deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -111,7 +109,7 @@ class _NumericCalculatorState extends State<NumericCalculator> {
 
     if (value == '.') {
       if (!text.contains('.')) {
-        newText = text + '.';
+        newText = '$text.';
         newPosition = newText.length;
       } else {
         return;

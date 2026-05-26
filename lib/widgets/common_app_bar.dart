@@ -1,5 +1,5 @@
-// ignore_for_file: use_build_context_synchronously, avoid_print
-
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:purchaseorders2/services/auth_service.dart';
@@ -29,6 +29,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     final isTablet = screenWidth > 600;
 
     return AppBar(
+      leadingWidth: 72,
       toolbarHeight: preferredSize.height,
 
       backgroundColor: Colors.blueAccent,
@@ -38,14 +39,17 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
       automaticallyImplyLeading: false,
 
       centerTitle: true,
-
+      titleSpacing: 0,
       //LEFT SIDE SCAN / UPLOAD
       leading: IconButton(
         tooltip: "Scan Invoice",
+
         onPressed: () async {
           final selected = await showModalBottomSheet<String>(
             context: context,
+
             backgroundColor: Colors.white,
+
             builder: (_) {
               return const ScanInvoiceSheet();
             },
@@ -55,37 +59,94 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             return;
           }
 
-          await scanAndOpenPOFlow(
-            context: context,
-            source: selected == "camera"
-                ? ImageSource.camera
-                : ImageSource.gallery,
-          );
+          File? selectedFile;
+
+          // =====================================================
+          // CAMERA
+          // =====================================================
+
+          if (selected == "camera") {
+            final picker = ImagePicker();
+
+            final picked = await picker.pickImage(source: ImageSource.camera);
+
+            if (picked == null) {
+              return;
+            }
+
+            selectedFile = File(picked.path);
+          }
+          // =====================================================
+          // GALLERY
+          // =====================================================
+          else if (selected == "gallery") {
+            final picker = ImagePicker();
+
+            final picked = await picker.pickImage(source: ImageSource.gallery);
+
+            if (picked == null) {
+              return;
+            }
+
+            selectedFile = File(picked.path);
+          }
+          // =====================================================
+          // PDF
+          // =====================================================
+          else if (selected == "pdf") {
+            final result = await FilePicker.platform.pickFiles(
+              type: FileType.custom,
+
+              allowedExtensions: ["pdf"],
+            );
+
+            if (result == null || result.files.single.path == null) {
+              return;
+            }
+
+            selectedFile = File(result.files.single.path!);
+          }
+
+          // =====================================================
+          // SAFETY CHECK
+          // =====================================================
+
+          if (selectedFile == null) {
+            return;
+          }
+
+          // =====================================================
+          // START AI FLOW
+          // =====================================================
+
+          await scanAndOpenPOFlow(context: context, file: selectedFile);
         },
+
         icon: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
+
           children: [
-            Icon(Icons.auto_awesome, color: Colors.white, size: 22), // AI icon
+            Icon(Icons.auto_awesome, color: Colors.white, size: 22),
+
             SizedBox(height: 2),
+
             Text(
               "AI Scan",
+
               style: TextStyle(color: Colors.white, fontSize: 10),
             ),
           ],
         ),
       ),
-
       title: Text(
         title,
-
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: Colors.white,
-
-          fontSize: isTablet ? 20 : 18,
-
+          fontSize: isTablet ? 20 : 16,
           fontWeight: FontWeight.bold,
-
-          letterSpacing: 0.8,
+          letterSpacing: 0.5,
         ),
       ),
 
@@ -271,8 +332,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                 },
 
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-
+                  padding: const EdgeInsets.only(right: 6),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
 

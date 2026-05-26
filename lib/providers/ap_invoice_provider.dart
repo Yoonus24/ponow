@@ -1,13 +1,14 @@
-// ignore_for_file: prefer_final_fields, use_build_context_synchronously, avoid_print, use_rethrow_when_possible
-
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
-import 'package:purchaseorders2/models/ap.dart';
-import 'package:purchaseorders2/models/outgoing.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/errors/app_exception.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
+import 'package:purchaseorders2/models/ap/ap.dart';
+import 'package:purchaseorders2/models/outgoing/outgoing.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
 import 'package:purchaseorders2/pdfs/apinvoice_pdf.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
@@ -16,7 +17,7 @@ import 'package:purchaseorders2/services/dio_client.dart';
 class APInvoiceProvider extends ChangeNotifier {
   List<ApInvoice> _apInvoices = [];
   final List<Outgoing> _outgoings = [];
-  List<GRN> _grns = [];
+  final List<GRN> _grns = [];
   bool _loading = false;
   String? _error;
   String _filterStatus = 'Pending';
@@ -30,7 +31,7 @@ class APInvoiceProvider extends ChangeNotifier {
   bool get isInitialLoad => _isInitialLoad;
   bool hasMore = true;
   bool isLoadingMore = false;
-  Map<String, bool> _pdfLoadingMap = {};
+  final Map<String, bool> _pdfLoadingMap = {};
 
   set filterStatus(String status) {
     _filterStatus = status;
@@ -38,15 +39,6 @@ class APInvoiceProvider extends ChangeNotifier {
   }
 
   String? get error => _error;
-
-  APInvoiceProvider() {
-    _ensureDioInitialized();
-  }
-
-  // Ensure DioClient is initialized
-  Future<void> _ensureDioInitialized() async {
-    await DioClient.init();
-  }
 
   bool isPdfLoading(String invoiceId) {
     return _pdfLoadingMap[invoiceId] ?? false;
@@ -102,7 +94,8 @@ class APInvoiceProvider extends ChangeNotifier {
         queryParameters: queryParams,
       );
 
-      if (response.statusCode == 200) {
+      if ((response.statusCode ?? 0) >= 200 &&
+          (response.statusCode ?? 0) < 300) {
         _isInitialLoad = false;
 
         List<dynamic> data;
@@ -116,7 +109,7 @@ class APInvoiceProvider extends ChangeNotifier {
           data = [];
         }
 
-        print("AP RAW RESPONSE => $data");
+        debugPrint("AP RAW RESPONSE => $data");
 
         final newInvoices = data.map((e) => ApInvoice.fromJson(e)).toList();
 
@@ -128,14 +121,12 @@ class APInvoiceProvider extends ChangeNotifier {
 
         hasMore = newInvoices.length == limit;
       }
-    } catch (e) {
-      print("AP INVOICE ERROR => $e");
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
 
-      if (e is DioException) {
-        _setError(_getReadableError(e));
-      } else {
-        _setError("Something went wrong. Please try again.");
-      }
+      debugPrint("AP INVOICE ERROR => ${exception.message}");
+
+      _setError(exception.message);
     } finally {
       _loading = false;
       _isFetching = false;
@@ -155,10 +146,14 @@ class APInvoiceProvider extends ChangeNotifier {
       final pdfFile = await pdfService.generateAPInvoicePdf(id);
 
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint("PDF failed: ${exception.message}");
+
+      if (context.mounted) {
+        AppSnackbar.showError(context, exception);
+      }
     } finally {
       _pdfLoadingMap[id] = false;
       notifyListeners();
@@ -191,33 +186,18 @@ class APInvoiceProvider extends ChangeNotifier {
         ]);
 
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('AP returned to GRN successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          AppSnackbar.showSuccess(context, 'AP returned to GRN successfully');
         }
       } else {
-        throw Exception("Return failed.");
+        throw const AppException("Return failed.");
       }
-    } on DioException catch (e) {
-      final message = _getReadableError(e);
-      _setError(message);
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      _setError(exception.message);
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.grey),
-        );
-      }
-    } catch (e) {
-      const message = "Something went wrong.";
-      _setError(message);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text(message)));
+        AppSnackbar.showError(context, exception);
       }
     } finally {
       _setLoading(false);
@@ -232,29 +212,22 @@ class APInvoiceProvider extends ChangeNotifier {
         '/apinvoices/verify/$invoiceId',
       );
 
-      if (response.statusCode == 200) {
+      if ((response.statusCode ?? 0) >= 200 &&
+          (response.statusCode ?? 0) < 300) {
         await fetchAPInvoices(skip: 0, limit: 50);
+
         return true;
       }
 
       return false;
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      _setError(exception.message);
+
+      return false;
     } finally {
       _setLoading(false);
-    }
-  }
-
-  String _getReadableError(DioException e) {
-    switch (e.type) {
-      case DioExceptionType.connectionError:
-        return "No internet connection.";
-      case DioExceptionType.connectionTimeout:
-      case DioExceptionType.receiveTimeout:
-      case DioExceptionType.sendTimeout:
-        return "Request timed out.";
-      case DioExceptionType.badResponse:
-        return "Server error.";
-      default:
-        return "Unexpected error.";
     }
   }
 

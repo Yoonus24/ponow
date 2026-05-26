@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:provider/provider.dart';
-import '../../models/po.dart';
+import '../../models/po/po.dart';
 
 class POCard extends StatelessWidget {
   final PO po;
-  final GlobalKey cardKey; 
+  final GlobalKey cardKey;
 
-  const POCard({
-    super.key,
-    required this.po,
-    required this.cardKey, 
-  });
+  const POCard({super.key, required this.po, required this.cardKey});
 
   void scrollToPO() {
     final context = cardKey.currentContext;
@@ -40,13 +36,11 @@ class POCard extends StatelessWidget {
         }
       },
       child: Container(
-        key: cardKey, 
+        key: cardKey,
         width: 100,
         margin: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 2.0),
         decoration: BoxDecoration(
-          color: isSelected
-              ? null
-              : const Color.fromARGB(255, 74, 122, 227),
+          color: isSelected ? null : const Color.fromARGB(255, 74, 122, 227),
           gradient: isSelected
               ? const LinearGradient(
                   colors: [Color(0xFFB3E5FC), Color(0xFF4FC3F7)],

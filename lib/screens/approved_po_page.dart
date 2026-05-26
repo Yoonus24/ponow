@@ -1,12 +1,11 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../models/po.dart';
-import '../providers/po_provider.dart';
-import '../widgets/approved po/approved_po_widget.dart';
-import '../widgets/approved po/gridview_approve_widget.dart';
+import '../models/po/po.dart';
+import '../providers/po/po_provider.dart';
+import '../widgets/approved_po/approved_po_widget.dart';
+import '../widgets/approved_po/gridview_approve_widget.dart';
 import '../widgets/common_app_bar.dart';
 
 class ApprovedPOPage extends StatefulWidget {
@@ -29,6 +28,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   Timer? _vendorDebounce;
   List<String> _allVendors = [];
   List<String> _displayedVendors = [];
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -71,6 +71,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
       _allVendors = vendors.map((e) => e.vendorName).toList();
       _displayedVendors = List.from(_allVendors);
 
+      if (_disposed || !mounted) {
+        return;
+      }
+
       isInitialized.value = true;
     });
   }
@@ -87,6 +91,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
   @override
   void dispose() {
+    _disposed = true;
     _vendorDebounce?.cancel();
     vendorCtrl.dispose();
     dateCtrl.dispose();
@@ -173,6 +178,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
         );
       },
     );
+
+    if (!mounted || _disposed) {
+      return;
+    }
 
     if (picked != null) {
       selectedDateRange.value = picked;
@@ -445,17 +454,15 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                     valueListenable: isInitialized,
                     builder: (_, ready, __) {
                       if (!ready) {
-                        return const Padding(
-                          padding: EdgeInsets.only(top: 120),
+                        return const Expanded(
                           child: Center(child: CircularProgressIndicator()),
                         );
                       }
 
                       return Consumer<POProvider>(
                         builder: (_, provider, __) {
-                          if (provider.isLoading || !isInitialized.value) {
-                            return const Padding(
-                              padding: EdgeInsets.only(top: 120),
+                          if (!isInitialized.value) {
+                            return const Expanded(
                               child: Center(child: CircularProgressIndicator()),
                             );
                           }
@@ -515,40 +522,53 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                               )
                               .toList();
 
-                          if (list.isEmpty) {
+                          if (list.isEmpty && !provider.isLoading) {
                             final hasFilters =
                                 vendorName.value.isNotEmpty ||
                                 selectedDateRange.value != null;
 
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 140),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      hasFilters
-                                          ? "No results for filters"
-                                          : "No approved POs Found",
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                      ),
-                                    ),
+                            return Expanded(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    physics:
+                                        const AlwaysScrollableScrollPhysics(),
+                                    child: SizedBox(
+                                      height: constraints.maxHeight,
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              hasFilters
+                                                  ? "No results for filters"
+                                                  : "No approved POs Found",
+                                              style: const TextStyle(
+                                                color: Colors.grey,
+                                                fontSize: 17,
+                                              ),
+                                            ),
 
-                                    const SizedBox(height: 12),
+                                            const SizedBox(height: 12),
 
-                                    if (hasFilters)
-                                      TextButton(
-                                        onPressed: _clearAll,
-                                        child: const Text(
-                                          "Clear Filters",
-                                          style: TextStyle(
-                                            color: Colors.blueAccent,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                            if (hasFilters)
+                                              TextButton(
+                                                onPressed: _clearAll,
+                                                child: const Text(
+                                                  "Clear Filters",
+                                                  style: TextStyle(
+                                                    color: Colors.blueAccent,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
                                       ),
-                                  ],
-                                ),
+                                    ),
+                                  );
+                                },
                               ),
                             );
                           }

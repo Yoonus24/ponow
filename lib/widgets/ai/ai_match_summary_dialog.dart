@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
-import 'package:purchaseorders2/widgets/approved%20po/approved_po_dialog.dart';
+import 'package:purchaseorders2/widgets/approved_po/approved_po_dialog.dart';
 
 class AIMatchSummaryDialog extends StatelessWidget {
   final AIInvoiceResponse aiResponse;
@@ -25,8 +25,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double confidence = aiResponse.confidence ?? 95.0;
-
+    // final double confidence = aiResponse.confidence;
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.transparent,
@@ -132,7 +131,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
                         // const SizedBox(height: 12),
 
                         // Compact Matched PO Card
-                        _buildCompactMatchedPOCard(po, confidence),
+                        _buildCompactMatchedPOCard(po),
                         const SizedBox(height: 12),
 
                         // Compact Items Section
@@ -224,7 +223,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
   //   );
   // }
 
-  Widget _buildCompactMatchedPOCard(dynamic po, double confidence) {
+  Widget _buildCompactMatchedPOCard(dynamic po) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -264,12 +263,17 @@ class AIMatchSummaryDialog extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Expanded(child: _buildCompactInfoCard("Vendor Match", "100%")),
+              Expanded(
+                child: _buildCompactInfoCard(
+                  "Vendor Match",
+                  "${aiResponse.vendorMatchConfidence.toStringAsFixed(0)}%",
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildCompactInfoCard(
                   "Item Match",
-                  "${confidence.toStringAsFixed(0)}%",
+                  "${aiResponse.itemMatchConfidence.toStringAsFixed(0)}%",
                 ),
               ),
             ],
@@ -279,25 +283,33 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
-  // Update the info card to be simpler too
   Widget _buildCompactInfoCard(String title, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
+
         borderRadius: BorderRadius.circular(8),
+
         border: Border.all(color: Colors.grey.shade200),
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
           Text(
             title,
+
             style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
           ),
+
           const SizedBox(height: 4),
+
           Text(
             value,
+
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -309,97 +321,216 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
+  Widget _buildAnalysisChip(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+
+        borderRadius: BorderRadius.circular(20),
+      ),
+
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+
+        children: [
+          Text(
+            value,
+
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontSize: 11,
+            ),
+          ),
+
+          const SizedBox(width: 4),
+
+          Text(title, style: TextStyle(color: color, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCompactItemsSection() {
+    final subtotal = aiResponse.matchedItems.fold<double>(
+      0,
+
+      (sum, item) =>
+          sum +
+          (item.taxableAmount > 0
+              ? item.taxableAmount
+              : (item.receivedQuantity * item.newPrice)),
+    );
+
+    final gstTotal = aiResponse.matchedItems.fold<double>(
+      0,
+
+      (sum, item) => sum + item.taxAmount,
+    );
+
+    final grandTotal = aiResponse.matchedItems.fold<double>(
+      0,
+
+      (sum, item) =>
+          sum +
+          (item.finalAmount > 0
+              ? item.finalAmount
+              : (item.receivedQuantity * item.newPrice)),
+    );
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.blue.shade100),
+
         borderRadius: BorderRadius.circular(12),
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
-          // Header
+          // =================================================
+          // HEADER
+          // =================================================
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+
             decoration: BoxDecoration(
               color: Colors.blue.shade50,
+
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
               ),
             ),
+
             child: Row(
               children: [
                 Icon(Icons.list_alt, size: 14, color: Colors.blue.shade700),
+
                 const SizedBox(width: 6),
+
                 const Text(
                   "Detected Items",
+
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
                 ),
+
                 const Spacer(),
+
                 Text(
                   "${aiResponse.matchedItems.length} items",
+
                   style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
                 ),
               ],
             ),
           ),
 
-          // Horizontal Scroll Table
+          // =================================================
+          // TABLE
+          // =================================================
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 500),
+              constraints: const BoxConstraints(minWidth: 820),
+
               child: DataTable(
                 columnSpacing: 16,
+
                 headingRowHeight: 40,
-                dataRowHeight: 44,
+
+                dataRowHeight: 56,
+
                 horizontalMargin: 12,
+
                 dividerThickness: 0,
+
                 columns: const [
+                  // ITEM
                   DataColumn(
                     label: Text(
                       "Item",
+
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+
+                  // QTY
                   DataColumn(
                     label: Text(
                       "Qty",
+
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+
+                  // PRICE
                   DataColumn(
                     label: Text(
                       "Price",
+
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+
+                  // GST
+                  DataColumn(
+                    label: Text(
+                      "GST",
+
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  // TOTAL
                   DataColumn(
                     label: Text(
                       "Total",
+
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
+
+                  // CONFIDENCE
+                  DataColumn(
+                    label: Text(
+                      "Confidence",
+
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+
+                  // STATUS
                   DataColumn(
                     label: Text(
                       "Status",
+
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -407,61 +538,233 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     ),
                   ),
                 ],
+
                 rows: aiResponse.matchedItems.map((item) {
-                  final total = item.receivedQuantity * item.newPrice;
+                  final total = item.finalAmount > 0
+                      ? item.finalAmount
+                      : (item.receivedQuantity * item.newPrice);
+
+                  final bool isHighConfidence = item.confidence >= 80;
+
                   return DataRow(
                     cells: [
+                      // =====================================
+                      // ITEM NAME
+                      // =====================================
                       DataCell(
-                        Text(
-                          item.itemName,
-                          style: const TextStyle(fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      DataCell(
-                        Text(
-                          item.receivedQuantity.toString(),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      DataCell(
-                        Text(
-                          "₹${item.newPrice.toStringAsFixed(2)}",
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      DataCell(
-                        Text(
-                          "₹${total.toStringAsFixed(2)}",
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                        SizedBox(
+                          width: 180,
+
+                          child: Text(
+                            item.itemName,
+
+                            style: const TextStyle(fontSize: 12),
+
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ),
+
+                      // =====================================
+                      // QTY
+                      // =====================================
+                      DataCell(
+                        Text(
+                          item.receivedQuantity.toString(),
+
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+
+                      // =====================================
+                      // PRICE
+                      // =====================================
+                      DataCell(
+                        Builder(
+                          builder: (_) {
+                            final taxableUnitPrice = item.receivedQuantity > 0
+                                ? (item.taxableAmount / item.receivedQuantity)
+                                : item.newPrice;
+
+                            final finalUnitPrice = item.receivedQuantity > 0
+                                ? (item.finalAmount / item.receivedQuantity)
+                                : item.newPrice;
+
+                            return Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+
+                              crossAxisAlignment: CrossAxisAlignment.start,
+
+                              children: [
+                                // =============================
+                                // TAX EXCLUSIVE PRICE
+                                // =============================
+                                Text(
+                                  "₹${taxableUnitPrice.toStringAsFixed(2)}",
+
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+
+                                // =============================
+                                // GST INCLUDED PRICE
+                                // =============================
+                                if (item.taxPercent > 0)
+                                  Text(
+                                    "Incl GST ₹${finalUnitPrice.toStringAsFixed(2)}",
+
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.green.shade700,
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+
+                      // =====================================
+                      // GST
+                      // =====================================
+                      DataCell(
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+
+                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              "${item.taxPercent.toStringAsFixed(0)}%",
+
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            Text(
+                              "₹${item.taxAmount.toStringAsFixed(2)}",
+
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // =====================================
+                      // TOTAL
+                      // =====================================
+                      DataCell(
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+
+                          crossAxisAlignment: CrossAxisAlignment.start,
+
+                          children: [
+                            Text(
+                              "₹${total.toStringAsFixed(2)}",
+
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            if (item.taxAmount > 0)
+                              Text(
+                                "Incl GST",
+
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.green.shade700,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // =====================================
+                      // CONFIDENCE
+                      // =====================================
+                      DataCell(
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+
+                          decoration: BoxDecoration(
+                            color: _getConfidenceColor(
+                              item.confidence,
+                            ).withOpacity(0.12),
+
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+
+                          child: Text(
+                            "${item.confidence.toStringAsFixed(0)}%",
+
+                            style: TextStyle(
+                              color: _getConfidenceColor(item.confidence),
+
+                              fontSize: 10,
+
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // =====================================
+                      // STATUS
+                      // =====================================
                       DataCell(
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
                           ),
+
                           decoration: BoxDecoration(
-                            color: Colors.green.shade100,
+                            color: isHighConfidence
+                                ? Colors.green.shade100
+                                : Colors.orange.shade100,
+
                             borderRadius: BorderRadius.circular(10),
                           ),
+
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
+
                             children: [
                               Icon(
-                                Icons.check_circle,
-                                color: Colors.green.shade700,
+                                isHighConfidence
+                                    ? Icons.check_circle
+                                    : Icons.warning_amber_rounded,
+
+                                color: isHighConfidence
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade700,
+
                                 size: 12,
                               ),
+
                               const SizedBox(width: 3),
+
                               Text(
-                                "OK",
+                                isHighConfidence ? "Matched" : "Review",
+
                                 style: TextStyle(
-                                  color: Colors.green.shade700,
+                                  color: isHighConfidence
+                                      ? Colors.green.shade700
+                                      : Colors.orange.shade700,
+
                                   fontSize: 10,
                                 ),
                               ),
@@ -473,6 +776,102 @@ class AIMatchSummaryDialog extends StatelessWidget {
                   );
                 }).toList(),
               ),
+            ),
+          ),
+
+          // =================================================
+          // FOOTER SUMMARY
+          // =================================================
+          Container(
+            padding: const EdgeInsets.all(14),
+
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+
+              children: [
+                // =========================================
+                // SUBTOTAL
+                // =========================================
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                  children: [
+                    const Text("Subtotal", style: TextStyle(fontSize: 12)),
+
+                    Text(
+                      "₹${subtotal.toStringAsFixed(2)}",
+
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 6),
+
+                // =========================================
+                // GST TOTAL
+                // =========================================
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                  children: [
+                    const Text("GST Total", style: TextStyle(fontSize: 12)),
+
+                    Text(
+                      "₹${gstTotal.toStringAsFixed(2)}",
+
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 10),
+
+                Divider(color: Colors.grey.shade300),
+
+                const SizedBox(height: 10),
+
+                // =========================================
+                // GRAND TOTAL
+                // =========================================
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+                  children: [
+                    const Text(
+                      "Grand Total",
+
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    Text(
+                      "₹${grandTotal.toStringAsFixed(2)}",
+
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -518,7 +917,9 @@ class AIMatchSummaryDialog extends StatelessWidget {
         boxShadow: [
           BoxShadow(
             color: primaryColor.withOpacity(0.08),
+
             blurRadius: 10,
+
             offset: const Offset(0, 2),
           ),
         ],
@@ -528,7 +929,9 @@ class AIMatchSummaryDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
+          // =================================================
           // HEADER
+          // =================================================
           Row(
             children: [
               Container(
@@ -587,7 +990,9 @@ class AIMatchSummaryDialog extends StatelessWidget {
 
           const SizedBox(height: 16),
 
+          // =================================================
           // SUMMARY
+          // =================================================
           if (hasSummary)
             Container(
               width: double.infinity,
@@ -644,9 +1049,47 @@ class AIMatchSummaryDialog extends StatelessWidget {
               ),
             ),
 
+          // =================================================
+          // ANALYSIS CHIPS
+          // =================================================
+          const SizedBox(height: 14),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+
+            children: [
+              _buildAnalysisChip(
+                "Qty Mismatch",
+
+                aiResponse.analysisData["quantityMismatchCount"].toString(),
+
+                Colors.orange,
+              ),
+
+              _buildAnalysisChip(
+                "Extra Items",
+
+                aiResponse.analysisData["extraItemCount"].toString(),
+
+                Colors.red,
+              ),
+
+              _buildAnalysisChip(
+                "Missing Items",
+
+                aiResponse.analysisData["missingItemCount"].toString(),
+
+                Colors.blue,
+              ),
+            ],
+          ),
+
           const SizedBox(height: 16),
 
+          // =================================================
           // FOOTER INFO
+          // =================================================
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
 

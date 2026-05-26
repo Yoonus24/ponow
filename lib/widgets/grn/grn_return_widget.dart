@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 import 'package:purchaseorders2/widgets/grn/view_grn_modal.dart';
 

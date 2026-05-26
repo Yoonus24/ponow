@@ -1,15 +1,15 @@
-// ignore_for_file: unused_local_variable, avoid_print
-
 import 'dart:convert';
+
 import 'package:dio/dio.dart';
+
 import 'package:purchaseorders2/core/config/env.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:purchaseorders2/core/errors/app_exception.dart';
+import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/session_service.dart';
-import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 
 class AuthService {
-   static String get domain => Env.domain;
+  static String get domain => Env.domain;
 
   // LOGIN
   static Future<Map<String, dynamic>?> login({
@@ -22,10 +22,6 @@ class AuthService {
           'Basic ${base64Encode(utf8.encode('$username:$password'))}';
 
       final cleanDomain = domain.trim().toLowerCase();
-
-      print("🔥 LOGIN DEBUG");
-      print("USERNAME: $username");
-      print("DOMAIN SENT: $cleanDomain");
 
       final response = await DioClient.dio.post(
         "/login",
@@ -40,45 +36,52 @@ class AuthService {
 
       final data = response.data;
 
-      final prefs = await SharedPreferences.getInstance();
-
-      //  STORE TOKEN SECURELY
+      // STORE TOKEN SECURELY
       await SecureStorageService.saveToken(data['access_token']);
 
-      //  KEEP NON-SENSITIVE DATA IN PREFS
-      await prefs.setString('username', data['username']);
-      await prefs.setString('role', data['role_name'] ?? '');
-      await prefs.setString(
-        'permissions',
+      // STORE USER DATA SECURELY
+      await SecureStorageService.saveUsername(data['username'] ?? '');
+
+      await SecureStorageService.saveRole(data['role_name'] ?? '');
+
+      await SecureStorageService.savePermissions(
         jsonEncode(data['permissions'] ?? {}),
       );
-      await prefs.setString('browser_session_id', browserSessionId);
+
+      await SecureStorageService.saveBrowserSessionId(browserSessionId);
 
       return data;
     } on DioException catch (e) {
-      final error = e.response?.data;
-      print("❌ Login failed: $error");
+      final statusCode = e.response?.statusCode;
 
-      if (e.response?.statusCode == 401) {
-        throw Exception("INVALID_CREDENTIALS");
-      } else if (e.response?.statusCode == 403) {
-        throw Exception("SESSION_EXISTS");
-      } else if (e.response?.statusCode == 404) {
-        throw Exception("TENANT_NOT_FOUND");
-      } else {
-        throw Exception("LOGIN_FAILED");
+      if (statusCode == 401) {
+        throw const AppException(
+          "Invalid username or password",
+          statusCode: 401,
+        );
       }
-    } catch (e) {
-      print("❌ Unexpected login error: $e");
-      throw Exception("LOGIN_FAILED");
+
+      if (statusCode == 403) {
+        throw const AppException(
+          "Already logged in another device",
+          statusCode: 403,
+        );
+      }
+
+      if (statusCode == 404) {
+        throw const AppException("Tenant not found", statusCode: 404);
+      }
+
+      rethrow;
+    } catch (_) {
+      throw const AppException("Login failed. Please try again");
     }
   }
 
   // LOGOUT
   static Future<void> logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final browserId = prefs.getString('browser_session_id');
+      final browserId = await SecureStorageService.getBrowserSessionId();
 
       await DioClient.dio.post(
         "/logout",
@@ -86,11 +89,8 @@ class AuthService {
           headers: {"x-browser-session-id": browserId, "x-domain": domain},
         ),
       );
-    } catch (e) {
-      print("❌ Logout failed: $e");
-
-      // Do NOT clear session if backend logout fails
-      throw Exception("LOGOUT_FAILED");
+    } catch (_) {
+      throw const AppException("Logout failed");
     }
 
     // Stop session ping
@@ -103,46 +103,28 @@ class AuthService {
   // KEEP SESSION ALIVE (PING)
   static Future<void> ping() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final browserId = prefs.getString('browser_session_id');
-
-      //  GET TOKEN FROM SECURE STORAGE (if needed later)
-      final token = await SecureStorageService.getToken();
+      final browserId = await SecureStorageService.getBrowserSessionId();
 
       await DioClient.dio.post(
         "/ping",
         options: Options(
-          headers: {
-            "x-domain": domain,
-            "x-browser-session-id": browserId,
-            // Authorization handled by interceptor
-          },
+          headers: {"x-domain": domain, "x-browser-session-id": browserId},
         ),
       );
-    } catch (e) {
-      // Do NOT logout here
-      print("⚠️ Ping failed, ignoring: $e");
+    } catch (_) {
+      // silent fail
     }
   }
 
   // CHECK LOGIN STATE
   static Future<bool> isLoggedIn() async {
     final token = await SecureStorageService.getToken();
+
     return token != null;
   }
 
   // CLEAR SESSION (LOCAL)
   static Future<void> clearSession() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    // CLEAR SECURE TOKEN
-    await SecureStorageService.clearToken();
-
-    // CLEAR OTHER DATA
-    await prefs.remove('permissions');
-    await prefs.remove('username');
-    await prefs.remove('browser_session_id');
-
-    print("🧹 Session cleared");
+    await SecureStorageService.clearAll();
   }
 }

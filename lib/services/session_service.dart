@@ -11,7 +11,7 @@ class SessionService {
       try {
         await AuthService.ping();
       } catch (e) {
-        print("❌ Session expired");
+        throw Exception("SESSION_PING_FAILED");
       }
     });
   }

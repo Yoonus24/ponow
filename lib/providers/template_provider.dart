@@ -1,12 +1,10 @@
-// ignore_for_file: avoid_print
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/models/po/po_item.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../models/po.dart';
-import '../models/po_template.dart';
+import '../models/po/po.dart';
+import '../models/po/po_template.dart';
 
 class TemplateProvider extends ChangeNotifier {
   List<POTemplate> _templates = [];
@@ -113,17 +111,17 @@ class TemplateProvider extends ChangeNotifier {
     try {
       final template = POTemplate.fromPO(po, templateName);
 
-      print("🌍 API CALL → /purchaseorder-templates");
-      print("📤 REQUEST DATA: ${template.toJson()}");
+      debugPrint("🌍 API CALL → /purchaseorder-templates");
+      debugPrint("📤 REQUEST DATA: ${template.toJson()}");
 
       final response = await _dio.post(
         '/purchaseorder-templates',
-        data: template.toJson(), 
+        data: template.toJson(),
         options: Options(headers: {'Content-Type': 'application/json'}),
       );
 
-      print("✅ RESPONSE STATUS: ${response.statusCode}");
-      print("📥 RESPONSE DATA: ${response.data}");
+      debugPrint("✅ RESPONSE STATUS: ${response.statusCode}");
+      debugPrint("📥 RESPONSE DATA: ${response.data}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchTemplates();
@@ -131,14 +129,9 @@ class TemplateProvider extends ChangeNotifier {
       } else {
         throw Exception('Failed to create template');
       }
-    } catch (e) {
-      print("❌ CREATE TEMPLATE ERROR: $e");
-
-      if (e is DioException) {
-        final backendMessage = e.response?.data?['detail'];
-        throw Exception(backendMessage ?? "Failed to create template");
-      }
-
+    } on DioException {
+      rethrow;
+    } catch (_) {
       throw Exception("Something went wrong");
     } finally {
       _isLoading = false;

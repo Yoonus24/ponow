@@ -1,8 +1,6 @@
-// ignore_for_file: avoid_print, use_build_context_synchronously, unused_element, invalid_use_of_visible_for_testing_member, library_private_types_in_public_api
-
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/grnitem.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/models/grn/grnitem.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:provider/provider.dart';
 import 'grn_logic.dart';

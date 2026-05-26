@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/po.dart';
-import '../../providers/po_provider.dart';
+import '../../models/po/po.dart';
+import '../../providers/po/po_provider.dart';
 import 'po_widget.dart';
 
 class POListView extends StatelessWidget {

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/po page/po_list_view.dart';
 
@@ -43,11 +43,11 @@ class _POPageState extends State<POPage> {
     return Scaffold(
       appBar: const CommonAppBar(title: 'Pending Purchase Orders'),
       body: RefreshIndicator(
+        color: Colors.blueAccent,
         onRefresh: _refreshPOs,
         child: Consumer<POProvider>(
           builder: (context, poProvider, _) {
             final pendingOrders = poProvider.pendingPOs;
-
 
             // ✅ First loading
             if (poProvider.isLoading && pendingOrders.isEmpty) {
@@ -101,17 +101,21 @@ class _POPageState extends State<POPage> {
 
             // ✅ Empty
             if (!poProvider.isLoading && pendingOrders.isEmpty) {
-              return ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: const [
-                  SizedBox(height: 200),
-                  Center(
-                    child: Text(
-                      'No pending purchase orders available.',
-                      style: TextStyle(color: Colors.grey),
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: SizedBox(
+                      height: constraints.maxHeight,
+                      child: const Center(
+                        child: Text(
+                          'No pending orders available.',
+                          style: TextStyle(color: Colors.grey, fontSize: 17),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  );
+                },
               );
             }
 

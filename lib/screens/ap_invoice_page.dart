@@ -1,13 +1,11 @@
-// ignore_for_file: library_private_types_in_public_api, dead_null_aware_expression, use_build_context_synchronously, deprecated_member_use
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../models/ap.dart';
+import '../models/ap/ap.dart';
 import '../providers/ap_invoice_provider.dart';
-import '../providers/po_provider.dart';
-import '../widgets/ap invoice/ap_invoice_widget.dart';
+import '../providers/po/po_provider.dart';
+import '../widgets/ap_invoice/ap_invoice_widget.dart';
 import '../widgets/common_app_bar.dart';
 import '../widgets/grn/grid_view_widget.dart';
 
@@ -87,6 +85,7 @@ class _APInvoicePageState extends State<APInvoicePage> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _statusFilters.dispose();
     _vendorNotifier.dispose();
     _selectedDateRangeNotifier.dispose();
     _vendorController.dispose();
@@ -218,10 +217,10 @@ class _APInvoicePageState extends State<APInvoicePage> {
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white,
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(foregroundColor: Colors.blueAccent),
             ),
+            dialogTheme: DialogThemeData(backgroundColor: Colors.white),
           ),
           child: child!,
         );
@@ -683,21 +682,25 @@ class _APInvoicePageState extends State<APInvoicePage> {
                                       provider.apInvoices,
                                     );
                                     if (list.isEmpty) {
-                                      return ListView(
-                                        physics:
-                                            const AlwaysScrollableScrollPhysics(),
-                                        children: const [
-                                          SizedBox(height: 200),
-                                          Center(
-                                            child: Text(
-                                              "No invoices found",
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey,
+                                      return LayoutBuilder(
+                                        builder: (context, constraints) {
+                                          return SingleChildScrollView(
+                                            physics:
+                                                const AlwaysScrollableScrollPhysics(),
+                                            child: SizedBox(
+                                              height: constraints.maxHeight,
+                                              child: const Center(
+                                                child: Text(
+                                                  "No invoices found",
+                                                  style: TextStyle(
+                                                    fontSize: 17,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                        ],
+                                          );
+                                        },
                                       );
                                     }
 

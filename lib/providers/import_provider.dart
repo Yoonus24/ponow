@@ -1,30 +1,28 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/services/dio_client.dart'; 
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/services/dio_client.dart';
 
 class ImportProvider extends ChangeNotifier {
   bool _isLoading = false;
   double? _uploadProgress;
   String? _uploadStatus;
   String? _currentFileName;
-  List _importErrors = [];
-
+  List<String> _importErrors = [];
   bool get isLoading => _isLoading;
   double? get uploadProgress => _uploadProgress;
   String? get uploadStatus => _uploadStatus;
   String? get currentFileName => _currentFileName;
-  List get importErrors => _importErrors;
-
- 
-  ImportProvider() {
-    _ensureDioInitialized();
-  }
+  List<String> get importErrors => _importErrors;
+  // ImportProvider() {
+  //   _ensureDioInitialized();
+  // }
 
   // Ensure DioClient is initialized
-  Future<void> _ensureDioInitialized() async {
-    await DioClient.init();
-  }
+  // Future<void> _ensureDioInitialized() async {
+  //   await DioClient.init();
+  // }
 
   Future<Map<String, dynamic>> uploadFile(String filePath) async {
     try {
@@ -44,9 +42,8 @@ class ImportProvider extends ChangeNotifier {
       _uploadStatus = "Uploading...";
       notifyListeners();
 
-    
       final response = await DioClient.dio.post(
-        "/poimport/import-items-csv", 
+        "/poimport/import-items-csv",
         data: formData,
         options: Options(
           sendTimeout: const Duration(seconds: 60),
@@ -57,9 +54,12 @@ class ImportProvider extends ChangeNotifier {
           if (total > 0) {
             double progress = sent / total;
 
-            if (progress > 0.9) progress = 0.9;
+            if (progress > 0.9) {
+              progress = 0.9;
+            }
 
             _uploadProgress = progress;
+
             _uploadStatus = "Uploading ${(progress * 100).toStringAsFixed(0)}%";
 
             notifyListeners();
@@ -84,7 +84,7 @@ class ImportProvider extends ChangeNotifier {
         bool isSuccess = data['success'] == true || response.statusCode == 200;
 
         if (isSuccess) {
-          List importedItems = [];
+          List<dynamic> importedItems = [];
 
           if (data['imported_items'] != null) {
             importedItems = data['imported_items'] is List
@@ -97,63 +97,67 @@ class ImportProvider extends ChangeNotifier {
           return {
             'success': true,
             'imported_items': importedItems,
-            'errors': [],
+            'errors': <String>[],
           };
         } else {
-          List errors = [];
+          List<String> errors = [];
+
           if (data['errors'] != null) {
-            errors = data['errors'] is List ? data['errors'] : [data['errors']];
+            if (data['errors'] is List) {
+              errors = (data['errors'] as List)
+                  .map((e) => e.toString())
+                  .toList();
+            } else {
+              errors = [data['errors'].toString()];
+            }
           } else if (data['message'] != null) {
-            errors = [data['message']];
+            errors = [data['message'].toString()];
           }
 
           _importErrors = errors;
 
-          return {'success': false, 'imported_items': [], 'errors': errors};
+          return {
+            'success': false,
+            'imported_items': <dynamic>[],
+            'errors': errors,
+          };
         }
       }
 
       return {
         'success': response.statusCode == 200 || response.statusCode == 201,
-        'imported_items': [],
-        'errors': [],
+        'imported_items': <dynamic>[],
+        'errors': <String>[],
       };
-    } on DioException catch (e) {
-      List errors = [];
+    } catch (e, stackTrace) {
+      if (e is DioException) {
+        final data = e.response?.data;
 
-      if (e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout ||
-          e.type == DioExceptionType.sendTimeout) {
-        errors = ["Request timed out. Please check your connection."];
-      } else if (e.response?.statusCode == 400 ||
-          e.response?.statusCode == 422) {
-        final errData = e.response?.data;
+        if (data is Map<String, dynamic>) {
+          final backendErrors = data['errors'];
 
-        if (errData is Map && errData['errors'] != null) {
-          errors = errData['errors'] is List
-              ? errData['errors']
-              : [errData['errors'].toString()];
-        } else {
-          errors = [errData?['message'] ?? "Invalid file format or data"];
+          if (backendErrors is List && backendErrors.isNotEmpty) {
+            _importErrors = backendErrors.map((e) => e.toString()).toList();
+
+            return {
+              'success': false,
+              'imported_items': <dynamic>[],
+              'errors': _importErrors,
+            };
+          }
         }
-      } else if (e.response?.statusCode == 401) {
-        errors = ["Session expired. Please login again."];
-      } else if (e.response?.statusCode == 413) {
-        errors = ["File is too large"];
-      } else {
-        errors = ["Upload failed: ${e.message}"];
       }
 
-      _importErrors = errors;
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
 
-      return {'success': false, 'imported_items': [], 'errors': errors};
-    } catch (e) {
-      _importErrors = ["Unexpected error: ${e.toString()}"];
+      debugPrint("Import error: ${exception.message}");
+
+      _importErrors = [exception.message];
 
       return {
         'success': false,
-        'imported_items': [],
-        'errors': ["Unexpected error: ${e.toString()}"],
+        'imported_items': <dynamic>[],
+        'errors': [exception.message],
       };
     } finally {
       await Future.delayed(const Duration(milliseconds: 400));

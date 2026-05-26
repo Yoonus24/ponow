@@ -1,12 +1,13 @@
-// ignore_for_file: avoid_print, unnecessary_non_null_assertion, invalid_null_aware_operator, dead_null_aware_expression, use_build_context_synchronously, prefer_final_fields
-
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
-import 'package:purchaseorders2/models/grn.dart';
-import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/errors/app_exception.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
+import 'package:purchaseorders2/models/grn/grnitem.dart';
 import 'package:purchaseorders2/pdfs/grn_pdf.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
@@ -15,7 +16,7 @@ class GRNProvider with ChangeNotifier {
   List<GRN> _grns = [];
   List<String> _returnReasons = [];
   List<DebitCreditNote> _debitCreditNotes = [];
-  Map<String, bool> _pdfLoadingMap = {};
+  final Map<String, bool> _pdfLoadingMap = {};
   bool _isLoading = false;
   bool _isLoadMore = false;
   String? _error;
@@ -97,10 +98,10 @@ class GRNProvider with ChangeNotifier {
         _returnReasons = [];
         _error = 'Failed to fetch return reasons: ${response.statusCode}';
       }
-    } on DioException catch (e) {
-      _error = e.response?.data?.toString() ?? _getUserFriendlyError(e);
-    } catch (e) {
-      _error = _getUserFriendlyError(e);
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -110,9 +111,9 @@ class GRNProvider with ChangeNotifier {
   Future<void> generatePdf(GRN grn, BuildContext context) async {
     final id = grn.grnId ?? '';
 
-    print("🔥 PDF CLICKED");
-    print("🆔 GRN ID: $id");
-    print("🏪 Vendor Name (from UI): ${grn.vendorName}");
+    debugPrint("🔥 PDF CLICKED");
+    debugPrint("🆔 GRN ID: $id");
+    debugPrint("🏪 Vendor Name (from UI): ${grn.vendorName}");
 
     _pdfLoadingMap[id] = true;
     notifyListeners();
@@ -120,19 +121,21 @@ class GRNProvider with ChangeNotifier {
     try {
       final service = GRNPDF();
 
-      print("🚀 Calling generateGRNPdf...");
+      debugPrint("🚀 Calling generateGRNPdf...");
 
       final pdfFile = await service.generateGRNPdf(id);
 
-      print("✅ PDF GENERATED SUCCESS");
+      debugPrint("✅ PDF GENERATED SUCCESS");
 
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      print("❌ PDF ERROR: $e");
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF failed: $e')));
+      debugPrint("❌ PDF ERROR: ${exception.message}");
+
+      if (context.mounted) {
+        AppSnackbar.showError(context, exception);
+      }
     } finally {
       _pdfLoadingMap[id] = false;
       notifyListeners();
@@ -151,13 +154,24 @@ class GRNProvider with ChangeNotifier {
 
       if (response.statusCode == 200) {
         await fetchFilteredGRNs(status: _filterStatus, skip: 0, limit: _limit);
+
         return true;
       } else {
-        throw Exception(response.data);
+        throw Exception(response.data.toString());
       }
-    } catch (e) {
-      setError(_getUserFriendlyError(e));
-      return false;
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      String errorMessage = exception.message;
+
+      if (errorMessage.contains('insufficient stock') ||
+          errorMessage.contains('insufficient_stock')) {
+        errorMessage =
+            'Cannot revert GRN because stock is '
+            'insufficient in inventory';
+      }
+
+      throw AppException(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -225,7 +239,9 @@ class GRNProvider with ChangeNotifier {
 
       _hasMore = newGrns.length == limit;
     } catch (e) {
-      _error = _getUserFriendlyError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       _isLoadMore = false;
@@ -263,8 +279,11 @@ class GRNProvider with ChangeNotifier {
       } else {
         throw Exception('Failed to update GRN: ${response.data}');
       }
-    } catch (error) {
-      setError(error.toString());
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      setError(exception.message);
+
       return false;
     } finally {
       setLoading(false);
@@ -319,8 +338,10 @@ class GRNProvider with ChangeNotifier {
         throw Exception(response.data);
       }
     } catch (e) {
-      setError(_getUserFriendlyError(e));
-      return {"success": false, "error": e.toString()};
+      final exception = AppErrorHandler.handle(e);
+
+      setError(exception.message);
+      return {"success": false, "error": exception.message};
     } finally {
       setLoading(false);
     }
@@ -334,7 +355,14 @@ class GRNProvider with ChangeNotifier {
         return response.data;
       }
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint(
+        "fetchPODetails error: "
+        "${exception.message}",
+      );
+
       return null;
     }
   }
@@ -357,7 +385,11 @@ class GRNProvider with ChangeNotifier {
           'Failed to fetch GRNs with status: ${response.statusCode}',
         );
       }
-    } catch (error) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      setError(exception.message);
+
       return [];
     } finally {
       setLoading(false);
@@ -369,7 +401,7 @@ class GRNProvider with ChangeNotifier {
     setError(null);
 
     try {
-      final response = await _dio.get('$grns/purchaseorders/getByRandomId');
+      final response = await _dio.get('/grns/purchaseorders/getByRandomId');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -379,8 +411,11 @@ class GRNProvider with ChangeNotifier {
           'Failed to fetch random numbers. Status code: ${response.statusCode}',
         );
       }
-    } catch (error) {
-      setError('Failed to fetch random numbers: $error');
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      setError(exception.message);
+
       return [];
     } finally {
       setLoading(false);
@@ -395,17 +430,13 @@ class GRNProvider with ChangeNotifier {
       }
 
       final requestBody = {
-        "scenario": data.scenario?.toLowerCase() ?? "",
+        "scenario": data.scenario.toLowerCase() ?? "",
         "returnedDate": (data.returnedDate ?? ServerTimeService.now)
             .toIso8601String(),
         "returnedBy": data.returnedBy,
         "comments": data.comments ?? "",
         "items": data.items
-            ?.where(
-              (i) =>
-                  i.itemId!.isNotEmpty &&
-                  i.itemId!.length == 24,
-            )
+            ?.where((i) => i.itemId.isNotEmpty && i.itemId.length == 24)
             .map(
               (i) => {
                 "itemId": i.itemId,
@@ -432,8 +463,8 @@ class GRNProvider with ChangeNotifier {
       } else {
         throw Exception('Failed: ${response.statusCode} -> ${response.data}');
       }
-    } catch (e) {
-      throw Exception(_getUserFriendlyError(e));
+    } catch (e, stackTrace) {
+      throw AppErrorHandler.handle(e, stackTrace: stackTrace);
     }
   }
 
@@ -443,7 +474,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        '$grns/grns/returnprocess/Grnwise',
+        '/grns/returnprocess/Grnwise',
         queryParameters: {'skip': skip, 'limit': limit},
       );
 
@@ -453,7 +484,9 @@ class GRNProvider with ChangeNotifier {
         _grns = [];
       }
     } catch (e) {
-      _error = _getUserFriendlyError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -471,7 +504,7 @@ class GRNProvider with ChangeNotifier {
 
     try {
       final response = await _dio.get(
-        '$grns/returnprocess/DebitCreditNote/$grnId',
+        '/grns/returnprocess/DebitCreditNote/$grnId',
         queryParameters: {'skip': skip, 'limit': limit},
       );
 
@@ -489,38 +522,14 @@ class GRNProvider with ChangeNotifier {
         _error =
             'Failed to fetch debit/credit notes: ${response.statusMessage}';
       }
-    } catch (e) {
-      _error = 'Error fetching debit/credit notes: $e';
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  String _getUserFriendlyError(dynamic e) {
-    final msg = e.toString().toLowerCase();
-
-    if (msg.contains("socket") || msg.contains("connection")) {
-      return "No internet connection.";
-    }
-
-    if (msg.contains("timeout")) {
-      return "Server is taking too long. Please try again.";
-    }
-
-    if (msg.contains("404")) {
-      return "Data not found.";
-    }
-
-    if (msg.contains("500")) {
-      return "Server error. Please try again later.";
-    }
-
-    if (msg.contains("invalid")) {
-      return "Invalid data provided.";
-    }
-
-    return "Something went wrong. Please try again.";
   }
 
   @override

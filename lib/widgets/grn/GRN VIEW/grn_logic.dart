@@ -3,8 +3,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:purchaseorders2/models/grn.dart';
-import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
+import 'package:purchaseorders2/models/grn/grnitem.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import 'package:provider/provider.dart';
@@ -252,31 +252,25 @@ class GRNLogic {
     double totalCGST = 0.0;
     double totalIGST = 0.0;
 
-    // ✅ Use backend values only
     for (final item in grn.itemDetails ?? []) {
-      final double finalItem = item.finalPrice ?? 0.0;
+      final double baseAmount = item.totalPrice ?? 0.0;
 
-      itemTotal += finalItem;
+      itemTotal += baseAmount;
 
       totalSGST += item.sgst ?? 0.0;
       totalCGST += item.cgst ?? 0.0;
       totalIGST += item.igst ?? 0.0;
     }
 
-    // 🔥 FIX: use GRN level totalDiscount instead of item.discountAmount
+    //  FIX: use GRN level totalDiscount instead of item.discountAmount
     double totalDiscount = grn.totalDiscount ?? 0.0;
 
-    // ✅ Freight
+    // Freight
     final double freight =
         (grn.totalFreightAmount ?? 0.0) + (grn.totalFreightTaxAmount ?? 0.0);
 
-    // ❌ DO NOT APPLY ROUND OFF AGAIN
-    // final double roundOff = grn.roundOffAdjustment ?? 0.0;
-
-    // ✅ FINAL TOTAL (BEST SOURCE)
     final double finalTotal = grn.grnAmount ?? (itemTotal + freight);
 
-    // ✅ update model (optional)
     grn.grnAmount = finalTotal;
 
     return {
@@ -368,9 +362,9 @@ class GRNLogic {
   Future<void> convertGrnToPo(BuildContext context) async {
     if (isConverting.value) return;
 
-    print("🔁 Revert to PO clicked");
-    print("GRN ID: ${grn.grnId}");
-    print("GRN No: ${grn.randomId}");
+    debugPrint("🔁 Revert to PO clicked");
+    debugPrint("GRN ID: ${grn.grnId}");
+    debugPrint("GRN No: ${grn.randomId}");
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -394,8 +388,10 @@ class GRNLogic {
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
+
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
+
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blueAccent,
               foregroundColor: Colors.white,
@@ -405,6 +401,7 @@ class GRNLogic {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               elevation: 2,
             ),
+
             child: const Text(
               "Confirm",
               style: TextStyle(fontWeight: FontWeight.bold),
@@ -418,6 +415,7 @@ class GRNLogic {
 
     try {
       isConverting.value = true;
+
       final success = await context.read<GRNProvider>().cancelGRN(
         grn.grnId ?? '',
       );
@@ -431,14 +429,64 @@ class GRNLogic {
             backgroundColor: Colors.green,
           ),
         );
+
         Navigator.of(context).pop();
       } else {
         throw Exception("Failed");
       }
     } catch (e) {
+      // REMOVE LOADER FIRST
+      isConverting.value = false;
+
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+
+      // SHOW ERROR DIALOG ON TOP
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+
+        builder: (_) => AlertDialog(
+          backgroundColor: Colors.white,
+
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+
+          title: const Row(
+            children: [
+              Icon(Icons.error, color: Colors.red),
+
+              SizedBox(width: 8),
+
+              Text(
+                'Revert Failed',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+
+          content: SingleChildScrollView(
+            child: Text(
+              errorMessage,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
     } finally {
       isConverting.value = false;
@@ -553,10 +601,10 @@ class GRNLogic {
         throw Exception(result['error'] ?? 'Conversion failed');
       }
     } catch (e) {
-      print("❌ ERROR => $e");
+      debugPrint("❌ ERROR => $e");
       if (e is DioException) {
-        print("❌ STATUS CODE => ${e.response?.statusCode}");
-        print("❌ RESPONSE DATA => ${e.response?.data}");
+        debugPrint("❌ STATUS CODE => ${e.response?.statusCode}");
+        debugPrint("❌ RESPONSE DATA => ${e.response?.data}");
       }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

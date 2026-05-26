@@ -1,13 +1,11 @@
-// ignore_for_file: invalid_use_of_visible_for_testing_member, use_build_context_synchronously, curly_braces_in_flow_control_structures, invalid_use_of_protected_member
-
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/po_item.dart';
+import 'package:purchaseorders2/models/po/po_item.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/widgets/numeric_calculator.dart';
 import 'package:provider/provider.dart';
 import '../../providers/po_model_provider.dart';
-import '../../models/po.dart';
-import '../../providers/po_provider.dart';
+import '../../models/po/po.dart';
+import '../../providers/po/po_provider.dart';
 import '../column_filter.dart';
 
 class POModal extends StatefulWidget {
@@ -1266,8 +1264,9 @@ class _POModalState extends State<POModal> {
                                                               isApprove: true,
                                                             );
 
-                                                        if (confirm != true)
+                                                        if (confirm != true) {
                                                           return;
+                                                        }
 
                                                         try {
                                                           isProcessing.value =
@@ -1372,8 +1371,9 @@ class _POModalState extends State<POModal> {
                                                               isApprove: false,
                                                             );
 
-                                                        if (confirm != true)
+                                                        if (confirm != true) {
                                                           return;
+                                                        }
 
                                                         try {
                                                           isProcessing.value =

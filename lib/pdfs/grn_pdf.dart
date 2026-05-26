@@ -1,6 +1,3 @@
-// grn_pdf.dart
-// ignore_for_file: unused_element
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
@@ -10,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 
 class GRNPDF {
@@ -18,472 +17,500 @@ class GRNPDF {
   static const String vendorBaseUrl = "/vendors/exact-name/";
 
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
-    final response = await _dio.get('/grns/$grnId');
+    try {
+      final response = await _dio.get('/grns/$grnId');
 
-    final dynamic decoded = response.data;
+      final dynamic decoded = response.data;
 
-    if (decoded is Map<String, dynamic>) {
-      return decoded;
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      throw Exception('Unexpected GRN format: expected JSON object');
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
     }
-
-    throw Exception('Unexpected GRN format: expected JSON object');
   }
 
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await _dio.get('/pobusiness/');
-    final List<dynamic> data = response.data;
+    try {
+      final response = await _dio.get('/pobusiness/');
 
-    if (data.isNotEmpty && data.first is Map<String, dynamic>) {
-      return Map<String, dynamic>.from(data.first);
+      final List<dynamic> data = response.data;
+
+      if (data.isNotEmpty && data.first is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(data.first);
+      }
+
+      return <String, dynamic>{};
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
     }
-
-    return <String, dynamic>{};
   }
 
   Future<Map<String, dynamic>> fetchVendorById(String vendorId) async {
     if (vendorId.trim().isEmpty) return {};
 
     try {
-      await DioClient.dio.get(
-        'http://192.168.29.184:8000/purchasetestapi/vendors/$vendorId',
-      );
+      final response = await DioClient.dio.get('/vendors/$vendorId');
+
+      final dynamic decoded = response.data;
+
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+
+      if (decoded is List && decoded.isNotEmpty) {
+        return Map<String, dynamic>.from(decoded.first);
+      }
+
       return {};
-    } catch (e) {
+    } catch (e, s) {
       debugPrint("❌ Vendor API ERROR: $e");
+      debugPrintStack(stackTrace: s);
+
       return {};
     }
   }
 
   Future<File> generateGRNPdf(String grnId) async {
-    if (grnId.trim().isEmpty) {
-      throw Exception('grnId is empty');
-    }
-
-    final Map<String, dynamic> grnData = await fetchGRN(grnId);
-    final Map<String, dynamic> businessData = await fetchBusinessDetails();
-
-    final vendorId = (grnData['vendorId'] ?? '').toString();
-    final Map<String, dynamic> vendorData = await fetchVendorById(vendorId);
-
-    final List<dynamic> itemsRaw = (grnData['itemDetails'] is List)
-        ? List<dynamic>.from(grnData['itemDetails'])
-        : <dynamic>[];
-
-    pw.MemoryImage? logoImage;
     try {
-      logoImage = await _tryLoadLogoImage('assets/bestmummy.jpg');
-    } catch (_) {
-      logoImage = null;
-    }
-
-    String safeFormatDate(String? dateValue) {
-      if (dateValue == null) return 'N/A';
-      try {
-        final dt = DateTime.parse(dateValue);
-        return DateFormat('dd-MM-yyyy').format(dt);
-      } catch (_) {
-        return dateValue;
+      if (grnId.trim().isEmpty) {
+        throw Exception('grnId is empty');
       }
-    }
 
-    final formattedGRNDate =
-        (grnData['grnDate'] != null &&
-            grnData['grnDate'].toString().trim().isNotEmpty)
-        ? safeFormatDate(grnData['grnDate'].toString())
-        : 'N/A';
+      final Map<String, dynamic> grnData = await fetchGRN(grnId);
+      final Map<String, dynamic> businessData = await fetchBusinessDetails();
 
-    final poDate =
-        (grnData['poDate'] != null &&
-            grnData['poDate'].toString().trim().isNotEmpty)
-        ? safeFormatDate(grnData['poDate'].toString())
-        : 'N/A';
+      final vendorId = (grnData['vendorId'] ?? '').toString();
+      final Map<String, dynamic> vendorData = await fetchVendorById(vendorId);
 
-    final invoiceDate =
-        (grnData['invoiceDate'] != null &&
-            grnData['invoiceDate'].toString().trim().isNotEmpty)
-        ? safeFormatDate(grnData['invoiceDate'].toString())
-        : 'N/A';
+      final List<dynamic> itemsRaw = (grnData['itemDetails'] is List)
+          ? List<dynamic>.from(grnData['itemDetails'])
+          : <dynamic>[];
 
-    // Calculate totals from items
-    final subtotal = _calculateSubtotal(itemsRaw);
-    final totalTax = _calculateTotalTax(itemsRaw);
+      pw.MemoryImage? logoImage;
+      try {
+        logoImage = await _tryLoadLogoImage('assets/bestmummy.jpg');
+      } catch (_) {
+        logoImage = null;
+      }
 
-    // Get freight details
-    final totalFreightAmount = _safeNum(grnData['totalFreightAmount']);
-    final totalFreightTaxAmount = _safeNum(grnData['totalFreightTaxAmount']);
+      String safeFormatDate(String? dateValue) {
+        if (dateValue == null) return 'N/A';
+        try {
+          final dt = DateTime.parse(dateValue);
+          return DateFormat('dd-MM-yyyy').format(dt);
+        } catch (_) {
+          return dateValue;
+        }
+      }
 
-    // Calculate total including freight
-    final totalAmount =
-        subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
-    final amountInWords = _amountInWords(totalAmount);
+      final formattedGRNDate =
+          (grnData['grnDate'] != null &&
+              grnData['grnDate'].toString().trim().isNotEmpty)
+          ? safeFormatDate(grnData['grnDate'].toString())
+          : 'N/A';
 
-    // CGST and SGST from items only (without freight tax)
-    final cgstAmount = _calculateCgst(itemsRaw);
-    final sgstAmount = _calculateSgst(itemsRaw);
-    final taxPercentage = _getTaxPercentage(itemsRaw);
+      final poDate =
+          (grnData['poDate'] != null &&
+              grnData['poDate'].toString().trim().isNotEmpty)
+          ? safeFormatDate(grnData['poDate'].toString())
+          : 'N/A';
 
-    final pdf = pw.Document();
+      final invoiceDate =
+          (grnData['invoiceDate'] != null &&
+              grnData['invoiceDate'].toString().trim().isNotEmpty)
+          ? safeFormatDate(grnData['invoiceDate'].toString())
+          : 'N/A';
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.all(20),
-        build: (pw.Context context) {
-          return <pw.Widget>[
-            // Header Section
-            pw.Table(
-              columnWidths: {
-                0: pw.FlexColumnWidth(1),
-                1: pw.FlexColumnWidth(3),
-              },
-              children: [
-                pw.TableRow(
-                  children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(right: 10),
-                      child: logoImage != null
-                          ? pw.Container(
-                              width: 60,
-                              height: 60,
-                              child: pw.Image(
-                                logoImage,
-                                fit: pw.BoxFit.contain,
-                              ),
-                            )
-                          : pw.SizedBox(),
-                    ),
-                    pw.Padding(
-                      padding: pw.EdgeInsets.only(left: 50),
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            'GOODS RECEIPT NOTE',
-                            style: pw.TextStyle(
-                              fontSize: 14,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColor(0, 0, 128 / 255),
-                            ),
-                          ),
-                          pw.SizedBox(height: 4),
-                          pw.Text(
-                            (businessData['companyName'] ?? '')
-                                .toString()
-                                .replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
-                          ),
-                          pw.Text(
-                            _joinNonEmpty([
-                              businessData['address1']?.toString(),
-                              businessData['address2']?.toString(),
-                            ]),
-                            style: pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            'Tel.No: ${businessData['phoneNo'] ?? ''}',
-                            style: pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            'E-Mail: ${businessData['emailId'] ?? ''}',
-                            style: pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            'GSTIN: ${businessData['gstIn'] ?? ''}',
-                            style: pw.TextStyle(fontSize: 9),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+      // Calculate totals from items
+      final subtotal = _calculateSubtotal(itemsRaw);
+      final totalTax = _calculateTotalTax(itemsRaw);
 
-            pw.SizedBox(height: 12),
+      // Get freight details
+      final totalFreightAmount = _safeNum(grnData['totalFreightAmount']);
+      final totalFreightTaxAmount = _safeNum(grnData['totalFreightTaxAmount']);
 
-            // Vendor/Billing/GRN Details Table
-            pw.Table(
-              border: pw.TableBorder.all(width: 0.5),
-              columnWidths: {
-                0: pw.FlexColumnWidth(2),
-                1: pw.FlexColumnWidth(1.5),
-                2: pw.FlexColumnWidth(1.5),
-              },
-              children: [
-                pw.TableRow(
-                  decoration: pw.BoxDecoration(
-                    color: PdfColor(0, 0, 128 / 255),
-                  ),
-                  children: [
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        'Vendor Details',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          color: PdfColors.white,
-                        ),
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        'Billing Address',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          color: PdfColors.white,
-                        ),
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        'GRN Details',
-                        style: pw.TextStyle(
-                          fontSize: 12,
-                          color: PdfColors.white,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                pw.TableRow(
-                  children: [
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        _joinNonEmpty([
-                          vendorData['vendorName'] ??
-                              grnData['vendorName'] ??
-                              'Unknown Vendor',
-                          'GSTIN: ${vendorData['gstNumber'] ?? 'N/A'}',
-                          'Address: ${vendorData['address'] ?? 'N/A'}',
-                          'City: ${vendorData['city'] ?? 'N/A'}',
-                          'State: ${vendorData['state'] ?? 'N/A'}',
-                          'Country: ${vendorData['country'] ?? 'India'}',
-                        ], separator: '\n'),
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        _joinNonEmpty([
-                          grnData['billingAddress']?.toString() ??
-                              'No.40, Kenikarai',
-                          grnData['shippingAddress']?.toString() ??
-                              'Ramanathapuram',
-                        ]),
-                        style: pw.TextStyle(fontSize: 10),
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: pw.EdgeInsets.all(6),
-                      child: pw.Text(
-                        'GRN No: ${grnData['randomId']?.toString() ?? grnId}\n'
-                        'GRN Date: $formattedGRNDate\n'
-                        'PO Date: $poDate\n'
-                        'Invoice Date: $invoiceDate\n'
-                        'Payment Terms: ${grnData['paymentTerms']?.toString() ?? 'N/A'}\n'
-                        'Currency: ${grnData['currency']?.toString() ?? 'INR'}',
-                        style: pw.TextStyle(fontSize: 10),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+      // Calculate total including freight
+      final totalAmount =
+          subtotal + totalTax + totalFreightAmount + totalFreightTaxAmount;
+      final amountInWords = _amountInWords(totalAmount);
 
-            pw.SizedBox(height: 12),
+      // CGST and SGST from items only (without freight tax)
+      final cgstAmount = _calculateCgst(itemsRaw);
+      final sgstAmount = _calculateSgst(itemsRaw);
+      final taxPercentage = _getTaxPercentage(itemsRaw);
 
-            // Items Table - Wrap in pw.Column to allow breaking
-            pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Table(
-                  border: pw.TableBorder.all(width: 0.5),
-                  columnWidths: {
-                    0: pw.FlexColumnWidth(0.7),
-                    1: pw.FlexColumnWidth(2),
-                    2: pw.FlexColumnWidth(1.2),
-                    3: pw.FlexColumnWidth(1),
-                    4: pw.FlexColumnWidth(0.8),
-                    5: pw.FlexColumnWidth(1),
-                    6: pw.FlexColumnWidth(1),
-                    7: pw.FlexColumnWidth(0.8),
-                    8: pw.FlexColumnWidth(1.2),
-                  },
-                  children: [
-                    pw.TableRow(
-                      decoration: pw.BoxDecoration(
-                        color: PdfColor(0, 0, 128 / 255),
-                      ),
-                      children: [
-                        _tableHeaderCell('S.No'),
-                        _tableHeaderCell('Description'),
-                        _tableHeaderCell('HsnCode'),
-                        _tableHeaderCell('Count'),
-                        _tableHeaderCell('Qty'),
-                        _tableHeaderCell('PO Qty'),
-                        _tableHeaderCell('Unit Price'),
-                        _tableHeaderCell('Tax'),
-                        _tableHeaderCell('Amount'),
-                      ],
-                    ),
-                    ..._buildItemRows(itemsRaw),
-                  ],
-                ),
-              ],
-            ),
+      final pdf = pw.Document();
 
-            pw.SizedBox(height: 12),
-
-            // Summary Table with Freight
-            pw.Container(
-              width: double.infinity,
-              child: pw.Table(
-                border: pw.TableBorder.all(width: 0.5),
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.all(20),
+          build: (pw.Context context) {
+            return <pw.Widget>[
+              // Header Section
+              pw.Table(
                 columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(1),
+                  0: pw.FlexColumnWidth(1),
+                  1: pw.FlexColumnWidth(3),
                 },
                 children: [
-                  _twoCellRow('Total Amount', _safeFixedString(subtotal)),
-                  _twoCellRow(
-                    'Total Discount',
-                    _safeFixedString(grnData['totalDiscount']),
-                  ),
-                  // Add freight rows if freight exists
-                  if (totalFreightAmount > 0) ...[
-                    _twoCellRow(
-                      'Freight Amount',
-                      _safeFixedString(totalFreightAmount),
-                    ),
-                    if (totalFreightTaxAmount > 0)
-                      _twoCellRow(
-                        'Freight Tax',
-                        _safeFixedString(totalFreightTaxAmount),
-                      ),
-                  ],
-                  _twoCellRow(
-                    'CGST @$taxPercentage%',
-                    _safeFixedString(cgstAmount),
-                  ),
-                  _twoCellRow(
-                    'SGST @$taxPercentage%',
-                    _safeFixedString(sgstAmount),
-                  ),
-                  _twoCellRow(
-                    'Round Off Amount',
-                    _safeFixedString(grnData['grnRoundOffAmount']),
-                  ),
                   pw.TableRow(
                     children: [
                       pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Amount in Words: $amountInWords',
-                          style: pw.TextStyle(fontSize: 12),
-                          textAlign: pw.TextAlign.right,
-                        ),
+                        padding: const pw.EdgeInsets.only(right: 10),
+                        child: logoImage != null
+                            ? pw.Container(
+                                width: 60,
+                                height: 60,
+                                child: pw.Image(
+                                  logoImage,
+                                  fit: pw.BoxFit.contain,
+                                ),
+                              )
+                            : pw.SizedBox(),
                       ),
                       pw.Padding(
-                        padding: pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          'Total: ${_safeFixedString(grnData['totalReceivedAmount'])}',
-                          style: pw.TextStyle(fontSize: 12),
-                          textAlign: pw.TextAlign.right,
+                        padding: pw.EdgeInsets.only(left: 50),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'GOODS RECEIPT NOTE',
+                              style: pw.TextStyle(
+                                fontSize: 14,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColor(0, 0, 128 / 255),
+                              ),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              (businessData['companyName'] ?? '')
+                                  .toString()
+                                  .replaceAll(RegExp(r'[^\x00-\x7F]'), ''),
+                            ),
+                            pw.Text(
+                              _joinNonEmpty([
+                                businessData['address1']?.toString(),
+                                businessData['address2']?.toString(),
+                              ]),
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'Tel.No: ${businessData['phoneNo'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'E-Mail: ${businessData['emailId'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'GSTIN: ${businessData['gstIn'] ?? ''}',
+                              style: pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
 
-            pw.SizedBox(height: 12),
+              pw.SizedBox(height: 12),
 
-            // Terms & Conditions
-            pw.Text(
-              'Terms & Conditions',
-              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 8),
-            ..._buildTermsAndConditions(grnData['termsAndConditions']),
+              // Vendor/Billing/GRN Details Table
+              pw.Table(
+                border: pw.TableBorder.all(width: 0.5),
+                columnWidths: {
+                  0: pw.FlexColumnWidth(2),
+                  1: pw.FlexColumnWidth(1.5),
+                  2: pw.FlexColumnWidth(1.5),
+                },
+                children: [
+                  pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: PdfColor(0, 0, 128 / 255),
+                    ),
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Vendor Details',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'Billing Address',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'GRN Details',
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            color: PdfColors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          _joinNonEmpty([
+                            vendorData['vendorName'] ??
+                                grnData['vendorName'] ??
+                                'Unknown Vendor',
+                            'GSTIN: ${vendorData['gstNumber'] ?? 'N/A'}',
+                            'Address: ${vendorData['address'] ?? 'N/A'}',
+                            'City: ${vendorData['city'] ?? 'N/A'}',
+                            'State: ${vendorData['state'] ?? 'N/A'}',
+                            'Country: ${vendorData['country'] ?? 'India'}',
+                          ], separator: '\n'),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          _joinNonEmpty([
+                            grnData['billingAddress']?.toString() ??
+                                'No.40, Kenikarai',
+                            grnData['shippingAddress']?.toString() ??
+                                'Ramanathapuram',
+                          ]),
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ),
+                      pw.Padding(
+                        padding: pw.EdgeInsets.all(6),
+                        child: pw.Text(
+                          'GRN No: ${grnData['randomId']?.toString() ?? grnId}\n'
+                          'GRN Date: $formattedGRNDate\n'
+                          'PO Date: $poDate\n'
+                          'Invoice Date: $invoiceDate\n'
+                          'Payment Terms: ${grnData['paymentTerms']?.toString() ?? 'N/A'}\n'
+                          'Currency: ${grnData['currency']?.toString() ?? 'INR'}',
+                          style: pw.TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
 
-            pw.SizedBox(height: 16),
+              pw.SizedBox(height: 12),
 
-            // Declaration
-            pw.Text(
-              'Declaration:',
-              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 8),
-            pw.Text(
-              grnData['declaration']?.toString() ??
-                  'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
-              style: pw.TextStyle(fontSize: 11),
-            ),
+              // Items Table - Wrap in pw.Column to allow breaking
+              pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Table(
+                    border: pw.TableBorder.all(width: 0.5),
+                    columnWidths: {
+                      0: pw.FlexColumnWidth(0.7),
+                      1: pw.FlexColumnWidth(2),
+                      2: pw.FlexColumnWidth(1.2),
+                      3: pw.FlexColumnWidth(1),
+                      4: pw.FlexColumnWidth(0.8),
+                      5: pw.FlexColumnWidth(1),
+                      6: pw.FlexColumnWidth(1),
+                      7: pw.FlexColumnWidth(0.8),
+                      8: pw.FlexColumnWidth(1.2),
+                    },
+                    children: [
+                      pw.TableRow(
+                        decoration: pw.BoxDecoration(
+                          color: PdfColor(0, 0, 128 / 255),
+                        ),
+                        children: [
+                          _tableHeaderCell('S.No'),
+                          _tableHeaderCell('Description'),
+                          _tableHeaderCell('HsnCode'),
+                          _tableHeaderCell('Count'),
+                          _tableHeaderCell('Qty'),
+                          _tableHeaderCell('PO Qty'),
+                          _tableHeaderCell('Unit Price'),
+                          _tableHeaderCell('Tax'),
+                          _tableHeaderCell('Amount'),
+                        ],
+                      ),
+                      ..._buildItemRows(itemsRaw),
+                    ],
+                  ),
+                ],
+              ),
 
-            pw.SizedBox(height: 20),
+              pw.SizedBox(height: 12),
 
-            // Footer
-            pw.Row(
-              children: [
-                pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
-                pw.Text('Authorized Signatory'),
-              ],
-            ),
-          ];
-        },
-      ),
-    );
+              // Summary Table with Freight
+              pw.Container(
+                width: double.infinity,
+                child: pw.Table(
+                  border: pw.TableBorder.all(width: 0.5),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(2),
+                    1: pw.FlexColumnWidth(1),
+                  },
+                  children: [
+                    _twoCellRow('Total Amount', _safeFixedString(subtotal)),
+                    _twoCellRow(
+                      'Total Discount',
+                      _safeFixedString(grnData['totalDiscount']),
+                    ),
+                    // Add freight rows if freight exists
+                    if (totalFreightAmount > 0) ...[
+                      _twoCellRow(
+                        'Freight Amount',
+                        _safeFixedString(totalFreightAmount),
+                      ),
+                      if (totalFreightTaxAmount > 0)
+                        _twoCellRow(
+                          'Freight Tax',
+                          _safeFixedString(totalFreightTaxAmount),
+                        ),
+                    ],
+                    _twoCellRow(
+                      'CGST @$taxPercentage%',
+                      _safeFixedString(cgstAmount),
+                    ),
+                    _twoCellRow(
+                      'SGST @$taxPercentage%',
+                      _safeFixedString(sgstAmount),
+                    ),
+                    _twoCellRow(
+                      'Round Off Amount',
+                      _safeFixedString(grnData['grnRoundOffAmount']),
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Amount in Words: $amountInWords',
+                            style: pw.TextStyle(fontSize: 12),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Total: ${_safeFixedString(grnData['totalReceivedAmount'])}',
+                            style: pw.TextStyle(fontSize: 12),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
 
-    final output = await getTemporaryDirectory();
-    final safeId = (grnData['randomId'] ?? grnId).toString().replaceAll(
-      '/',
-      '_',
-    );
+              pw.SizedBox(height: 12),
 
-    final filename = 'grn_$safeId.pdf';
-    final file = File('${output.path}/$filename');
-    await file.writeAsBytes(await pdf.save());
-    return file;
+              // Terms & Conditions
+              pw.Text(
+                'Terms & Conditions',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              ..._buildTermsAndConditions(grnData['termsAndConditions']),
+
+              pw.SizedBox(height: 16),
+
+              // Declaration
+              pw.Text(
+                'Declaration:',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                grnData['declaration']?.toString() ??
+                    'We declare that this invoice shows the actual price of the described items and that all particulars are true and correct.',
+                style: pw.TextStyle(fontSize: 11),
+              ),
+
+              pw.SizedBox(height: 20),
+
+              // Footer
+              pw.Row(
+                children: [
+                  pw.Expanded(child: pw.Center(child: pw.Text('Page 1 of 1'))),
+                  pw.Text('Authorized Signatory'),
+                ],
+              ),
+            ];
+          },
+        ),
+      );
+
+      final output = await getTemporaryDirectory();
+      final safeId = (grnData['randomId'] ?? grnId).toString().replaceAll(
+        '/',
+        '_',
+      );
+
+      final filename = 'grn_$safeId.pdf';
+      final file = File('${output.path}/$filename');
+      await file.writeAsBytes(await pdf.save());
+      return file;
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
+    }
   }
 
   Future<void> generateAndOpenGRN(BuildContext context, String grnId) async {
     try {
       debugPrint("📄 Start generating GRN PDF: $grnId");
 
-      /// STEP 1: Generate PDF
-      final file = await GRNPDF().generateGRNPdf(grnId);
+      final file = await generateGRNPdf(grnId);
 
       if (!context.mounted) return;
 
       debugPrint("✅ PDF generated at: ${file.path}");
 
-      /// STEP 2: Open PDF
       final result = await OpenFilex.open(file.path);
 
       if (!context.mounted) return;
 
       debugPrint("📂 Open result: ${result.message}");
 
-      /// STEP 3: Handle open failure
       if (result.type != ResultType.done) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to open PDF: ${result.message}")),
+        AppSnackbar.showError(
+          context,
+          Exception("Failed to open PDF: ${result.message}"),
         );
+
+        return;
       }
-    } catch (e) {
+
+      AppSnackbar.showSuccess(context, "GRN PDF opened successfully");
+    } catch (e, s) {
       if (!context.mounted) return;
 
       debugPrint("❌ PDF Error: $e");
+      debugPrintStack(stackTrace: s);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("PDF generation failed"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppSnackbar.showError(context, e);
     }
   }
 

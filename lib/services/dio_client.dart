@@ -1,8 +1,5 @@
-// ignore_for_file: avoid_print
-
 import 'package:dio/dio.dart';
 import 'package:purchaseorders2/core/config/env.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:purchaseorders2/services/navigation_service.dart';
 import 'package:purchaseorders2/core/storage/secure_storage_service.dart';
 import 'package:flutter/material.dart';
@@ -14,7 +11,7 @@ class DioClient {
 
   // INIT (MUST CALL IN main)
   static Future<void> init() async {
-    //Set options AFTER dotenv is loaded
+    // Set options AFTER dotenv is loaded
     dio.options = BaseOptions(
       baseUrl: Env.baseUrl,
       connectTimeout: const Duration(seconds: 60),
@@ -110,14 +107,8 @@ class DioClient {
               onPressed: () async {
                 Navigator.pop(context);
 
-                final prefs = await SharedPreferences.getInstance();
-
-                // Clear secure token
-                await SecureStorageService.clearToken();
-
-                // Clear local data
-                await prefs.remove('username');
-                await prefs.remove('browser_session_id');
+                // Clear all secure data
+                await SecureStorageService.clearAll();
 
                 NavigationService.navigateToLogin();
               },

@@ -1,11 +1,9 @@
-// ignore_for_file: library_private_types_in_public_api, unnecessary_to_list_in_spreads, use_build_context_synchronously, unnecessary_non_null_assertion, unnecessary_null_comparison, avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/models/grn/grnitem.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import '../../../models/grn.dart';
+import '../../../models/grn/grn.dart';
 import '../../../providers/grn_provider.dart';
 import 'package:provider/provider.dart';
 
@@ -115,7 +113,7 @@ class GRNReturnLogic extends ChangeNotifier {
       final DateTime parsedDate = DateTime.parse(date).toUtc().toLocal();
       return DateFormat('dd MMM yyyy').format(parsedDate);
     } catch (e) {
-      return date ?? 'No Date';
+      throw Exception("DATE_FORMAT_ERROR");
     }
   }
 
@@ -370,9 +368,8 @@ class GRNReturnLogic extends ChangeNotifier {
           .where((entry) => (entry.value.returnedQuantity ?? 0) > 0)
           .where(
             (entry) =>
-                entry.value.itemId != null &&
-                entry.value.itemId!.isNotEmpty &&
-                _isValidObjectId(entry.value.itemId!),
+                entry.value.itemId.isNotEmpty &&
+                _isValidObjectId(entry.value.itemId),
           )
           .map((entry) {
             final index = entry.key;
@@ -402,11 +399,9 @@ class GRNReturnLogic extends ChangeNotifier {
     final items = <ReturnItem>[];
     for (int i = 0; i < (grn.itemDetails?.length ?? 0); i++) {
       final item = grn.itemDetails![i];
-      if (item.itemId != null &&
-          item.itemId!.isNotEmpty &&
-          _isValidObjectId(item.itemId!)) {
+      if (item.itemId.isNotEmpty && _isValidObjectId(item.itemId)) {
         final returnItem = ReturnItem(
-          itemId: item.itemId!,
+          itemId: item.itemId,
           nos: item.nos,
           eachQuantity: item.eachQuantity,
           returnReason: itemReasonsNotifier.value[i] ?? 'Full return',
@@ -594,10 +589,12 @@ class GRNReturnLogic extends ChangeNotifier {
 
   Future<void> submitReturn(BuildContext context) async {
     final permission = context.read<PermissionProvider>();
+
     if (!permission.hasEditAction('grns', 'return_grn')) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("No permission")));
+
       return;
     }
 
@@ -620,6 +617,7 @@ class GRNReturnLogic extends ChangeNotifier {
                 final String message = scenarioNotifier.value == 'full'
                     ? 'Do you want to return all items?'
                     : 'Do you want to return selected items?';
+
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -631,7 +629,9 @@ class GRNReturnLogic extends ChangeNotifier {
                         fontSize: 18,
                       ),
                     ),
+
                     const SizedBox(height: 12),
+
                     Text(
                       message,
                       style: const TextStyle(
@@ -639,12 +639,15 @@ class GRNReturnLogic extends ChangeNotifier {
                         color: Colors.black87,
                       ),
                     ),
+
                     const SizedBox(height: 20),
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(innerContext, false),
+
                           child: const Text(
                             'Cancel',
                             style: TextStyle(
@@ -653,13 +656,17 @@ class GRNReturnLogic extends ChangeNotifier {
                             ),
                           ),
                         ),
+
                         const SizedBox(width: 10),
+
                         ElevatedButton(
                           onPressed: () => Navigator.pop(innerContext, true),
+
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blueAccent,
                             foregroundColor: Colors.white,
                           ),
+
                           child: const Text('Confirm'),
                         ),
                       ],
@@ -688,24 +695,32 @@ class GRNReturnLogic extends ChangeNotifier {
 
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
 
+    // START LOADING
+    isSubmitting.value = true;
+
     try {
       await grnProvider.returnGrn(
         grnId,
         ReturnGRNRequest(
           scenario: scenarioNotifier.value == 'full' ? "full" : "partial",
+
           returnedDate: returnDateNotifier.value!,
+
           returnedBy: returnedBy,
+
           comments: scenarioNotifier.value == 'full'
               ? (itemReasonsNotifier.value.isNotEmpty
                     ? itemReasonsNotifier.value.values.first
                     : null)
               : null,
+
           items: convertedItems,
         ),
       );
 
       if (context.mounted) {
         Navigator.of(context).pop(true);
+
         showTopSnackBar(
           'Return processed successfully',
           backgroundColor: Colors.green,
@@ -715,6 +730,9 @@ class GRNReturnLogic extends ChangeNotifier {
       if (context.mounted) {
         showTopSnackBar('Failed to process return: $e');
       }
+    } finally {
+      // STOP LOADING
+      isSubmitting.value = false;
     }
   }
 

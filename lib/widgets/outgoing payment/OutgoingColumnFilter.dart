@@ -1,4 +1,3 @@
-// widgets/outgoing_payment/outgoing_column_filter.dart
 import 'package:flutter/material.dart';
 
 class OutgoingColumnFilter extends StatefulWidget {

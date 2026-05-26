@@ -1,9 +1,10 @@
-// ignore_for_file: avoid_print, prefer_conditional_assignment
-
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/errors/app_exception.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
-import '../models/po.dart';
+import '../models/po/po.dart';
 
 class POModalProvider with ChangeNotifier {
   final PO _po;
@@ -90,7 +91,7 @@ class POModalProvider with ChangeNotifier {
       final item = po.items[i];
 
       if ((item.pendingTotalQuantity ?? 0) <= 0) {
-        print("⏭ Skipping hidden item: ${item.itemName}");
+        debugPrint("⏭ Skipping hidden item: ${item.itemName}");
         continue;
       }
 
@@ -98,7 +99,7 @@ class POModalProvider with ChangeNotifier {
       final qty = item.pendingQuantity ?? item.eachQuantity ?? 0;
       final price = item.newPrice ?? 0;
 
-      print(
+      debugPrint(
         "🔍 Checking ${item.itemName} → Count:$count Qty:$qty Price:$price",
       );
 
@@ -167,8 +168,10 @@ class POModalProvider with ChangeNotifier {
       item.pendingIgst = data["pendingIgst"];
 
       notifyListeners();
-    } catch (e) {
-      debugPrint("Calculation error: $e");
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint("Calculation error: ${exception.message}");
     }
   }
 
@@ -244,15 +247,14 @@ class POModalProvider with ChangeNotifier {
     if (!context.mounted) return false;
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Changes saved successfully!")),
-      );
+      AppSnackbar.showSuccess(context, "Changes saved successfully!");
       notifyListeners();
       return true; // ✅ SUCCESS
     } else {
-      ScaffoldMessenger.of(
+      AppSnackbar.showError(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Failed to save changes.")));
+        const AppException("Failed to save changes."),
+      );
       return false;
     }
   }
@@ -267,16 +269,16 @@ class POModalProvider with ChangeNotifier {
         data: {"items": items},
       );
 
-      if (response.statusCode == 200) {
+      if ((response.statusCode ?? 0) >= 200 &&
+          (response.statusCode ?? 0) < 300) {
         return true;
       }
 
       return false;
-    } on DioException catch (e) {
-      debugPrint("Dio error: ${e.response?.data}");
-      return false;
-    } catch (e) {
-      debugPrint("Error sending update: $e");
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint("Error sending update: ${exception.message}");
       return false;
     }
   }

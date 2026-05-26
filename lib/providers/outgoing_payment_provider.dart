@@ -1,12 +1,11 @@
-// ignore_for_file: prefer_final_fields
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
-import 'package:purchaseorders2/models/ap.dart';
-import 'package:purchaseorders2/models/grn.dart';
-import 'package:purchaseorders2/models/outgoing.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/models/ap/ap.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
+import 'package:purchaseorders2/models/outgoing/outgoing.dart';
 import 'package:purchaseorders2/pdfs/outgoing_pdf.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
@@ -34,7 +33,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   bool _isLoadingInvoices = false;
   String _error = '';
   final List<String> _validationWarnings = [];
-  Map<int, bool> _loadingPdfMap = {};
+  final Map<int, bool> _loadingPdfMap = {};
 
   List<Outgoing> get payments => _payments;
   List<Outgoing> get allPayments => _payments;
@@ -69,8 +68,10 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       final pdfFile = await poService.generateOutgoingPdf(payment.outgoingId);
 
       await Printing.layoutPdf(onLayout: (_) => pdfFile.readAsBytesSync());
-    } catch (e) {
-      debugPrint("PDF Error: $e");
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint("PDF Error: ${exception.message}");
     } finally {
       _loadingPdfMap[index] = false;
       notifyListeners();
@@ -92,7 +93,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         fetchApInvoices(),
       ]);
     } catch (e) {
-      _error = _getReadableError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -112,7 +115,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
             .toList();
       } else {}
     } catch (e) {
-      _error = _getReadableError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     }
     notifyListeners();
   }
@@ -120,7 +125,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
   Future<void> fetchApInvoices() async {
     try {
       if (kDebugMode) {
-        print('🚀 fetchAPInvoices CALLED');
+        debugPrint('🚀 fetchAPInvoices CALLED');
       }
 
       final response = await DioClient.dio.get(
@@ -134,14 +139,16 @@ class OutgoingPaymentProvider extends ChangeNotifier {
             .toList();
 
         if (kDebugMode) {
-          print('✅ Fetched ${_apInvoices.length} AP invoices');
+          debugPrint('✅ Fetched ${_apInvoices.length} AP invoices');
         }
       } else {
         _apInvoices = [];
       }
     } catch (e) {
       _apInvoices = [];
-      _error = _getReadableError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     }
 
     notifyListeners();
@@ -198,16 +205,22 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         _invoiceNumbersNotifier.value = invoiceNumbers;
 
         if (kDebugMode) {
-          print('✅ Pending invoice list: $invoiceNumbers');
+          debugPrint('✅ Pending invoice list: $invoiceNumbers');
         }
       } else {
         _invoiceNumbersNotifier.value = [];
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
       _invoiceNumbersNotifier.value = [];
-      if (kDebugMode) {
-        print('❌ fetchInvoiceNumbers error: $e');
-      }
+
+      debugPrint(
+        '❌ fetchInvoiceNumbers error: '
+        '${exception.message}',
+      );
+
+      _error = exception.message;
     } finally {
       _isLoadingInvoices = false;
       notifyListeners();
@@ -319,10 +332,19 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         _allPayments = [];
         _error = 'Unable to load outgoings. Please try again.';
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint(
+        "fetchFilteredOutgoings error: "
+        "${exception.message}",
+      );
+
       _payments = [];
       _allPayments = [];
-      _error = _getReadableError(e);
+      _error = exception.message;
+
+      return [];
     } finally {
       _isLoadingOutgoings = false;
       _isTableLoading = false;
@@ -368,9 +390,19 @@ class OutgoingPaymentProvider extends ChangeNotifier {
         notifyListeners();
         return [];
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint(
+        "fetchByPaymentDate error: "
+        "${exception.message}",
+      );
+
       _payments = [];
+      _error = exception.message;
+
       notifyListeners();
+
       return [];
     }
   }
@@ -406,7 +438,9 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     } catch (e) {
       _payments = [];
       _allPayments = [];
-      _error = _getReadableError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -425,10 +459,12 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       );
 
       if (kDebugMode) {
-        print(
+        debugPrint(
           '[API] Save outgoing payment response status: ${response.statusCode}',
         );
-        print('[API] Save outgoing payment response body: ${response.data}');
+        debugPrint(
+          '[API] Save outgoing payment response body: ${response.data}',
+        );
       }
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -437,15 +473,15 @@ class OutgoingPaymentProvider extends ChangeNotifier {
 
       final responseData = response.data;
       return responseData['outgoingId'] ?? outgoing.outgoingId;
-    } catch (e) {
-      throw Exception('Failed to connect to server: $e');
+    } catch (e, stackTrace) {
+      throw AppErrorHandler.handle(e, stackTrace: stackTrace);
     }
   }
 
   Future<void> processOutgoingPayment(String outgoingId) async {
     try {
       if (kDebugMode) {
-        print('[API] Processing payment for ID: $outgoingId');
+        debugPrint('[API] Processing payment for ID: $outgoingId');
       }
       final response = await DioClient.dio.post(
         '/outgoingpayments/$outgoingId/process',
@@ -453,8 +489,8 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       );
 
       if (kDebugMode) {
-        print('[API] Response status: ${response.statusCode}');
-        print('[API] Response body: ${response.data}');
+        debugPrint('[API] Response status: ${response.statusCode}');
+        debugPrint('[API] Response body: ${response.data}');
       }
 
       if (response.statusCode != 200) {
@@ -462,10 +498,16 @@ class OutgoingPaymentProvider extends ChangeNotifier {
           'Failed to process payment: ${response.data} (Status: ${response.statusCode})',
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
       if (kDebugMode) {
-        print('[API ERROR] Payment processing failed: $e');
+        debugPrint(
+          '[API ERROR] '
+          '${exception.message}',
+        );
       }
+
       rethrow;
     }
   }
@@ -479,8 +521,8 @@ class OutgoingPaymentProvider extends ChangeNotifier {
     required Map<String, dynamic> transactionDetails,
   }) async {
     if (kDebugMode) {
-      print('processPayment -> outgoingId=$outgoingId');
-      print(
+      debugPrint('processPayment -> outgoingId=$outgoingId');
+      debugPrint(
         'paymentType=$paymentType, amount=$amount, paymentMode=$paymentMode, '
         'paymentMethod=$paymentMethod, tx=$transactionDetails',
       );
@@ -540,7 +582,7 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       }
 
       if (kDebugMode) {
-        print('processPayment -> requestData=$requestData');
+        debugPrint('processPayment -> requestData=$requestData');
       }
 
       final response = await DioClient.dio.patch(
@@ -591,13 +633,15 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       notifyListeners();
 
       if (kDebugMode) {
-        print('✅ Payment processed & UI updated instantly');
+        debugPrint('✅ Payment processed & UI updated instantly');
       }
     } catch (e) {
       if (kDebugMode) {
-        print('❌ processPayment error: $e');
+        debugPrint('❌ processPayment error: $e');
       }
-      _error = _getReadableError(e);
+      final exception = AppErrorHandler.handle(e);
+
+      _error = exception.message;
       notifyListeners();
       rethrow;
     }
@@ -709,27 +753,33 @@ class OutgoingPaymentProvider extends ChangeNotifier {
       }
 
       return response.data as Map<String, dynamic>;
-    } catch (e) {
-      debugPrint('❌ processBulkPayments ERROR => $e');
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint(
+        '❌ processBulkPayments ERROR => '
+        '${exception.message}',
+      );
+
       rethrow;
     }
   }
 
-  String _getReadableError(dynamic e) {
-    final error = e.toString().toLowerCase();
+  // String _getReadableError(dynamic e) {
+  //   final error = e.toString().toLowerCase();
 
-    if (error.contains('socket') || error.contains('network')) {
-      return "No internet connection";
-    } else if (error.contains('timeout')) {
-      return "Request timed out. Please try again";
-    } else if (error.contains('500')) {
-      return "Server error. Please try again later";
-    } else if (error.contains('404')) {
-      return "Data not found";
-    } else {
-      return "Something went wrong. Please try again";
-    }
-  }
+  //   if (error.contains('socket') || error.contains('network')) {
+  //     return "No internet connection";
+  //   } else if (error.contains('timeout')) {
+  //     return "Request timed out. Please try again";
+  //   } else if (error.contains('500')) {
+  //     return "Server error. Please try again later";
+  //   } else if (error.contains('404')) {
+  //     return "Data not found";
+  //   } else {
+  //     return "Something went wrong. Please try again";
+  //   }
+  // }
 
   @override
   void dispose() {

@@ -6,30 +6,41 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
 
 class GRNDebitPdf {
   // ================= FETCH GRN =================
   Future<Map<String, dynamic>> fetchGRN(String grnId) async {
-    final response = await DioClient.dio.get('/grns/$grnId');
+    try {
+      final response = await DioClient.dio.get('/grns/$grnId');
 
-    if (response.statusCode == 200) {
-      return response.data is Map<String, dynamic> ? response.data : {};
-    } else {
+      if (response.statusCode == 200) {
+        return response.data is Map<String, dynamic> ? response.data : {};
+      }
+
       throw Exception('Failed to load GRN');
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
     }
   }
 
   // ================= FETCH BUSINESS =================
   Future<Map<String, dynamic>> fetchBusinessDetails() async {
-    final response = await DioClient.dio.get('/pobusiness/');
+    try {
+      final response = await DioClient.dio.get('/pobusiness/');
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = response.data is List ? response.data : [];
-      return data.isNotEmpty ? data.first : {};
-    } else {
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data is List ? response.data : [];
+
+        return data.isNotEmpty ? data.first : {};
+      }
+
       throw Exception('Failed to load business details');
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
     }
   }
 
@@ -54,7 +65,10 @@ class GRNDebitPdf {
       }
 
       return _fallbackVendor(vendorName);
-    } catch (_) {
+    } catch (e, s) {
+      debugPrint("Vendor Fetch Error: $e");
+      debugPrintStack(stackTrace: s);
+
       return _fallbackVendor(vendorName);
     }
   }
@@ -78,252 +92,256 @@ class GRNDebitPdf {
 
   // ================= GENERATE PDF =================
   Future<File> generateGrnPdf(String grnId) async {
-    final grnData = await fetchGRN(grnId);
-    final businessData = await fetchBusinessDetails();
-    final vendorData = await fetchVendorsDetails(
-      vendorName: grnData['vendorName'],
-    );
-    final logoImage = await _loadLogoImage();
+    try {
+      final grnData = await fetchGRN(grnId);
+      final businessData = await fetchBusinessDetails();
+      final vendorData = await fetchVendorsDetails(
+        vendorName: grnData['vendorName'],
+      );
+      final logoImage = await _loadLogoImage();
 
-    final items = grnData['itemDetails'] is List
-        ? grnData['itemDetails']
-        : [grnData['itemDetails'] ?? {}];
+      final items = grnData['itemDetails'] is List
+          ? grnData['itemDetails']
+          : [grnData['itemDetails'] ?? {}];
 
-    final subtotal = items.fold(
-      0.0,
-      (sum, i) => sum + (i['returnedTotalPrice']?.toDouble() ?? 0.0),
-    );
-    final totalTax = items.fold(
-      0.0,
-      (sum, i) =>
-          sum +
-          ((i['returnedCgst']?.toDouble() ?? 0.0) +
-              (i['returnedSgst']?.toDouble() ?? 0.0)),
-    );
-    final totalDiscount = items.fold(
-      0.0,
-      (sum, i) => sum + (i['returnedDiscountAmount']?.toDouble() ?? 0.0),
-    );
-    final cgstTotal = items.fold(
-      0.0,
-      (sum, i) => sum + (i['returnedCgst']?.toDouble() ?? 0.0),
-    );
-    final sgstTotal = items.fold(
-      0.0,
-      (sum, i) => sum + (i['returnedSgst']?.toDouble() ?? 0.0),
-    );
-    final finalTotal =
-        grnData['totalReturnedAmount']?.toDouble() ??
-        (subtotal + totalTax - totalDiscount);
+      final subtotal = items.fold(
+        0.0,
+        (sum, i) => sum + (i['returnedTotalPrice']?.toDouble() ?? 0.0),
+      );
+      final totalTax = items.fold(
+        0.0,
+        (sum, i) =>
+            sum +
+            ((i['returnedCgst']?.toDouble() ?? 0.0) +
+                (i['returnedSgst']?.toDouble() ?? 0.0)),
+      );
+      final totalDiscount = items.fold(
+        0.0,
+        (sum, i) => sum + (i['returnedDiscountAmount']?.toDouble() ?? 0.0),
+      );
+      final cgstTotal = items.fold(
+        0.0,
+        (sum, i) => sum + (i['returnedCgst']?.toDouble() ?? 0.0),
+      );
+      final sgstTotal = items.fold(
+        0.0,
+        (sum, i) => sum + (i['returnedSgst']?.toDouble() ?? 0.0),
+      );
+      final finalTotal =
+          grnData['totalReturnedAmount']?.toDouble() ??
+          (subtotal + totalTax - totalDiscount);
 
-    final pdf = pw.Document();
-    final formattedDate = DateFormat(
-      'dd-MM-yyyy',
-    ).format(ServerTimeService.now);
+      final pdf = pw.Document();
+      final formattedDate = DateFormat(
+        'dd-MM-yyyy',
+      ).format(ServerTimeService.now);
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: pw.EdgeInsets.all(20),
-        build: (_) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // ===== HEADER WITH LOGO =====
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Image(logoImage, width: 100, height: 50),
-                  pw.Expanded(
-                    child: pw.Center(
-                      child: pw.Text(
-                        'DEBIT NOTE',
-                        style: pw.TextStyle(
-                          fontSize: 20,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.all(20),
+          build: (_) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                // ===== HEADER WITH LOGO =====
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Image(logoImage, width: 100, height: 50),
+                    pw.Expanded(
+                      child: pw.Center(
+                        child: pw.Text(
+                          'DEBIT NOTE',
+                          style: pw.TextStyle(
+                            fontSize: 20,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
-              // ===== BUSINESS INFO RIGHT =====
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
-                    children: [
-                      pw.Text(
-                        businessData['companyName'] ?? '',
-                        style: pw.TextStyle(
-                          fontSize: 14,
-                          fontWeight: pw.FontWeight.bold,
+                // ===== BUSINESS INFO RIGHT =====
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.center,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          businessData['companyName'] ?? '',
+                          style: pw.TextStyle(
+                            fontSize: 14,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      pw.Text(businessData['address1'] ?? ''),
-                      pw.Text(businessData['address2'] ?? ''),
-                      pw.Text('GSTIN: ${businessData['gstIn'] ?? ''}'),
-                      pw.Text('Ph: ${businessData['phoneNo'] ?? ''}'),
-                    ],
-                  ),
-                ],
-              ),
-
-              pw.SizedBox(height: 15),
-
-              // ===== VENDOR / BILLING / DETAILS =====
-              pw.Table(
-                border: pw.TableBorder.all(),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(2),
-                  2: pw.FlexColumnWidth(1.5),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+                        pw.Text(businessData['address1'] ?? ''),
+                        pw.Text(businessData['address2'] ?? ''),
+                        pw.Text('GSTIN: ${businessData['gstIn'] ?? ''}'),
+                        pw.Text('Ph: ${businessData['phoneNo'] ?? ''}'),
+                      ],
                     ),
-                    children: [
-                      _headerCell('Vendor Details'),
-                      _headerCell('Billing Address'),
-                      _headerCell('Debit Note Details'),
-                    ],
-                  ),
-                  pw.TableRow(
-                    children: [
-                      _normalCell(
-                        '${vendorData['vendorName']}\n'
-                        'GSTIN: ${vendorData['gstNumber']}\n'
-                        'City: ${vendorData['city']}\n'
-                        'State: ${vendorData['state']}\n'
-                        'Phone: ${vendorData['contactpersonPhone']}',
-                      ),
-                      _normalCell(grnData['billingAddress'] ?? ''),
-                      _normalCell(
-                        'Note No: ${grnData['randomId'] ?? grnId}\n'
-                        'Date: $formattedDate',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                  ],
+                ),
 
-              pw.SizedBox(height: 10),
+                pw.SizedBox(height: 15),
 
-              // ===== ITEMS TABLE =====
-              pw.Table(
-                border: pw.TableBorder.all(),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(0.5),
-                  1: pw.FlexColumnWidth(2),
-                  2: pw.FlexColumnWidth(0.8),
-                  3: pw.FlexColumnWidth(1),
-                  4: pw.FlexColumnWidth(1),
-                  5: pw.FlexColumnWidth(1),
-                  6: pw.FlexColumnWidth(1.2),
-                },
-                children: [
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+                // ===== VENDOR / BILLING / DETAILS =====
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(2),
+                    1: pw.FlexColumnWidth(2),
+                    2: pw.FlexColumnWidth(1.5),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+                      ),
+                      children: [
+                        _headerCell('Vendor Details'),
+                        _headerCell('Billing Address'),
+                        _headerCell('Debit Note Details'),
+                      ],
                     ),
-                    children: [
-                      _headerCell('SI'),
-                      _headerCell('Description'),
-                      _headerCell('Qty'),
-                      _headerCell('Unit Price'),
-                      _headerCell('Tax'),
-                      _headerCell('Discount'),
-                      _headerCell('Amount'),
-                    ],
+                    pw.TableRow(
+                      children: [
+                        _normalCell(
+                          '${vendorData['vendorName']}\n'
+                          'GSTIN: ${vendorData['gstNumber']}\n'
+                          'City: ${vendorData['city']}\n'
+                          'State: ${vendorData['state']}\n'
+                          'Phone: ${vendorData['contactpersonPhone']}',
+                        ),
+                        _normalCell(grnData['billingAddress'] ?? ''),
+                        _normalCell(
+                          'Note No: ${grnData['randomId'] ?? grnId}\n'
+                          'Date: $formattedDate',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                pw.SizedBox(height: 10),
+
+                // ===== ITEMS TABLE =====
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(0.5),
+                    1: pw.FlexColumnWidth(2),
+                    2: pw.FlexColumnWidth(0.8),
+                    3: pw.FlexColumnWidth(1),
+                    4: pw.FlexColumnWidth(1),
+                    5: pw.FlexColumnWidth(1),
+                    6: pw.FlexColumnWidth(1.2),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor(38 / 255, 89 / 255, 198 / 255, 1),
+                      ),
+                      children: [
+                        _headerCell('SI'),
+                        _headerCell('Description'),
+                        _headerCell('Qty'),
+                        _headerCell('Unit Price'),
+                        _headerCell('Tax'),
+                        _headerCell('Discount'),
+                        _headerCell('Amount'),
+                      ],
+                    ),
+                    ..._buildDebitItemRows(items),
+                  ],
+                ),
+
+                pw.SizedBox(height: 10),
+
+                // ===== TOTALS =====
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: pw.FlexColumnWidth(2),
+                    1: pw.FlexColumnWidth(1),
+                  },
+                  children: [
+                    _totalRow('Subtotal', subtotal),
+                    _totalRow('Total Tax', totalTax),
+                    _totalRow('Total Discount', totalDiscount),
+                    _totalRow('CGST', cgstTotal),
+                    _totalRow('SGST', sgstTotal),
+                    _totalRow('Final Total', finalTotal, bold: true),
+                  ],
+                ),
+
+                pw.SizedBox(height: 10),
+
+                // ===== AMOUNT IN WORDS =====
+                pw.Text(
+                  'Amount in Words: ${_amountInWords(finalTotal)}',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+
+                pw.SizedBox(height: 15),
+
+                // ===== TERMS =====
+                pw.Text(
+                  'Terms & Conditions',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
                   ),
-                  ..._buildDebitItemRows(items),
-                ],
-              ),
-
-              pw.SizedBox(height: 10),
-
-              // ===== TOTALS =====
-              pw.Table(
-                border: pw.TableBorder.all(),
-                columnWidths: {
-                  0: pw.FlexColumnWidth(2),
-                  1: pw.FlexColumnWidth(1),
-                },
-                children: [
-                  _totalRow('Subtotal', subtotal),
-                  _totalRow('Total Tax', totalTax),
-                  _totalRow('Total Discount', totalDiscount),
-                  _totalRow('CGST', cgstTotal),
-                  _totalRow('SGST', sgstTotal),
-                  _totalRow('Final Total', finalTotal, bold: true),
-                ],
-              ),
-
-              pw.SizedBox(height: 10),
-
-              // ===== AMOUNT IN WORDS =====
-              pw.Text(
-                'Amount in Words: ${_amountInWords(finalTotal)}',
-                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              ),
-
-              pw.SizedBox(height: 15),
-
-              // ===== TERMS =====
-              pw.Text(
-                'Terms & Conditions',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
                 ),
-              ),
-              pw.Text('1. Debit note issued for returned/damaged goods.'),
-              pw.Text('2. Returned goods will not be accepted again.'),
-              pw.Text('3. Subject to local jurisdiction only.'),
+                pw.Text('1. Debit note issued for returned/damaged goods.'),
+                pw.Text('2. Returned goods will not be accepted again.'),
+                pw.Text('3. Subject to local jurisdiction only.'),
 
-              pw.SizedBox(height: 15),
+                pw.SizedBox(height: 15),
 
-              // ===== DECLARATION =====
-              pw.Text(
-                'Declaration:',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
+                // ===== DECLARATION =====
+                pw.Text(
+                  'Declaration:',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
                 ),
-              ),
-              pw.Text(
-                'We declare that this debit note shows the actual value of returned goods and all particulars are true and correct.',
-              ),
+                pw.Text(
+                  'We declare that this debit note shows the actual value of returned goods and all particulars are true and correct.',
+                ),
 
-              pw.SizedBox(height: 30),
+                pw.SizedBox(height: 30),
 
-              // ===== SIGN =====
-              pw.Align(
-                alignment: pw.Alignment.centerRight,
-                child: pw.Text('Authorized Signatory'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+                // ===== SIGN =====
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Text('Authorized Signatory'),
+                ),
+              ],
+            );
+          },
+        ),
+      );
 
-    final output = await getTemporaryDirectory();
+      final output = await getTemporaryDirectory();
 
-    final safeFileName = (grnData['randomId'] ?? grnId).toString().replaceAll(
-      '/',
-      '_',
-    );
+      final safeFileName = (grnData['randomId'] ?? grnId).toString().replaceAll(
+        '/',
+        '_',
+      );
 
-    final file = File("${output.path}/DebitNote_$safeFileName.pdf");
+      final file = File("${output.path}/DebitNote_$safeFileName.pdf");
 
-    await file.writeAsBytes(await pdf.save());
-    return file;
+      await file.writeAsBytes(await pdf.save());
+      return file;
+    } catch (e, st) {
+      throw AppErrorHandler.handle(e, stackTrace: st);
+    }
   }
 
   // ================= HELPERS =================
@@ -384,23 +402,22 @@ class GRNDebitPdf {
       debugPrint("📂 Open result: ${result.message}");
 
       if (result.type != ResultType.done) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Failed to open Debit PDF: ${result.message}"),
-          ),
+        AppSnackbar.showError(
+          context,
+          Exception("Failed to open Debit PDF: ${result.message}"),
         );
+
+        return;
       }
-    } catch (e) {
+
+      AppSnackbar.showSuccess(context, "Debit PDF opened successfully");
+    } catch (e, s) {
       if (!context.mounted) return;
 
       debugPrint("❌ Debit PDF Error: $e");
+      debugPrintStack(stackTrace: s);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Failed to open Debit PDF"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      AppSnackbar.showError(context, e);
     }
   }
 

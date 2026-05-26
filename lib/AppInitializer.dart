@@ -4,7 +4,7 @@ import 'package:purchaseorders2/providers/ap_invoice_provider.dart';
 import 'package:purchaseorders2/providers/connectivity_provider.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/providers/outgoing_payment_provider.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 
 class AppInitializer extends StatefulWidget {
   final Widget child;

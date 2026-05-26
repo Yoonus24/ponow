@@ -1,9 +1,8 @@
-// ignore_for_file: avoid_print
-
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/bankdetails_models.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/models/po/bankdetails_models.dart';
 import 'package:purchaseorders2/services/dio_client.dart';
 
 class PaymentDialogProvider with ChangeNotifier {
@@ -178,13 +177,12 @@ class PaymentDialogProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final dio = DioClient.dio;
-
-      final response = await dio.get(
+      final response = await DioClient.dio.get(
         'https://yenerp.com/masterapi/bankmasters/',
       );
 
-      if (response.statusCode == 200) {
+      if ((response.statusCode ?? 0) >= 200 &&
+          (response.statusCode ?? 0) < 300) {
         _banks = (response.data as List)
             .map((json) => Bank.fromJson(json))
             .toList();
@@ -194,10 +192,22 @@ class PaymentDialogProvider with ChangeNotifier {
           bankNameController.text = bankName.value ?? '';
         }
       } else {
-        _bankError = 'Server error: ${response.statusCode}';
+        final exception = AppErrorHandler.handle(
+          DioException(
+            requestOptions: response.requestOptions,
+            response: response,
+            type: DioExceptionType.badResponse,
+          ),
+        );
+
+        _bankError = exception.message;
       }
-    } on DioException catch (e) {
-      _bankError = 'Failed to load banks: ${e.message}';
+    } catch (e, stackTrace) {
+      final exception = AppErrorHandler.handle(e, stackTrace: stackTrace);
+
+      debugPrint("Fetch bank error: ${exception.message}");
+
+      _bankError = exception.message;
     } finally {
       _isLoadingBanks = false;
       notifyListeners();

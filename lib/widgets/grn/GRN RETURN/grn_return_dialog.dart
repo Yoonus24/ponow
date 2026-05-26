@@ -1,9 +1,7 @@
-// ignore_for_file: unused_local_variable, library_private_types_in_public_api, unnecessary_to_list_in_spreads, use_build_context_synchronously, unnecessary_non_null_assertion, unnecessary_null_comparison, avoid_print
-
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/grnitem.dart';
+import 'package:purchaseorders2/models/grn/grnitem.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
-import '../../../models/grn.dart';
+import '../../../models/grn/grn.dart';
 import '../../../providers/grn_provider.dart';
 import 'package:provider/provider.dart';
 import '../../../utils/calculator_utils.dart';
@@ -39,25 +37,54 @@ class _GRNReturnState extends State<GRNReturn> {
   @override
   Widget build(BuildContext context) {
     logic.setContext(context);
+
     final permission = context.watch<PermissionProvider>();
+
     final canReturnGRN = logic.getCanReturnGRN(context);
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 14.0),
-            _buildReturnOptionsSection(canReturnGRN),
-            Expanded(child: _buildItemsTable()),
-            const SizedBox(height: 16.0),
-            _buildActionButtons(canReturnGRN),
-          ],
-        ),
-      ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: logic.isSubmitting,
+
+      builder: (context, isSubmitting, _) {
+        return Scaffold(
+          backgroundColor: Colors.white,
+
+          body: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(),
+
+                    const SizedBox(height: 14.0),
+
+                    _buildReturnOptionsSection(canReturnGRN),
+
+                    Expanded(child: _buildItemsTable()),
+
+                    const SizedBox(height: 16.0),
+
+                    _buildActionButtons(canReturnGRN),
+                  ],
+                ),
+              ),
+
+              // FULL SCREEN OVERLAY LOADER
+              if (isSubmitting) ...[
+                ModalBarrier(
+                  dismissible: false,
+                  color: Colors.black.withOpacity(0.35),
+                ),
+
+                const Center(child: CircularProgressIndicator()),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -603,9 +630,10 @@ class _GRNReturnState extends State<GRNReturn> {
                           item,
                         );
                         final returnQtyController = TextEditingController(
-                          text:
-                              item.returnedQuantity?.toStringAsFixed(2) ??
-                              '0.00',
+                          text: selectedRows[index]
+                              ? (item.returnedQuantity?.toStringAsFixed(2) ??
+                                    '0.00')
+                              : '0.00',
                         );
                         return Container(
                           height: 60,
@@ -722,8 +750,9 @@ class _GRNReturnState extends State<GRNReturn> {
           valueListenable: logic.quantityErrorsNotifier,
           builder: (context, quantityErrors, _) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              final updatedValue =
-                  item.returnedQuantity?.toStringAsFixed(2) ?? '0.00';
+              final updatedValue = selectedRows[index]
+                  ? (item.returnedQuantity?.toStringAsFixed(2) ?? '0.00')
+                  : '0.00';
 
               if (controller.text != updatedValue) {
                 controller.text = updatedValue;

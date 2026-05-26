@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
 import 'package:purchaseorders2/pdfs/grn_debit_pdf.dart';
 
 class DebitNoteViewDialog extends StatefulWidget {
@@ -135,7 +135,7 @@ class _DebitNoteViewDialogState extends State<DebitNoteViewDialog> {
                                 widget.grn.grnId ?? "",
                               );
                             } catch (e) {
-                              print("PDF ERROR: $e");
+                              throw Exception("PDF_GENERATION_ERROR");
                             } finally {
                               _pdfLoading.value = false;
                             }

@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:purchaseorders2/widgets/column_filter.dart';
-import '../../models/grn.dart';
+import '../../models/grn/grn.dart';
 
 class GRNViewModal extends StatefulWidget {
   final GRN grn;

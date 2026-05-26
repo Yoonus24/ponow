@@ -1,28 +1,28 @@
-// ignore_for_file: use_build_context_synchronously, unused_local_variable, deprecated_member_use, unused_element, library_private_types_in_public_api, curly_braces_in_flow_control_structures, avoid_print, prefer_final_fields
-
 import 'package:flutter/material.dart';
-import 'package:purchaseorders2/models/po_item.dart';
-import 'package:purchaseorders2/models/po_template.dart';
+import 'package:purchaseorders2/core/errors/app_error_handler.dart';
+import 'package:purchaseorders2/core/utils/app_snackbar.dart';
+import 'package:purchaseorders2/models/po/po_item.dart';
+import 'package:purchaseorders2/models/po/po_template.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/services/server_time_service.dart';
-import 'package:purchaseorders2/widgets/create%20po/location_dropdown.dart';
-import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/save_template_dialog.dart';
-import 'package:purchaseorders2/widgets/create%20po/TEMPLATE/template_list_dialog.dart';
-import '../widgets/create po/purchase_order_logic.dart';
-import '../widgets/create po/discount_section.dart';
-import '../models/discount_model.dart';
-import '../models/po.dart';
-import '../widgets/create po/add_item_dialog.dart';
-import '../widgets/create po/vendor_autocomplete.dart';
-import '../widgets/create po/address_fields.dart';
-import '../widgets/create po/items_table.dart';
+import 'package:purchaseorders2/widgets/create_po/location_dropdown.dart';
+import 'package:purchaseorders2/widgets/create_po/TEMPLATE/save_template_dialog.dart';
+import 'package:purchaseorders2/widgets/create_po/TEMPLATE/template_list_dialog.dart';
+import '../widgets/create_po/purchase_order_logic.dart';
+import '../widgets/create_po/discount_section.dart';
+import '../models/po/discount_model.dart';
+import '../models/po/po.dart';
+import '../widgets/create_po/add_item_dialog.dart';
+import '../widgets/create_po/vendor_autocomplete.dart';
+import '../widgets/create_po/address_fields.dart';
+import '../widgets/create_po/items_table.dart';
 import '../widgets/keyboard_dismisser.dart';
-import '../widgets/create po/TEMPLATE/template_creation_screen.dart';
-import '../widgets/create po/FREIGHT/freight_table.dart';
+import '../widgets/create_po/TEMPLATE/template_creation_screen.dart';
+import '../widgets/create_po/FREIGHT/freight_table.dart';
 
 class PurchaseOrderDialog extends StatefulWidget {
   final PO? editingPO;
@@ -45,7 +45,7 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
   final _scrollController = ScrollController();
   final ValueNotifier<bool> _refreshUI = ValueNotifier(false);
   bool _isDisposed = false;
-  bool _logicInitialized = false;
+  final bool _logicInitialized = false;
   late PurchaseOrderNotifier notifier;
   late POProvider poProvider;
   late TemplateProvider templateProvider;
@@ -214,45 +214,47 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     _triggerUIRefresh();
   }
 
-  void _clearOnlyDataNotControllers() {
-    try {
-      final notifier = Provider.of<PurchaseOrderNotifier>(
-        context,
-        listen: false,
-      );
-      notifier.selectedVendor = '';
-      notifier.selectedVendorDetails = null;
-      notifier.poItems.clear();
-      notifier.expectedDeliveryDateController.text = '';
-      notifier.calculateTotals();
-    } catch (e) {}
-  }
+  // void _clearOnlyDataNotControllers() {
+  //   try {
+  //     final notifier = Provider.of<PurchaseOrderNotifier>(
+  //       context,
+  //       listen: false,
+  //     );
+  //     notifier.selectedVendor = '';
+  //     notifier.selectedVendorDetails = null;
+  //     notifier.poItems.clear();
+  //     notifier.expectedDeliveryDateController.text = '';
+  //     notifier.calculateTotals();
+  //   } catch (e) {
+  //     throw Exception("Error clearing data: $e");
+  //   }
+  // }
 
-  void _initializeLogic() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isDisposed) return;
-      notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
-      poProvider = Provider.of<POProvider>(context, listen: false);
-      templateProvider = widget.templateProvider;
-      logic = PurchaseOrderLogic(
-        context: context,
-        notifier: notifier,
-        poProvider: poProvider,
-        templateProvider: templateProvider,
-        editingPO: widget.editingPO,
-        vendorController: _vendorAutocompleteController,
-        totalOrderAmount: _totalOrderAmount,
-        overallDiscountMode: _overallDiscountMode,
-        itemWiseDiscountMode: _itemWiseDiscountMode,
-        refreshUI: _refreshUI,
-        formKey: _formKey,
-        isDisposed: () => _isDisposed,
-      );
+  // void _initializeLogic() {
+  //   WidgetsBinding.instance.addPostFrameCallback((_) {
+  //     if (!mounted || _isDisposed) return;
+  //     notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+  //     poProvider = Provider.of<POProvider>(context, listen: false);
+  //     templateProvider = widget.templateProvider;
+  //     logic = PurchaseOrderLogic(
+  //       context: context,
+  //       notifier: notifier,
+  //       poProvider: poProvider,
+  //       templateProvider: templateProvider,
+  //       editingPO: widget.editingPO,
+  //       vendorController: _vendorAutocompleteController,
+  //       totalOrderAmount: _totalOrderAmount,
+  //       overallDiscountMode: _overallDiscountMode,
+  //       itemWiseDiscountMode: _itemWiseDiscountMode,
+  //       refreshUI: _refreshUI,
+  //       formKey: _formKey,
+  //       isDisposed: () => _isDisposed,
+  //     );
 
-      notifier.addListener(_updateTotalOrderAmount);
-      logic.initializeData();
-    });
-  }
+  //     notifier.addListener(_updateTotalOrderAmount);
+  //     logic.initializeData();
+  //   });
+  // }
 
   @override
   void didChangeDependencies() {
@@ -283,7 +285,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     if (!_totalOrderAmount.hasListeners) return;
     try {
       _totalOrderAmount.value = notifier.totalOrderAmount;
-    } catch (_) {}
+    } catch (_) {
+      throw Exception("Error updating total order amount");
+    }
   }
 
   void _triggerUIRefresh() {
@@ -362,6 +366,15 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                               itemsSectionKey: _itemsSectionKey,
                               expectedDateKey: _expectedDateKey,
                             );
+                          } catch (e, stackTrace) {
+                            final appError = AppErrorHandler.handle(
+                              e,
+                              stackTrace: stackTrace,
+                            );
+
+                            if (!mounted || _isDisposed) return;
+
+                            AppSnackbar.showError(context, appError);
                           } finally {
                             _isSaving.value = false;
                           }
@@ -513,21 +526,21 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     );
   }
 
-  void _safeClearAndClose() {
-    try {
-      notifier.poItems.clear();
-      notifier.selectedVendor = '';
-      notifier.selectedVendorDetails = null;
-      try {
-        notifier.billingController.text = '';
-        notifier.shippingController.text = '';
-      } catch (e) {}
-      notifier.calculateTotals();
-    } catch (e) {}
-    if (mounted) {
-      Navigator.of(context).pop();
-    }
-  }
+  // void _safeClearAndClose() {
+  //   try {
+  //     notifier.poItems.clear();
+  //     notifier.selectedVendor = '';
+  //     notifier.selectedVendorDetails = null;
+  //     try {
+  //       notifier.billingController.text = '';
+  //       notifier.shippingController.text = '';
+  //     } catch (e) {}
+  //     notifier.calculateTotals();
+  //   } catch (e) {}
+  //   if (mounted) {
+  //     Navigator.of(context).pop();
+  //   }
+  // }
 
   Future<void> _navigateToTemplateCreateScreen() async {
     logic.resetAllFields();
@@ -588,32 +601,32 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     _triggerUIRefresh();
   }
 
-  PO _createEmptyPO() {
-    return PO(
-      purchaseOrderId: '',
-      vendorName: '',
-      vendorContact: '',
-      items: [],
-      totalOrderAmount: 0.0,
-      pendingOrderAmount: 0.0,
-      pendingDiscountAmount: 0.0,
-      pendingTaxAmount: 0.0,
-      paymentTerms: '',
-      shippingAddress: '',
-      billingAddress: '',
-      contactpersonEmail: '',
-      address: '',
-      country: '',
-      state: '',
-      city: '',
-      postalCode: 0,
-      gstNumber: '',
-      creditLimit: 0,
-      orderDate: ServerTimeService.now.toIso8601String(),
-      createdDate: ServerTimeService.now.toIso8601String(),
-      randomId: '',
-    );
-  }
+  // PO _createEmptyPO() {
+  //   return PO(
+  //     purchaseOrderId: '',
+  //     vendorName: '',
+  //     vendorContact: '',
+  //     items: [],
+  //     totalOrderAmount: 0.0,
+  //     pendingOrderAmount: 0.0,
+  //     pendingDiscountAmount: 0.0,
+  //     pendingTaxAmount: 0.0,
+  //     paymentTerms: '',
+  //     shippingAddress: '',
+  //     billingAddress: '',
+  //     contactpersonEmail: '',
+  //     address: '',
+  //     country: '',
+  //     state: '',
+  //     city: '',
+  //     postalCode: 0,
+  //     gstNumber: '',
+  //     creditLimit: 0,
+  //     orderDate: ServerTimeService.now.toIso8601String(),
+  //     createdDate: ServerTimeService.now.toIso8601String(),
+  //     randomId: '',
+  //   );
+  // }
 
   void _saveCurrentAsTemplate() {
     FocusManager.instance.primaryFocus?.unfocus();
@@ -684,23 +697,12 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                 ),
               ),
             );
-          } catch (e) {
+          } catch (e, stackTrace) {
             if (!mounted || _isDisposed) return;
 
-            String message = "Something went wrong";
+            final appError = AppErrorHandler.handle(e, stackTrace: stackTrace);
 
-            if (e.toString().toLowerCase().contains("already exists")) {
-              message = "Template already exists";
-            }
-
-            ScaffoldMessenger.of(_safeScaffoldContext).showSnackBar(
-              SnackBar(
-                content: Text(message),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 160),
-              ),
-            );
+            AppSnackbar.showError(_safeScaffoldContext, appError);
           } finally {
             _isSaving.value = false;
           }
@@ -724,43 +726,43 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     );
   }
 
-  void _editPO(BuildContext context, PO po) {
-    final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
-    notifier.setEditingPO(po);
+  // void _editPO(BuildContext context, PO po) {
+  //   final notifier = Provider.of<PurchaseOrderNotifier>(context, listen: false);
+  //   notifier.setEditingPO(po);
 
-    showDialog(
-      barrierDismissible: false,
-      context: context,
-      builder: (_) => PurchaseOrderDialog(
-        key: UniqueKey(),
-        editingPO: po,
-        templateProvider: context.read<TemplateProvider>(),
-      ),
-    ).then((result) async {
-      if (!mounted) return;
+  //   showDialog(
+  //     barrierDismissible: false,
+  //     context: context,
+  //     builder: (_) => PurchaseOrderDialog(
+  //       key: UniqueKey(),
+  //       editingPO: po,
+  //       templateProvider: context.read<TemplateProvider>(),
+  //     ),
+  //   ).then((result) async {
+  //     if (!mounted) return;
 
-      // ✅ direct reset (no need postFrame)
-      notifier.setEditingPO(null);
+  //     // ✅ direct reset (no need postFrame)
+  //     notifier.setEditingPO(null);
 
-      if (result == true) {
-        final poProvider = Provider.of<POProvider>(context, listen: false);
+  //     if (result == true) {
+  //       final poProvider = Provider.of<POProvider>(context, listen: false);
 
-        // ✅ important fix
-        await poProvider.fetchPendingPOsFromBackend(clearExisting: true);
+  //       // ✅ important fix
+  //       await poProvider.fetchPendingPOsFromBackend(clearExisting: true);
 
-        if (!mounted) return;
+  //       if (!mounted) return;
 
-        widget.onStatusChanged?.call();
+  //       widget.onStatusChanged?.call();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Purchase Order updated successfully!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    });
-  }
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(
+  //           content: Text("Purchase Order updated successfully!"),
+  //           backgroundColor: Colors.green,
+  //         ),
+  //       );
+  //     }
+  //   });
+  // }
 
   void _showEditItemDialog(BuildContext context, int index) async {
     if (index < 0 || index >= notifier.poItems.length) return;
@@ -842,14 +844,14 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
     super.dispose();
   }
 
-  void _safeClearController(TextEditingController controller) {
-    if (!mounted || _isDisposed) return;
-    try {
-      controller.value = TextEditingValue.empty;
-    } catch (e) {
-      debugPrint('⚠️ Error clearing controller safely: $e');
-    }
-  }
+  // void _safeClearController(TextEditingController controller) {
+  //   if (!mounted || _isDisposed) return;
+  //   try {
+  //     controller.value = TextEditingValue.empty;
+  //   } catch (e) {
+  //     debugPrint('⚠️ Error clearing controller safely: $e');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -1380,8 +1382,9 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
 
                                           WidgetsBinding.instance
                                               .addPostFrameCallback((_) {
-                                                if (!mounted || _isDisposed)
+                                                if (!mounted || _isDisposed) {
                                                   return;
+                                                }
                                                 _triggerUIRefresh();
                                               });
                                         },

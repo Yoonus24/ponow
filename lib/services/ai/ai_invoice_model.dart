@@ -9,6 +9,10 @@ class AIInvoiceResponse {
 
   final String invoiceNumber;
 
+  final double vendorMatchConfidence;
+
+  final double itemMatchConfidence;
+
   final String vendorName;
 
   final String invoiceDate;
@@ -19,6 +23,12 @@ class AIInvoiceResponse {
 
   final String summaryConfidence;
 
+  final String recommendation;
+
+  final Map<String, dynamic> analysisData;
+
+  final String processedAt;
+
   AIInvoiceResponse({
     required this.success,
 
@@ -27,6 +37,10 @@ class AIInvoiceResponse {
     required this.poNumber,
 
     required this.invoiceNumber,
+
+    required this.vendorMatchConfidence,
+
+    required this.itemMatchConfidence,
 
     required this.confidence,
 
@@ -39,6 +53,12 @@ class AIInvoiceResponse {
     required this.aiSummary,
 
     required this.summaryConfidence,
+
+    required this.recommendation,
+
+    required this.analysisData,
+
+    required this.processedAt,
   });
 
   factory AIInvoiceResponse.fromJson(Map<String, dynamic> json) {
@@ -55,7 +75,11 @@ class AIInvoiceResponse {
 
       vendorName: json["vendorName"] ?? "",
 
-      confidence: (json["confidence"] ?? 95).toDouble(),
+      confidence: (json["itemMatchConfidence"] ?? 0).toDouble(),
+
+      vendorMatchConfidence: (json["vendorMatchConfidence"] ?? 0).toDouble(),
+
+      itemMatchConfidence: (json["itemMatchConfidence"] ?? 0).toDouble(),
 
       matchedItems: (json["matchedItems"] as List? ?? [])
           .map((e) => AIMatchedItem.fromJson(e))
@@ -64,20 +88,84 @@ class AIInvoiceResponse {
       aiSummary: json["analysis"]?["summary"] ?? "",
 
       summaryConfidence: json["analysis"]?["riskLevel"] ?? "medium",
+
+      recommendation: json["analysis"]?["recommendation"] ?? "",
+
+      analysisData: json["analysis"]?["analysisData"] ?? {},
+
+      processedAt: json["processedAt"] ?? "",
     );
   }
 }
 
 class AIMatchedItem {
+  // =====================================================
+  // BASIC
+  // =====================================================
+
   final String itemName;
 
   final double receivedQuantity;
 
   final double newPrice;
 
+  // =====================================================
+  // AMOUNTS
+  // =====================================================
+
+  final double amount;
+
+  final double taxableAmount;
+
+  final double finalAmount;
+
+  // =====================================================
+  // DISCOUNT
+  // =====================================================
+
   final double befTaxDiscount;
 
   final double afTaxDiscount;
+
+  final double discountPercent;
+
+  final double discountAmount;
+
+  // =====================================================
+  // TAX
+  // =====================================================
+
+  final double taxPercent;
+
+  final double taxAmount;
+
+  // =====================================================
+  // CGST
+  // =====================================================
+
+  final double cgstPercent;
+
+  final double cgstAmount;
+
+  // =====================================================
+  // SGST
+  // =====================================================
+
+  final double sgstPercent;
+
+  final double sgstAmount;
+
+  // =====================================================
+  // IGST
+  // =====================================================
+
+  final double igstPercent;
+
+  final double igstAmount;
+
+  // =====================================================
+  // OTHER
+  // =====================================================
 
   final String expiryDate;
 
@@ -90,9 +178,35 @@ class AIMatchedItem {
 
     required this.newPrice,
 
+    required this.amount,
+
+    required this.taxableAmount,
+
+    required this.finalAmount,
+
     required this.befTaxDiscount,
 
     required this.afTaxDiscount,
+
+    required this.discountPercent,
+
+    required this.discountAmount,
+
+    required this.taxPercent,
+
+    required this.taxAmount,
+
+    required this.cgstPercent,
+
+    required this.cgstAmount,
+
+    required this.sgstPercent,
+
+    required this.sgstAmount,
+
+    required this.igstPercent,
+
+    required this.igstAmount,
 
     required this.expiryDate,
 
@@ -101,16 +215,66 @@ class AIMatchedItem {
 
   factory AIMatchedItem.fromJson(Map<String, dynamic> json) {
     return AIMatchedItem(
+      // =================================================
+      // BASIC
+      // =================================================
       itemName: json["itemName"] ?? "",
 
       receivedQuantity: (json["receivedQuantity"] ?? 0).toDouble(),
 
       newPrice: (json["newPrice"] ?? 0).toDouble(),
 
+      // =================================================
+      // AMOUNTS
+      // =================================================
+      amount: (json["amount"] ?? 0).toDouble(),
+
+      taxableAmount: (json["taxableAmount"] ?? 0).toDouble(),
+
+      finalAmount: (json["finalAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // DISCOUNT
+      // =================================================
       befTaxDiscount: (json["befTaxDiscount"] ?? 0).toDouble(),
 
       afTaxDiscount: (json["afTaxDiscount"] ?? 0).toDouble(),
 
+      discountPercent: (json["discountPercent"] ?? 0).toDouble(),
+
+      discountAmount: (json["discountAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // TAX
+      // =================================================
+      taxPercent: (json["taxPercent"] ?? 0).toDouble(),
+
+      taxAmount: (json["taxAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // CGST
+      // =================================================
+      cgstPercent: (json["cgstPercent"] ?? 0).toDouble(),
+
+      cgstAmount: (json["cgstAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // SGST
+      // =================================================
+      sgstPercent: (json["sgstPercent"] ?? 0).toDouble(),
+
+      sgstAmount: (json["sgstAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // IGST
+      // =================================================
+      igstPercent: (json["igstPercent"] ?? 0).toDouble(),
+
+      igstAmount: (json["igstAmount"] ?? 0).toDouble(),
+
+      // =================================================
+      // OTHER
+      // =================================================
       expiryDate: json["expiryDate"] ?? "",
 
       confidence: (json["confidence"] ?? 0).toDouble(),

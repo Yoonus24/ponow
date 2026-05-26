@@ -5,8 +5,8 @@ import 'package:purchaseorders2/providers/template_provider.dart';
 import 'package:purchaseorders2/widgets/po page/po_model.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../models/po.dart';
-import '../../providers/po_provider.dart';
+import '../../models/po/po.dart';
+import '../../providers/po/po_provider.dart';
 import '../../screens/create_po_page.dart';
 import '../../notifier/purchasenotifier.dart';
 
@@ -350,8 +350,8 @@ class _POWidgetState extends State<POWidget> {
                       _headerCell("Pkt Count", widths[1]),
                       _headerCell("UOM", widths[2]),
                       _headerCell("Total", widths[3]),
-                      _headerCell("Existing", widths[4]),
-                      _headerCell("New", widths[5]),
+                      _headerCell("Existing Price", widths[4]),
+                      _headerCell("New Price", widths[5]),
                       _headerCell("Discount", widths[6]),
                       _headerCell("Tax", widths[7]),
                       _headerCell("Total Price", widths[8]),

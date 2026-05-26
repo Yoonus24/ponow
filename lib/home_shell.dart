@@ -1,10 +1,8 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:purchaseorders2/notifier/purchasenotifier.dart';
 import 'package:purchaseorders2/providers/permission_provider.dart';
-import 'package:purchaseorders2/providers/po_provider.dart';
+import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/providers/template_provider.dart';
 
 import 'package:purchaseorders2/screens/po_page.dart';
@@ -46,8 +44,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = context.read<PurchaseOrderNotifier>();
 
-      notifier.fetchAllVendors1();
-      notifier.fetchVendors1();
+      // notifier.fetchAllVendors1();
+      // notifier.fetchVendors1();
       notifier.fetchItems('');
       notifier.fetchBillingAddress1();
       notifier.fetchShippingAddress1();
@@ -79,9 +77,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     try {
       final notifier = context.read<PurchaseOrderNotifier>();
 
-      if (notifier.vendorAllList.isEmpty) {
-        notifier.fetchAllVendors1();
-      }
+      // if (notifier.vendorAllList.isEmpty) {
+      //   notifier.fetchAllVendors1();
+      // }
 
       if (!mounted) return;
 

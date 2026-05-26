@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/providers/payment_dialog_provider.dart';
 import 'package:provider/provider.dart';

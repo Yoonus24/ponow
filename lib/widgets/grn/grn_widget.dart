@@ -2,12 +2,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:purchaseorders2/models/grn.dart';
+import 'package:purchaseorders2/models/grn/grn.dart';
 import 'package:purchaseorders2/providers/grn_provider.dart';
 import 'package:purchaseorders2/widgets/grn/DEBIT%20NOTE/debit_note_viewdialog.dart';
 import 'package:purchaseorders2/widgets/grn/GRN%20RETURN/grn_return_dialog.dart';
 import 'GRN VIEW/grn_modal.dart';
-import 'package:purchaseorders2/models/globals.dart' as globals;
+// import 'package:purchaseorders2/models/globals.dart' as globals;
 
 class GRNWidget extends StatefulWidget {
   final GRN grn;
@@ -61,7 +61,7 @@ class _GRNWidgetState extends State<GRNWidget> {
   Widget build(BuildContext context) {
     final provider = context.watch<GRNProvider>();
     final grn = widget.grn;
-    globals.grnRandomId = grn.randomId ?? "";
+    // globals.grnRandomId = grn.randomId ?? "";
 
     return Container(
       margin: const EdgeInsets.all(8.0),
