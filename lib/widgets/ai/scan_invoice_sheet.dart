@@ -5,37 +5,42 @@ class ScanInvoiceSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag Handle
-          const _DragHandle(),
-          const SizedBox(height: 20),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag Handle
+            const _DragHandle(),
+            const SizedBox(height: 16),
 
-          // Header Section
-          const _HeaderSection(),
-          const SizedBox(height: 8),
+            // Header Section
+            const _HeaderSection(),
+            const SizedBox(height: 8),
 
-          // Subtitle
-          const _SubtitleSection(),
-          const SizedBox(height: 32),
+            // Subtitle
+            const _SubtitleSection(),
+            const SizedBox(height: 20),
 
-          // Action Cards - Static Horizontal Row
-          const _ActionCardsSection(),
+            // Action Cards - 2x2 Grid
+            const _ActionCardsSection(),
 
-          // Bottom Spacing
-          SizedBox(
-            height:
-                MediaQuery.of(context).viewInsets.bottom +
-                MediaQuery.of(context).padding.bottom +
-                20,
-          ),
-        ],
+            // Bottom Spacing - Dynamic
+            SizedBox(
+              height: bottomPadding > 0
+                  ? bottomPadding + 16
+                  : MediaQuery.of(context).padding.bottom + 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -77,15 +82,19 @@ class _HeaderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final iconSize = screenWidth < 380 ? 28.0 : 32.0;
-    final fontSize = screenWidth < 380
-        ? 20.0
-        : screenWidth < 600
+    final iconSize = screenWidth < 380
         ? 24.0
-        : 28.0;
+        : screenWidth < 600
+        ? 28.0
+        : 32.0;
+    final fontSize = screenWidth < 380
+        ? 18.0
+        : screenWidth < 600
+        ? 22.0
+        : 24.0;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: screenWidth < 380 ? 20 : 24),
       child: Row(
         children: [
           Icon(
@@ -119,10 +128,14 @@ class _SubtitleSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final fontSize = screenWidth < 380 ? 13.0 : 14.5;
+    final fontSize = screenWidth < 380
+        ? 12.0
+        : screenWidth < 600
+        ? 13.0
+        : 14.0;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: screenWidth < 380 ? 20 : 24),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
@@ -140,61 +153,63 @@ class _SubtitleSection extends StatelessWidget {
   }
 }
 
-// Action cards section - Static Horizontal Row (No Scroll)
+// Action cards section - 2x2 Grid Layout
 class _ActionCardsSection extends StatelessWidget {
   const _ActionCardsSection();
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final horizontalPadding = screenWidth < 380 ? 16.0 : 20.0;
-    final gap = screenWidth < 400 ? 8.0 : 12.0;
+    final horizontalPadding = screenWidth < 380 ? 20.0 : 24.0;
+    final spacing = screenWidth < 380 ? 12.0 : 16.0;
 
-    // Calculate available width for cards
-    final availableWidth = screenWidth - (horizontalPadding * 2);
-
-    // Each card gets equal width with gaps
-    final cardWidth = (availableWidth - (gap * 2)) / 3;
+    // Responsive aspect ratio
+    double aspectRatio;
+    if (screenWidth < 380) {
+      aspectRatio = 1.0;
+    } else if (screenWidth < 480) {
+      aspectRatio = 1.05;
+    } else {
+      aspectRatio = 1.1;
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Camera Card
-          SizedBox(
-            width: cardWidth,
-            child: _QuickActionCard(
-              icon: Icons.camera_alt_rounded,
-              iconColor: const Color(0xFF6366F1),
-              label: "AI Scan",
-              subtitle: "Smart Capture",
-              value: "camera",
-            ),
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: 2,
+        crossAxisSpacing: spacing,
+        mainAxisSpacing: spacing,
+        childAspectRatio: aspectRatio,
+        children: const [
+          _QuickActionCard(
+            icon: Icons.camera_alt_rounded,
+            iconColor: Color(0xFF6366F1),
+            label: "AI Scan",
+            subtitle: "Smart Capture",
+            value: "camera",
           ),
-
-          // Gallery Card
-          SizedBox(
-            width: cardWidth,
-            child: _QuickActionCard(
-              icon: Icons.image_rounded,
-              iconColor: const Color(0xFF10B981),
-              label: "Gallery",
-              subtitle: "Upload Image",
-              value: "gallery",
-            ),
+          _QuickActionCard(
+            icon: Icons.image_rounded,
+            iconColor: Color(0xFF10B981),
+            label: "Gallery",
+            subtitle: "Upload Image",
+            value: "gallery",
           ),
-
-          // PDF Card
-          SizedBox(
-            width: cardWidth,
-            child: _QuickActionCard(
-              icon: Icons.picture_as_pdf_rounded,
-              iconColor: const Color(0xFFE53935),
-              label: "PDF",
-              subtitle: "Upload PDF",
-              value: "pdf",
-            ),
+          _QuickActionCard(
+            icon: Icons.picture_as_pdf_rounded,
+            iconColor: Color(0xFFE53935),
+            label: "PDF",
+            subtitle: "Upload PDF",
+            value: "pdf",
+          ),
+          _QuickActionCard(
+            icon: Icons.inventory_2_rounded,
+            iconColor: Color(0xFFFF9800),
+            label: "Buckets",
+            subtitle: "Pending List",
+            value: "buckets",
           ),
         ],
       ),
@@ -202,7 +217,7 @@ class _ActionCardsSection extends StatelessWidget {
   }
 }
 
-// Optimized card widget - Responsive
+// Optimized card widget - Fully Responsive
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
@@ -221,40 +236,53 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isVerySmall = screenWidth < 380;
-    final isSmall = screenWidth < 480;
 
-    final verticalPadding = isVerySmall
-        ? 16.0
-        : isSmall
-        ? 18.0
-        : 20.0;
-    final horizontalPadding = isVerySmall
-        ? 6.0
-        : isSmall
-        ? 8.0
-        : 10.0;
-    final iconSize = isVerySmall
-        ? 24.0
-        : isSmall
-        ? 28.0
-        : 32.0;
-    final iconContainerPadding = isVerySmall
-        ? 10.0
-        : isSmall
-        ? 12.0
-        : 14.0;
-    final labelFontSize = isVerySmall
-        ? 12.0
-        : isSmall
-        ? 13.0
-        : 14.0;
-    final subtitleFontSize = isVerySmall
-        ? 10.0
-        : isSmall
-        ? 11.0
-        : 11.5;
-    final gapSize = isVerySmall ? 8.0 : 10.0;
+    // Responsive sizing based on screen width
+    double verticalPadding;
+    double horizontalPadding;
+    double iconSize;
+    double iconContainerPadding;
+    double labelFontSize;
+    double subtitleFontSize;
+    double gapSize;
+
+    if (screenWidth < 380) {
+      // Very small phones
+      verticalPadding = 14.0;
+      horizontalPadding = 8.0;
+      iconSize = 22.0;
+      iconContainerPadding = 10.0;
+      labelFontSize = 12.0;
+      subtitleFontSize = 9.0;
+      gapSize = 6.0;
+    } else if (screenWidth < 480) {
+      // Small phones
+      verticalPadding = 16.0;
+      horizontalPadding = 10.0;
+      iconSize = 26.0;
+      iconContainerPadding = 12.0;
+      labelFontSize = 13.0;
+      subtitleFontSize = 10.0;
+      gapSize = 8.0;
+    } else if (screenWidth < 600) {
+      // Medium phones
+      verticalPadding = 18.0;
+      horizontalPadding = 12.0;
+      iconSize = 30.0;
+      iconContainerPadding = 13.0;
+      labelFontSize = 14.0;
+      subtitleFontSize = 11.0;
+      gapSize = 10.0;
+    } else {
+      // Tablets and large screens
+      verticalPadding = 22.0;
+      horizontalPadding = 16.0;
+      iconSize = 34.0;
+      iconContainerPadding = 15.0;
+      labelFontSize = 15.0;
+      subtitleFontSize = 12.0;
+      gapSize = 12.0;
+    }
 
     return RepaintBoundary(
       child: Material(
@@ -277,9 +305,9 @@ class _QuickActionCard extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.06),
-                  blurRadius: 16,
+                  blurRadius: 12,
                   spreadRadius: 1,
-                  offset: const Offset(0, 3),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -294,7 +322,7 @@ class _QuickActionCard extends StatelessWidget {
                 ),
                 SizedBox(height: gapSize),
                 _CardLabel(label: label, fontSize: labelFontSize),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 _CardSubtitle(subtitle: subtitle, fontSize: subtitleFontSize),
               ],
             ),
@@ -368,7 +396,7 @@ class _CardSubtitle extends StatelessWidget {
       subtitle,
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: fontSize, color: const Color(0xFF6B7280)),
-      maxLines: 2,
+      maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }

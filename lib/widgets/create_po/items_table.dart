@@ -108,96 +108,137 @@ class _ItemsTableState extends State<ItemsTable> {
     final purchaseNotifier =
         widget.notifier ?? Provider.of<PurchaseOrderNotifier>(context);
 
+    // Get screen width for responsive design
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              SizedBox(
-                height: 35,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => ImportCSVDialog(
-                        onSuccess: (items) {
-                          if (widget.onImport != null) {
-                            widget.onImport!(items);
-                          }
-                        },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Calculate available width and distribute equally
+              final availableWidth = constraints.maxWidth;
+              final buttonSpacing = 8.0;
+              final totalSpacing = buttonSpacing * 2; // between 3 buttons
+              final buttonWidth = (availableWidth - totalSpacing) / 3;
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Import Button
+                  SizedBox(
+                    width: buttonWidth,
+                    height: 35,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => ImportCSVDialog(
+                            onSuccess: (items) {
+                              if (widget.onImport != null) {
+                                widget.onImport!(items);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                      icon: Icon(
+                        Icons.upload_file,
+                        size: screenWidth < 400 ? 14 : 16,
+                        color: Colors.white,
                       ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.upload_file,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                  label: const Text(
-                    "Import",
-                    style: TextStyle(fontSize: 13, color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    backgroundColor: Colors.blueAccent,
-                  ),
-                ),
-              ),
-
-              const SizedBox(width: 8),
-
-              SizedBox(
-                height: 35,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => FreightDialog(
-                        onAdd: (freight) {
-                          for (var f in freight) {
-                            purchaseNotifier.addFreight(f);
-                          }
-                        },
+                      label: Text(
+                        "Import",
+                        style: TextStyle(
+                          fontSize: screenWidth < 400 ? 11 : 13,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.local_shipping,
-                    size: 16,
-                    color: Colors.white,
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 400 ? 4 : 8,
+                        ),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    ),
                   ),
-                  label: const Text(
-                    "Add Freight",
-                    style: TextStyle(fontSize: 13, color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    backgroundColor: Colors.blueAccent,
-                  ),
-                ),
-              ),
 
-              const SizedBox(width: 8),
+                  SizedBox(width: buttonSpacing),
 
-              SizedBox(
-                height: 35,
-                child: ElevatedButton.icon(
-                  onPressed: widget.onAddItem,
-                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
-                  label: const Text(
-                    "Add Item",
-                    style: TextStyle(fontSize: 13, color: Colors.white),
+                  // Add Freight Button
+                  SizedBox(
+                    width: buttonWidth,
+                    height: 35,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (_) => FreightDialog(
+                            onAdd: (freight) {
+                              for (var f in freight) {
+                                purchaseNotifier.addFreight(f);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                      icon: Icon(
+                        Icons.local_shipping,
+                        size: screenWidth < 400 ? 14 : 16,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        "Add Freight",
+                        style: TextStyle(
+                          fontSize: screenWidth < 400 ? 11 : 13,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 400 ? 4 : 8,
+                        ),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    backgroundColor: Colors.blueAccent,
+
+                  SizedBox(width: buttonSpacing),
+
+                  // Add Item Button
+                  SizedBox(
+                    width: buttonWidth,
+                    height: 35,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.onAddItem,
+                      icon: Icon(
+                        Icons.add,
+                        size: screenWidth < 400 ? 14 : 16,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        "Add Item",
+                        style: TextStyle(
+                          fontSize: screenWidth < 400 ? 11 : 13,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 400 ? 4 : 8,
+                        ),
+                        backgroundColor: Colors.blueAccent,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
 

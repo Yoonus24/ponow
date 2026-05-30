@@ -8,6 +8,7 @@ import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/services/ai/ai_analyzing_overlay.dart';
 import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
 import 'package:purchaseorders2/widgets/ai/ai_match_summary_dialog.dart';
+import 'package:purchaseorders2/widgets/ai/po_suggestion_screen.dart';
 
 import 'ai_invoice_service.dart';
 
@@ -45,17 +46,14 @@ Future<void> scanAndOpenPOFlow({
     debugPrint("TOTAL PO ITEMS SENT: ${allPoItems.length}");
 
     // =====================================================
-    // SHOW AI LOADER
+    // SHOW LOADER
     // =====================================================
 
     if (context.mounted) {
       showDialog(
         context: context,
-
         barrierDismissible: false,
-
         useRootNavigator: true,
-
         builder: (_) {
           return const AIAnalyzingOverlay();
         },
@@ -65,11 +63,12 @@ Future<void> scanAndOpenPOFlow({
     }
 
     // =====================================================
-    // API CALL
+    // STEP 1
+    // GET PO SUGGESTIONS
     // =====================================================
 
-    final response = await service
-        .scanInvoice(imageFile: file, poItems: allPoItems)
+    final suggestionResponse = await service
+        .suggestPO(imageFile: file)
         .timeout(const Duration(seconds: 120));
 
     // =====================================================
@@ -82,12 +81,92 @@ Future<void> scanAndOpenPOFlow({
       loaderOpened = false;
     }
 
-    provider.pendingAIResponse = response as AIInvoiceResponse?;
+    // =====================================================
+    // NO SUGGESTIONS
+    // =====================================================
+
+    if (suggestionResponse.suggestedPOs.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text("No matching PO suggestions found"),
+          ),
+        );
+      }
+
+      return;
+    }
+
+    // =====================================================
+    // SHOW SUGGESTION DIALOG
+    // =====================================================
+
+    final String? selectedPoId = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) {
+        return POSuggestionDialog(
+          response: suggestionResponse,
+          poProvider: provider,
+        );
+      },
+    );
+
+    // =====================================================
+    // USER CANCELLED
+    // =====================================================
+
+    if (selectedPoId == null) {
+      return;
+    }
+
+    // =====================================================
+    // SHOW LOADER AGAIN
+    // =====================================================
+
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (_) {
+          return const AIAnalyzingOverlay();
+        },
+      );
+
+      loaderOpened = true;
+    }
+
+    // =====================================================
+    // STEP 2
+    // SCAN USING SELECTED PO
+    // =====================================================
+
+    final AIInvoiceResponse response = await service
+        .scanInvoice(
+          imageFile: file,
+          poItems: allPoItems,
+          selectedPoId: selectedPoId,
+        )
+        .timeout(const Duration(seconds: 120));
+
+    // =====================================================
+    // CLOSE LOADER
+    // =====================================================
+
+    if (context.mounted && loaderOpened) {
+      Navigator.of(context, rootNavigator: true).pop();
+
+      loaderOpened = false;
+    }
+
+    provider.pendingAIResponse = response;
 
     debugPrint("AI RESPONSE PO: ${response.poNumber}");
 
     // =====================================================
-    // EMPTY ITEMS CHECK
+    // EMPTY ITEMS
     // =====================================================
 
     if (response.matchedItems.isEmpty) {
@@ -95,7 +174,6 @@ Future<void> scanAndOpenPOFlow({
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: Colors.red,
-
             content: Text("No valid invoice items detected"),
           ),
         );
@@ -115,7 +193,6 @@ Future<void> scanAndOpenPOFlow({
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: Colors.red,
-
             content: Text("No Matching PO Found"),
           ),
         );
@@ -127,14 +204,12 @@ Future<void> scanAndOpenPOFlow({
     }
 
     // =====================================================
-    // SHOW AI SUMMARY DIALOG
+    // SHOW AI SUMMARY
     // =====================================================
 
     await showDialog(
       context: context,
-
       barrierDismissible: false,
-
       builder: (_) {
         return AIMatchSummaryDialog(aiResponse: response, poProvider: provider);
       },
@@ -157,13 +232,12 @@ Future<void> scanAndOpenPOFlow({
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.green,
-
         content: Text("Matched PO: ${response.poNumber}"),
       ),
     );
 
     // =====================================================
-    // CLEAR AI RESPONSE
+    // CLEAR RESPONSE
     // =====================================================
 
     provider.pendingAIResponse = null;
@@ -176,7 +250,6 @@ Future<void> scanAndOpenPOFlow({
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: Colors.red,
-
           content: Text("Invoice scan timed out"),
         ),
       );

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:purchaseorders2/core/errors/app_error_handler.dart';
 import 'package:purchaseorders2/core/errors/app_exception.dart';
 import 'package:purchaseorders2/core/utils/app_snackbar.dart';

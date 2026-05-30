@@ -74,7 +74,7 @@ class PurchaseOrderService {
     try {
       // Using the correct URL as specified
       final response = await DioClient.dio.get(
-        '/purchasetestapi/poshippingaddress/',
+        '/poshippingaddress',
       );
 
       if (response.statusCode == 200) {
@@ -290,10 +290,9 @@ class PurchaseOrderService {
                         child: pw.Text(
                           _joinNonEmpty([
                             'Shipping Address: ${shippingData['address']?.toString() ?? poData['shippingAddress']?.toString() ?? 'No: 95 B, GODOWN, DEVIATTINAM, RAMANATHAPURAM'}',
-                            shippingData['address2']?.toString(),
-                            shippingData['city']?.toString(),
-                            shippingData['state']?.toString(),
-                            shippingData['pincode']?.toString(),
+                            'City: ${shippingData['city']?.toString() ?? poData['shippingCity']?.toString() ?? 'Ramanathapuram'}',
+                            'State: ${shippingData['state']?.toString() ?? poData['shippingState']?.toString() ?? 'Tamil Nadu'}',
+                            
                           ], separator: '\n'),
                           style: pw.TextStyle(fontSize: 9),
                         ),

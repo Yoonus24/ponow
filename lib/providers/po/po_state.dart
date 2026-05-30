@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:purchaseorders2/models/po/BranchLocation.dart';
-import 'package:purchaseorders2/models/po/freight.dart';
 import 'package:purchaseorders2/models/po/freight_name_model.dart';
 import 'package:purchaseorders2/models/po/po.dart';
 import 'package:purchaseorders2/models/po/po_item.dart';
@@ -16,7 +15,8 @@ abstract class POState extends ChangeNotifier {
   // ==================== CONFIGURATION ====================
   final Dio dio = DioClient.dio;
   AIInvoiceResponse? pendingAIResponse;
-
+  String? lastScannedImagePath;
+ 
   // ==================== STATE VARIABLES ====================
   // PO Lists
   List<PO> posInternal = [];

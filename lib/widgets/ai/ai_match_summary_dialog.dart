@@ -1233,24 +1233,4 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildCompactSummaryItem(String title, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -281,3 +281,92 @@ class AIMatchedItem {
     );
   }
 }
+
+class POSuggestionResponse {
+  final bool success;
+
+  final List<POSuggestion> suggestedPOs;
+
+  final AutoSuggestedPO? autoSuggestedPO;
+
+  final Map<String, dynamic> invoiceData;
+
+  POSuggestionResponse({
+    required this.success,
+    required this.suggestedPOs,
+    required this.autoSuggestedPO,
+    required this.invoiceData,
+  });
+
+  factory POSuggestionResponse.fromJson(Map<String, dynamic> json) {
+    return POSuggestionResponse(
+      success: json["success"] ?? false,
+
+      invoiceData: Map<String, dynamic>.from(json["invoiceData"] ?? {}),
+
+      suggestedPOs: (json["suggestedPOs"] as List? ?? [])
+          .map((e) => POSuggestion.fromJson(e))
+          .toList(),
+
+      autoSuggestedPO: json["autoSuggestedPO"] == null
+          ? null
+          : AutoSuggestedPO.fromJson(json["autoSuggestedPO"]),
+    );
+  }
+}
+
+class POSuggestion {
+  final String poId;
+
+  final String poNumber;
+
+  final int score;
+
+  final int matchedItems;
+
+  final int totalItems;
+
+  final String reason;
+
+  POSuggestion({
+    required this.poId,
+    required this.poNumber,
+    required this.score,
+    required this.matchedItems,
+    required this.totalItems,
+    required this.reason,
+  });
+
+  factory POSuggestion.fromJson(Map<String, dynamic> json) {
+    return POSuggestion(
+      poId: json["poId"] ?? "",
+      poNumber: json["poNumber"] ?? "",
+      score: json["score"] ?? 0,
+      matchedItems: json["matchedItems"] ?? 0,
+      totalItems: json["totalItems"] ?? 0,
+      reason: json["reason"] ?? "",
+    );
+  }
+}
+
+class AutoSuggestedPO {
+  final String poId;
+
+  final String poNumber;
+
+  final int score;
+
+  AutoSuggestedPO({
+    required this.poId,
+    required this.poNumber,
+    required this.score,
+  });
+
+  factory AutoSuggestedPO.fromJson(Map<String, dynamic> json) {
+    return AutoSuggestedPO(
+      poId: json["poId"] ?? "",
+      poNumber: json["poNumber"] ?? "",
+      score: json["score"] ?? 0,
+    );
+  }
+}

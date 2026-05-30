@@ -796,6 +796,9 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildDiscountField() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 500;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
@@ -809,13 +812,11 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(width: 20), // 👈 adjust spacing here
-              /// 🏷️ LABEL
+              const SizedBox(width: 20),
               const Text(
                 "Discount :",
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
               ),
-
               const SizedBox(width: 6),
 
               /// 👉 RIGHT SIDE CONTENT
@@ -837,7 +838,6 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                               ),
                             ),
                             const SizedBox(width: 6),
-
                             Switch(
                               value: !isBefTax,
                               onChanged: (val) {
@@ -856,45 +856,45 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                         );
                       },
                     ),
-
                     const SizedBox(width: 6),
 
                     /// 🔢 DISCOUNT INPUT
-                    SizedBox(
-                      width: 70,
-                      child: InkWell(
-                        onTap: () {
-                          _logic.showNumericCalculator(
-                            controller: _logic.discountInputController,
-                            varianceName: 'Enter Discount',
-                            onValueSelected: () {
-                              _logic.applyOverallDiscountViaAPI();
-                            },
-                            isItemField: false,
-                          );
-                        },
-                        child: IgnorePointer(
-                          child: TextField(
-                            controller: _logic.discountInputController,
-                            readOnly: true,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 11),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8,
+                    Flexible(
+                      child: SizedBox(
+                        width: isSmallScreen ? 60 : 70,
+                        child: InkWell(
+                          onTap: () {
+                            _logic.showNumericCalculator(
+                              controller: _logic.discountInputController,
+                              varianceName: 'Enter Discount',
+                              onValueSelected: () {
+                                _logic.applyOverallDiscountViaAPI();
+                              },
+                              isItemField: false,
+                            );
+                          },
+                          child: IgnorePointer(
+                            child: TextField(
+                              controller: _logic.discountInputController,
+                              readOnly: true,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 11),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                hintText: 'Amount',
+                                hintStyle: const TextStyle(fontSize: 10),
                               ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              hintText: 'Amount',
-                              hintStyle: const TextStyle(fontSize: 10),
                             ),
                           ),
                         ),
                       ),
                     ),
-
                     const SizedBox(width: 4),
 
                     /// ❌ CLEAR BUTTON
@@ -918,10 +918,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
               ),
             ],
           ),
-
           const SizedBox(height: 6),
-
-          /// 🔢 ROUND OFF FIELD
           _buildRoundOffField(),
         ],
       ),
@@ -929,11 +926,13 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
   }
 
   Widget _buildRoundOffField() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 500;
+
     return ValueListenableBuilder<String?>(
       valueListenable: _logic.roundOffErrorNotifier,
       builder: (context, error, _) {
         final hasError = error != null;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
@@ -946,7 +945,7 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
                 ),
                 const SizedBox(width: 4),
                 SizedBox(
-                  width: 70,
+                  width: isSmallScreen ? 60 : 70,
                   child: InkWell(
                     onTap: () {
                       _logic.showNumericCalculator(

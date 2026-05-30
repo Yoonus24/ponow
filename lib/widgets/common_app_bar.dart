@@ -59,6 +59,21 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             return;
           }
 
+          // =====================================================
+          // OPEN BUCKET PAGE
+          // =====================================================
+
+          // if (selected == "buckets") {
+          //   if (context.mounted) {
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(builder: (_) => const PendingBucketsPage()),
+          //     );
+          //   }
+
+          //   return;
+          // }
+
           File? selectedFile;
 
           // =====================================================
@@ -121,7 +136,6 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
 
           await scanAndOpenPOFlow(context: context, file: selectedFile);
         },
-
         icon: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
 
