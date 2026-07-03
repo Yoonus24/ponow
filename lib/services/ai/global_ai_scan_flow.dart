@@ -14,12 +14,55 @@ import 'ai_invoice_service.dart';
 
 Future<void> scanAndOpenPOFlow({
   required BuildContext context,
-  required File file,
+  File? file,
+  List<File>? files,
 }) async {
   bool loaderOpened = false;
+  String? cacheKey; // ← ADDED: Store cache key from suggest response
 
   try {
-    debugPrint("SELECTED FILE PATH: ${file.path}");
+    // =====================================================
+    // Validate Upload Mode
+    // =====================================================
+
+    int uploadModes = 0;
+    if (file != null) uploadModes++;
+    if (files != null && files.isNotEmpty) uploadModes++;
+
+    if (uploadModes == 0) {
+      throw Exception(
+        "No file provided. Please provide a single image/PDF or multiple images."
+      );
+    }
+
+    if (uploadModes > 1) {
+      throw Exception(
+        "Please provide only one upload type: single file or multiple files."
+      );
+    }
+
+    // =====================================================
+    // Determine Upload Mode
+    // =====================================================
+
+    bool isMultipleImages = files != null && files.isNotEmpty;
+    bool isSingleImage = file != null && !file.path.toLowerCase().endsWith('.pdf');
+    bool isPDF = file != null && file.path.toLowerCase().endsWith('.pdf');
+
+    // =====================================================
+    // Log Upload Mode
+    // =====================================================
+
+    if (isMultipleImages) {
+      debugPrint("MULTIPLE IMAGE MODE: ${files!.length} images");
+      for (int i = 0; i < files.length; i++) {
+        debugPrint("  Image ${i + 1}: ${files[i].path}");
+      }
+    } else if (isPDF) {
+      debugPrint("PDF MODE: ${file!.path}");
+    } else if (isSingleImage) {
+      debugPrint("SINGLE IMAGE MODE: ${file!.path}");
+    }
 
     final provider = Provider.of<POProvider>(context, listen: false);
 
@@ -67,9 +110,32 @@ Future<void> scanAndOpenPOFlow({
     // GET PO SUGGESTIONS
     // =====================================================
 
-    final suggestionResponse = await service
-        .suggestPO(imageFile: file)
-        .timeout(const Duration(seconds: 120));
+    POSuggestionResponse suggestionResponse;
+
+    if (isMultipleImages) {
+      debugPrint("CALLING SUGGEST PO WITH ${files!.length} IMAGES");
+      suggestionResponse = await service
+          .suggestPO(imageFiles: files)
+          .timeout(const Duration(seconds: 120));
+    } else if (isPDF) {
+      debugPrint("CALLING SUGGEST PO WITH PDF");
+      suggestionResponse = await service
+          .suggestPO(pdfFile: file)
+          .timeout(const Duration(seconds: 120));
+    } else {
+      // Single Image
+      debugPrint("CALLING SUGGEST PO WITH SINGLE IMAGE");
+      suggestionResponse = await service
+          .suggestPO(imageFile: file)
+          .timeout(const Duration(seconds: 120));
+    }
+
+    // ─── SAVE CACHE KEY FROM SUGGEST RESPONSE ────────────────
+    
+    cacheKey = suggestionResponse.cacheKey; // ← ADDED
+    debugPrint("======================================");
+    debugPrint("CACHE KEY SAVED: $cacheKey");
+    debugPrint("======================================");
 
     // =====================================================
     // CLOSE LOADER
@@ -101,24 +167,35 @@ Future<void> scanAndOpenPOFlow({
     // =====================================================
     // SHOW SUGGESTION DIALOG
     // =====================================================
-
-    final String? selectedPoId = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return POSuggestionDialog(
-          response: suggestionResponse,
-          poProvider: provider,
-        );
-      },
-    );
-
     // =====================================================
-    // USER CANCELLED
+    // AUTO SELECT IF ONLY ONE PO
     // =====================================================
 
-    if (selectedPoId == null) {
-      return;
+    String? selectedPoId;
+
+    if (suggestionResponse.suggestedPOs.length == 1) {
+      selectedPoId = suggestionResponse.suggestedPOs.first.poId;
+
+      debugPrint("AUTO SELECTED SINGLE PO => $selectedPoId");
+    }
+    // =====================================================
+    // SHOW DIALOG ONLY IF MULTIPLE POs
+    // =====================================================
+    else {
+      selectedPoId = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) {
+          return POSuggestionDialog(
+            response: suggestionResponse,
+            poProvider: provider,
+          );
+        },
+      );
+
+      if (selectedPoId == null) {
+        return;
+      }
     }
 
     // =====================================================
@@ -143,13 +220,45 @@ Future<void> scanAndOpenPOFlow({
     // SCAN USING SELECTED PO
     // =====================================================
 
-    final AIInvoiceResponse response = await service
-        .scanInvoice(
-          imageFile: file,
-          poItems: allPoItems,
-          selectedPoId: selectedPoId,
-        )
-        .timeout(const Duration(seconds: 120));
+    AIInvoiceResponse response;
+
+    // ─── PASS CACHE KEY TO SCAN INVOICE ──────────────────────
+
+    if (isMultipleImages) {
+      debugPrint("CALLING SCAN INVOICE WITH ${files!.length} IMAGES");
+      debugPrint("USING CACHE KEY: $cacheKey"); // ← ADDED
+      response = await service
+          .scanInvoice(
+            imageFiles: files,
+            poItems: allPoItems,
+            selectedPoId: selectedPoId,
+            cacheKey: cacheKey, // ← ADDED: Pass cache key
+          )
+          .timeout(const Duration(seconds: 120));
+    } else if (isPDF) {
+      debugPrint("CALLING SCAN INVOICE WITH PDF");
+      debugPrint("USING CACHE KEY: $cacheKey"); // ← ADDED
+      response = await service
+          .scanInvoice(
+            pdfFile: file,
+            poItems: allPoItems,
+            selectedPoId: selectedPoId,
+            cacheKey: cacheKey, // ← ADDED: Pass cache key
+          )
+          .timeout(const Duration(seconds: 120));
+    } else {
+      // Single Image
+      debugPrint("CALLING SCAN INVOICE WITH SINGLE IMAGE");
+      debugPrint("USING CACHE KEY: $cacheKey"); // ← ADDED
+      response = await service
+          .scanInvoice(
+            imageFile: file,
+            poItems: allPoItems,
+            selectedPoId: selectedPoId,
+            cacheKey: cacheKey, // ← ADDED: Pass cache key
+          )
+          .timeout(const Duration(seconds: 120));
+    }
 
     // =====================================================
     // CLOSE LOADER

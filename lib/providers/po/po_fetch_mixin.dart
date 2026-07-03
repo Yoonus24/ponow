@@ -182,6 +182,7 @@ mixin POFetchMixin on POState, POHelperMixin {
 
       setErrorInternal(exception.message);
     } finally {
+      firstLoadCompleted = true;
       setLoadingStateInternal(false);
     }
   }
@@ -250,9 +251,16 @@ mixin POFetchMixin on POState, POHelperMixin {
     errorInternal = null;
 
     try {
-      final response = await dio.get(
-        'https://yenerp.com/purchaseapi/poshippingaddress/',
+      final Dio addressDio = Dio(
+        BaseOptions(
+          baseUrl: 'https://yenerp.com/purchaseapi',
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
+
+      final response = await addressDio.get('/poshippingaddress/');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -278,9 +286,16 @@ mixin POFetchMixin on POState, POHelperMixin {
     errorInternal = null;
 
     try {
-      final response = await dio.get(
-        'https://yenerp.com/purchaseapi/pobusiness/',
+      final Dio addressDio = Dio(
+        BaseOptions(
+          baseUrl: 'https://yenerp.com/purchaseapi',
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {'Content-Type': 'application/json'},
+        ),
       );
+
+      final response = await addressDio.get('/pobusiness/');
 
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;

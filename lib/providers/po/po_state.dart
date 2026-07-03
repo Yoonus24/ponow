@@ -76,6 +76,7 @@ abstract class POState extends ChangeNotifier {
   // Loading States
   bool isLoadingInternal = false;
   bool isFetchingInternal = false;
+  bool firstLoadCompleted = false;
   bool isVendorLoadingInternal = false;
   bool get isLoading => isLoadingInternal;
   bool get isFetching => isFetchingInternal;
@@ -113,6 +114,7 @@ abstract class POState extends ChangeNotifier {
   String? get selectedRandomIdFilter => selectedRandomIdFilterInternal;
   String get filterBy => filterByInternal;
   bool get includeInactive => includeInactiveInternal;
+  bool get isFirstLoadCompleted => firstLoadCompleted;
 
   // Scroll Controllers
   final ScrollController vendorScrollController = ScrollController();

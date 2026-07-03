@@ -14,8 +14,8 @@ class DioClient {
     // Set options AFTER dotenv is loaded
     dio.options = BaseOptions(
       baseUrl: Env.baseUrl,
-      connectTimeout: const Duration(seconds: 60),
-      receiveTimeout: const Duration(seconds: 60),
+      connectTimeout: const Duration(seconds: 300),
+      receiveTimeout: const Duration(seconds: 300),
       headers: {"Content-Type": "application/json"},
     );
 

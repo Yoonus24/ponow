@@ -17,6 +17,7 @@ class APInvoiceModalLogic extends ChangeNotifier {
   late ValueNotifier<List<String>> columnOrderNotifier;
   late ValueNotifier<Map<String, bool>> columnVisibilityNotifier;
   final ValueNotifier<bool> isReturning = ValueNotifier(false);
+  final ValueNotifier<bool> isVerifying = ValueNotifier(false);
 
   // Scroll Controllers
   final ScrollController leftVerticalController = ScrollController();
@@ -160,11 +161,15 @@ class APInvoiceModalLogic extends ChangeNotifier {
 
   Future<void> performReturn(BuildContext context) async {
     isReturning.value = true;
+
     try {
       await context.read<APInvoiceProvider>().convertToGrnFromApReturned(
         apinvoice.invoiceId ?? '',
         context,
       );
+
+      isReturning.value = false;
+
       if (context.mounted) {
         Navigator.of(context).pop(true);
       }

@@ -13,7 +13,6 @@ class POPage extends StatefulWidget {
 
 class _POPageState extends State<POPage> {
   final ScrollController _scrollController = ScrollController();
-  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -24,12 +23,9 @@ class _POPageState extends State<POPage> {
 
       final provider = context.read<POProvider>();
 
-      if (!_isInitialized) {
-        if (provider.pendingPOs.isEmpty) {
-          provider.refreshPOList();
-        }
-
-        _isInitialized = true;
+      // Fetch only first time
+      if (!provider.isFirstLoadCompleted) {
+        provider.refreshPOList();
       }
     });
   }
@@ -49,11 +45,13 @@ class _POPageState extends State<POPage> {
           builder: (context, poProvider, _) {
             final pendingOrders = poProvider.pendingPOs;
 
-            // ✅ First loading
-            if (poProvider.isLoading && pendingOrders.isEmpty) {
+            // Initial Loading
+            if (!poProvider.isFirstLoadCompleted ||
+                (poProvider.isLoading && pendingOrders.isEmpty)) {
               return const Center(child: CircularProgressIndicator());
             }
 
+            // Error
             if (poProvider.error != null && pendingOrders.isEmpty) {
               return ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -61,35 +59,17 @@ class _POPageState extends State<POPage> {
                   const SizedBox(height: 200),
                   Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(
                           Icons.error_outline,
-                          color: Colors.redAccent,
+                          color: Colors.red,
                           size: 40,
                         ),
                         const SizedBox(height: 10),
-
-                        /// ✅ USER FRIENDLY MESSAGE
-                        Text(
-                          poProvider.error ?? "Something went wrong",
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-
+                        Text(poProvider.error!, textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-
-                        /// 🔁 RETRY BUTTON
                         ElevatedButton(
                           onPressed: _refreshPOs,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            foregroundColor: Colors.white,
-                          ),
                           child: const Text("Retry"),
                         ),
                       ],
@@ -99,8 +79,8 @@ class _POPageState extends State<POPage> {
               );
             }
 
-            // ✅ Empty
-            if (!poProvider.isLoading && pendingOrders.isEmpty) {
+            // Empty
+            if (pendingOrders.isEmpty) {
               return LayoutBuilder(
                 builder: (context, constraints) {
                   return SingleChildScrollView(
@@ -109,8 +89,8 @@ class _POPageState extends State<POPage> {
                       height: constraints.maxHeight,
                       child: const Center(
                         child: Text(
-                          'No pending orders available.',
-                          style: TextStyle(color: Colors.grey, fontSize: 17),
+                          "No pending orders available.",
+                          style: TextStyle(fontSize: 17, color: Colors.grey),
                         ),
                       ),
                     ),
@@ -119,7 +99,7 @@ class _POPageState extends State<POPage> {
               );
             }
 
-            // ✅ DATA UI (FIXED)
+            // Data
             return ListView(
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
@@ -135,7 +115,6 @@ class _POPageState extends State<POPage> {
                       ),
                     ),
                   ),
-
                 POListView(
                   purchaseOrders: pendingOrders,
                   scrollController: _scrollController,

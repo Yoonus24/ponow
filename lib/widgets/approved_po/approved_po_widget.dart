@@ -70,9 +70,11 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ===== ROW 1: PO NO + STATUS =====
+          // ===== ROW 1: PO NO + STATUS =====
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // PO Number
               Expanded(
                 child: Text(
                   "PO No: ${po.randomId ?? "N/A"}",
@@ -81,27 +83,37 @@ class _ApprovedPOWidgetState extends State<ApprovedPOWidget> {
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
+                  maxLines: 2,
+                  overflow: TextOverflow.fade,
                 ),
               ),
 
-              // ✅ STATUS BADGE
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.blueAccent.shade100,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white, width: 1),
-                ),
-                child: Text(
-                  statusText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+              const SizedBox(width: 8),
+
+              // Status Badge
+              Flexible(
+                flex: 0,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
                 ),
               ),

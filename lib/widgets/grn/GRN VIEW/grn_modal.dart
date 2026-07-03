@@ -84,17 +84,47 @@ class _GRNModalState extends State<GRNModal> {
   Widget _buildLoadingOverlay() {
     return ValueListenableBuilder<bool>(
       valueListenable: logic.isConverting,
-      builder: (context, converting, child) {
-        if (!converting) return const SizedBox.shrink();
-        return Positioned.fill(
-          child: Container(
-            color: Colors.black.withOpacity(0.5),
-            child: const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+      builder: (context, converting, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: logic.isReverting,
+          builder: (context, reverting, __) {
+            if (!converting && !reverting) {
+              return const SizedBox.shrink();
+            }
+
+            return Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 20),
+                        Text(
+                          converting
+                              ? "Converting GRN to AP..."
+                              : "Reverting GRN to PO...",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Please wait...",
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
@@ -1115,12 +1145,18 @@ class _GRNModalState extends State<GRNModal> {
           Expanded(
             flex: 4,
             child: GestureDetector(
-              onTap: canRevert ? () => logic.convertGrnToPo(context) : null,
+              onTap: canRevert && !logic.isConverting.value
+                  ? () => logic.convertGrnToPo(context)
+                  : null,
               child: Container(
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: canRevert ? Colors.orange : Colors.grey,
+                  color: canRevert
+                      ? (logic.isConverting.value
+                            ? Colors.orange.withOpacity(0.6)
+                            : Colors.orange)
+                      : Colors.grey,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
@@ -1133,16 +1169,22 @@ class _GRNModalState extends State<GRNModal> {
               ),
             ),
           ),
+
           const SizedBox(width: 8),
+
           Expanded(
             flex: 2,
             child: GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
+              onTap: logic.isConverting.value
+                  ? null
+                  : () => Navigator.of(context).pop(),
               child: Container(
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.blueAccent,
+                  color: logic.isConverting.value
+                      ? Colors.blueAccent.withOpacity(0.6)
+                      : Colors.blueAccent,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text(
@@ -1155,7 +1197,9 @@ class _GRNModalState extends State<GRNModal> {
               ),
             ),
           ),
+
           const SizedBox(width: 8),
+
           Expanded(
             flex: 4,
             child: ValueListenableBuilder<bool>(
@@ -1165,33 +1209,25 @@ class _GRNModalState extends State<GRNModal> {
                   onTap: (canConvert && !converting)
                       ? () => logic.convertToAP(context)
                       : null,
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     alignment: Alignment.center,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
                       color: canConvert
                           ? (converting
-                                ? Colors.blueAccent.withOpacity(0.7)
+                                ? Colors.blueAccent.withOpacity(0.6)
                                 : Colors.blueAccent)
                           : Colors.grey,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: converting
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            "Convert to AP",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    child: const Text(
+                      "Convert to AP",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 );
               },

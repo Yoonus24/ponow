@@ -23,6 +23,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   final ValueNotifier<String> vendorName = ValueNotifier("");
   TextEditingController? _autoVendorCtrl;
   final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<bool> isFiltering = ValueNotifier(false);
   final int skip = 0;
   final int limit = 50;
   Timer? _vendorDebounce;
@@ -91,6 +92,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
   @override
   void dispose() {
+    isFiltering.dispose();
     _disposed = true;
     _vendorDebounce?.cancel();
     vendorCtrl.dispose();
@@ -116,32 +118,41 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
   }
 
   Future<void> _applyFilters() async {
-    final provider = context.read<POProvider>();
+    isFiltering.value = true;
 
-    DateTime? fromDate;
-    DateTime? toDate;
+    try {
+      final provider = context.read<POProvider>();
 
-    if (selectedDateRange.value != null) {
-      final range = selectedDateRange.value!;
+      DateTime? fromDate;
+      DateTime? toDate;
 
-      fromDate = DateTime(range.start.year, range.start.month, range.start.day);
+      if (selectedDateRange.value != null) {
+        final range = selectedDateRange.value!;
 
-      // include the full end day
-      toDate = DateTime(
-        range.end.year,
-        range.end.month,
-        range.end.day,
-      ).add(const Duration(days: 1));
+        fromDate = DateTime(
+          range.start.year,
+          range.start.month,
+          range.start.day,
+        );
+
+        toDate = DateTime(
+          range.end.year,
+          range.end.month,
+          range.end.day,
+        ).add(const Duration(days: 1));
+      }
+
+      await provider.fetchPOsWithFilters(
+        status: "Approved,PartiallyReceived",
+        vendorName: vendorName.value.isNotEmpty ? vendorName.value : null,
+        fromDate: fromDate,
+        toDate: toDate,
+        filterByField: "orderDate",
+        clearExisting: true,
+      );
+    } finally {
+      isFiltering.value = false;
     }
-
-    await provider.fetchPOsWithFilters(
-      status: "Approved,PartiallyReceived",
-      vendorName: vendorName.value.isNotEmpty ? vendorName.value : null,
-      fromDate: fromDate,
-      toDate: toDate,
-      filterByField: "orderDate",
-      clearExisting: true,
-    );
   }
 
   Future<void> _pickDateRange() async {
@@ -247,17 +258,17 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
 
                 fieldViewBuilder: (context, ctrl, fn, _) {
                   _autoVendorCtrl = ctrl;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (vendorCtrl.text.isNotEmpty &&
-                        ctrl.text != vendorCtrl.text) {
-                      ctrl.value = ctrl.value.copyWith(
-                        text: vendorCtrl.text,
-                        selection: TextSelection.collapsed(
-                          offset: vendorCtrl.text.length,
-                        ),
-                      );
-                    }
-                  });
+                  // WidgetsBinding.instance.addPostFrameCallback((_) {
+                  //   if (vendorCtrl.text.isNotEmpty &&
+                  //       ctrl.text != vendorCtrl.text) {
+                  //     ctrl.value = ctrl.value.copyWith(
+                  //       text: vendorCtrl.text,
+                  //       selection: TextSelection.collapsed(
+                  //         offset: vendorCtrl.text.length,
+                  //       ),
+                  //     );
+                  //   }
+                  // });
 
                   return TextField(
                     controller: ctrl,
@@ -305,7 +316,9 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                       _searchVendor(v);
 
                       if (v.isEmpty) {
+                        vendorCtrl.clear(); // <-- add this
                         vendorName.value = "";
+                        _displayedVendors = List.from(_allVendors);
                         _applyFilters();
                       }
                     },
@@ -323,9 +336,10 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                       borderRadius: BorderRadius.circular(12),
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxHeight: optionList.length * 48.0 > 240
-                              ? 240
-                              : optionList.length * 48.0,
+                          minHeight: 56,
+                          maxHeight: optionList.length * 56.0 > 280
+                              ? 280
+                              : optionList.length * 56.0,
                         ),
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -333,7 +347,7 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                           itemBuilder: (context, index) {
                             final option = optionList[index];
                             return ListTile(
-                              dense: true,
+                              dense: false,
                               title: Text(
                                 option,
                                 style: const TextStyle(fontSize: 14.5),
@@ -459,129 +473,131 @@ class _ApprovedPOPageState extends State<ApprovedPOPage> {
                         );
                       }
 
-                      return Consumer<POProvider>(
-                        builder: (_, provider, __) {
-                          if (!isInitialized.value) {
+                      return ValueListenableBuilder<bool>(
+                        valueListenable: isFiltering,
+                        builder: (_, loading, __) {
+                          if (loading) {
                             return const Expanded(
                               child: Center(child: CircularProgressIndicator()),
                             );
                           }
 
-                          if (provider.error != null) {
-                            return Expanded(
-                              child: ListView(
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                children: [
-                                  const SizedBox(height: 140),
-
-                                  Center(
-                                    child: Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.error_outline,
-                                          color: Colors.redAccent,
-                                          size: 40,
-                                        ),
-
-                                        const SizedBox(height: 12),
-
-                                        Text(
-                                          provider.error ??
-                                              "Something went wrong",
-                                          style: const TextStyle(
-                                            color: Colors.black87,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                        ),
-
-                                        const SizedBox(height: 14),
-
-                                        ElevatedButton(
-                                          onPressed: _onRefresh,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.blueAccent,
-                                            foregroundColor: Colors.white,
-                                          ),
-                                          child: const Text("Retry"),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          final list = provider.pos
-                              .where(
-                                (po) =>
-                                    po.poStatus != "GRNConverted" &&
-                                    po.poStatus != "ConvertedToGRN",
-                              )
-                              .toList();
-
-                          if (list.isEmpty && !provider.isLoading) {
-                            final hasFilters =
-                                vendorName.value.isNotEmpty ||
-                                selectedDateRange.value != null;
-
-                            return Expanded(
-                              child: LayoutBuilder(
-                                builder: (context, constraints) {
-                                  return SingleChildScrollView(
+                          return Consumer<POProvider>(
+                            builder: (_, provider, __) {
+                              if (provider.error != null) {
+                                return Expanded(
+                                  child: ListView(
                                     physics:
                                         const AlwaysScrollableScrollPhysics(),
-                                    child: SizedBox(
-                                      height: constraints.maxHeight,
-                                      child: Center(
+                                    children: [
+                                      const SizedBox(height: 140),
+                                      Center(
                                         child: Column(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
                                           children: [
-                                            Text(
-                                              hasFilters
-                                                  ? "No results for filters"
-                                                  : "No approved POs Found",
-                                              style: const TextStyle(
-                                                color: Colors.grey,
-                                                fontSize: 17,
-                                              ),
+                                            const Icon(
+                                              Icons.error_outline,
+                                              color: Colors.redAccent,
+                                              size: 40,
                                             ),
-
                                             const SizedBox(height: 12),
-
-                                            if (hasFilters)
-                                              TextButton(
-                                                onPressed: _clearAll,
-                                                child: const Text(
-                                                  "Clear Filters",
-                                                  style: TextStyle(
-                                                    color: Colors.blueAccent,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
+                                            Text(
+                                              provider.error ??
+                                                  "Something went wrong",
+                                              style: const TextStyle(
+                                                color: Colors.black87,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
                                               ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 14),
+                                            ElevatedButton(
+                                              onPressed: _onRefresh,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.blueAccent,
+                                                foregroundColor: Colors.white,
+                                              ),
+                                              child: const Text("Retry"),
+                                            ),
                                           ],
                                         ),
                                       ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            );
-                          }
+                                    ],
+                                  ),
+                                );
+                              }
 
-                          return Expanded(
-                            child: GridViewApproveWidget<PO>(
-                              items: list,
-                              itemBuilder: (_, i) => ApprovedPOWidget(
-                                po: list[i],
-                                poProvider: provider,
-                              ),
-                              fixedHeight: 180,
-                            ),
+                              final list = provider.pos
+                                  .where(
+                                    (po) =>
+                                        po.poStatus != "GRNConverted" &&
+                                        po.poStatus != "ConvertedToGRN",
+                                  )
+                                  .toList();
+
+                              if (list.isEmpty && !provider.isLoading) {
+                                final hasFilters =
+                                    vendorName.value.isNotEmpty ||
+                                    selectedDateRange.value != null;
+
+                                return Expanded(
+                                  child: LayoutBuilder(
+                                    builder: (context, constraints) {
+                                      return SingleChildScrollView(
+                                        physics:
+                                            const AlwaysScrollableScrollPhysics(),
+                                        child: SizedBox(
+                                          height: constraints.maxHeight,
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  hasFilters
+                                                      ? "No results for filters"
+                                                      : "No approved POs Found",
+                                                  style: const TextStyle(
+                                                    color: Colors.grey,
+                                                    fontSize: 17,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 12),
+                                                if (hasFilters)
+                                                  TextButton(
+                                                    onPressed: _clearAll,
+                                                    child: const Text(
+                                                      "Clear Filters",
+                                                      style: TextStyle(
+                                                        color:
+                                                            Colors.blueAccent,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              }
+
+                              return Expanded(
+                                child: GridViewApproveWidget<PO>(
+                                  items: list,
+                                  itemBuilder: (_, i) => ApprovedPOWidget(
+                                    po: list[i],
+                                    poProvider: provider,
+                                  ),
+                                  fixedHeight: 180,
+                                ),
+                              );
+                            },
                           );
                         },
                       );

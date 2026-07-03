@@ -152,14 +152,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     if (args?["loginSuccess"] == true) {
       _isLoginSnackShown = true;
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Login successful!"),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final notifier = context.read<PurchaseOrderNotifier>();
+        final poProvider = context.read<POProvider>();
+
+        await poProvider.refreshPOList();
+
+        await notifier.fetchItems('');
+        await notifier.fetchBillingAddress1();
+        await notifier.fetchShippingAddress1();
       });
     }
   }

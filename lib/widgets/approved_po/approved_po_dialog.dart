@@ -205,15 +205,70 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              _buildDialogHeader(),
-              _buildItemsTablesSection(),
-              _buildActionButtons(),
+              Column(
+                children: [
+                  _buildDialogHeader(),
+                  _buildItemsTablesSection(),
+                  _buildActionButtons(),
+                ],
+              ),
+
+              _buildLoadingOverlay(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLoadingOverlay() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _logic.isSaving,
+      builder: (context, saving, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: _logic.isReverting,
+          builder: (context, reverting, _) {
+            if (!saving && !reverting) {
+              return const SizedBox.shrink();
+            }
+
+            return Positioned.fill(
+              child: AbsorbPointer(
+                absorbing: true,
+                child: Container(
+                  color: Colors.black54,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 20),
+                        Text(
+                          saving
+                              ? "Converting PO to GRN..."
+                              : "Reverting GRN to PO...",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Please wait...",
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1014,103 +1069,97 @@ class _ApprovedPODialogState extends State<ApprovedPODialog> {
       "approve",
     );
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(border: Border()),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Revert PO Button
-          SizedBox(
-            width: 110, // ✅ Increased from 90 to 110
-            child: ElevatedButton(
-              onPressed: () {
-                if (!canRevert) {
-                  _logic.showTopError("No permission to revert PO");
-                  return;
-                }
-                _logic.revertPO(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: canRevert ? Colors.blueAccent : Colors.grey,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              child: const Text(
-                'Revert PO',
-                style: TextStyle(fontSize: 11),
-                maxLines: 1,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
+    return ValueListenableBuilder<bool>(
+      valueListenable: _logic.isSaving,
+      builder: (context, saving, _) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: _logic.isReverting,
+          builder: (context, reverting, _) {
+            final bool isLoading = saving || reverting;
 
-          // Close Button
-          SizedBox(
-            width: 85, // ✅ Increased from 70 to 85
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-              child: const Text(
-                'Close',
-                style: TextStyle(fontSize: 11),
-                maxLines: 1,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-
-          // Convert to GRN Button
-          ValueListenableBuilder<bool>(
-            valueListenable: _logic.isSaving,
-            builder: (context, saving, _) {
-              return SizedBox(
-                width: 125, // ✅ Increased from 100 to 125
-                child: ElevatedButton(
-                  onPressed: saving
-                      ? null
-                      : () {
-                          if (!canConvert) {
-                            _logic.showTopError("No permission to convert GRN");
-                            return;
-                          }
-                          _showConvertToGRNConfirmation();
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: canRevert
-                        ? Colors.blueAccent
-                        : Colors.grey,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: const BoxDecoration(border: Border()),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Revert PO
+                  SizedBox(
+                    width: 110,
+                    child: ElevatedButton(
+                      onPressed: (canRevert && !isLoading)
+                          ? () {
+                              _logic.revertPO(context);
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canRevert
+                            ? Colors.blueAccent
+                            : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text(
+                        'Revert PO',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
                   ),
-                  child: saving
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Convert to GRN',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+
+                  const SizedBox(width: 8),
+
+                  // Close
+                  SizedBox(
+                    width: 85,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text(
+                        'Close',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  // Convert to GRN
+                  SizedBox(
+                    width: 125,
+                    child: ElevatedButton(
+                      onPressed: (canConvert && !isLoading)
+                          ? () {
+                              _showConvertToGRNConfirmation();
+                            }
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canConvert
+                            ? Colors.blueAccent
+                            : Colors.grey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text(
+                        'Convert to GRN',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

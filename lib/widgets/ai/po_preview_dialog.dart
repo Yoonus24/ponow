@@ -356,6 +356,11 @@ class POPreviewDialog extends StatelessWidget {
                     _buildHeaderCell("Pkt Count", flex: 80, alignRight: true),
                     _buildHeaderCell("Each Qty", flex: 80, alignRight: true),
                     _buildHeaderCell(
+                      "Pending\nQty",
+                      flex: 90,
+                      alignRight: true,
+                    ),
+                    _buildHeaderCell(
                       "Existing\nPrice",
                       flex: 90,
                       alignRight: true,
@@ -363,11 +368,10 @@ class POPreviewDialog extends StatelessWidget {
                     _buildHeaderCell("New\nPrice", flex: 80, alignRight: true),
                     _buildHeaderCell("Tax %", flex: 70, alignRight: true),
                     _buildHeaderCell(
-                      "Total\nPrice",
+                      "Total Price\n(Incl. Tax)",
                       flex: 100,
                       alignRight: true,
                     ),
-                   
                   ],
                 ),
               ),
@@ -409,6 +413,13 @@ class POPreviewDialog extends StatelessWidget {
                         flex: 80,
                         alignRight: true,
                       ),
+                      // Pending Qty - placed right after Each Qty
+                      _buildDataCell(
+                        (item.pendingTotalQuantity ?? 0).toStringAsFixed(2),
+                        flex: 90,
+                        alignRight: true,
+                        isPending: true,
+                      ),
                       _buildDataCell(
                         "₹${(item.existingPrice ?? 0).toStringAsFixed(2)}",
                         flex: 90,
@@ -425,17 +436,12 @@ class POPreviewDialog extends StatelessWidget {
                         flex: 70,
                         alignRight: true,
                       ),
+                      // Using finalPrice (including tax) instead of totalPrice
                       _buildDataCell(
-                        "₹${(item.totalPrice ?? 0).toStringAsFixed(2)}",
+                        "₹${(item.finalPrice ?? 0).toStringAsFixed(2)}",
                         flex: 100,
                         alignRight: true,
                         isTotal: true,
-                      ),
-                      _buildDataCell(
-                        (item.pendingTotalQuantity ?? 0).toStringAsFixed(2),
-                        flex: 90,
-                        alignRight: true,
-                        isPending: true,
                       ),
                     ],
                   ),
@@ -454,10 +460,11 @@ class POPreviewDialog extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Expanded(flex: 790, child: Container()),
+                    Expanded(flex: 710, child: Container()),
                     _buildHeaderCell("Total:", flex: 100, alignRight: true),
+                    // Calculating total using finalPrice (including tax)
                     _buildDataCell(
-                      "₹${_calculateTotal().toStringAsFixed(2)}",
+                      "₹${_calculateTotalWithTax().toStringAsFixed(2)}",
                       flex: 100,
                       alignRight: true,
                       isTotal: true,
@@ -470,6 +477,11 @@ class POPreviewDialog extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // Method to calculate total with tax (using finalPrice)
+  double _calculateTotalWithTax() {
+    return po.items.fold(0.0, (sum, item) => sum + (item.finalPrice ?? 0));
   }
 
   Widget _buildHeaderCell(

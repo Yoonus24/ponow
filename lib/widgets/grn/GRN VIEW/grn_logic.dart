@@ -26,6 +26,7 @@ class GRNLogic {
 
   // ValueNotifiers
   final ValueNotifier<bool> isConverting = ValueNotifier(false);
+  final ValueNotifier<bool> isReverting = ValueNotifier(false);
   final Map<String, ValueNotifier<double>> befTaxDiscountNotifiers = {};
   final Map<String, ValueNotifier<double>> afTaxDiscountNotifiers = {};
   final ValueNotifier<double> commonDiscountNotifier = ValueNotifier(0.0);
@@ -414,8 +415,7 @@ class GRNLogic {
     if (confirm != true) return;
 
     try {
-      isConverting.value = true;
-
+      isReverting.value = true;
       final success = await context.read<GRNProvider>().cancelGRN(
         grn.grnId ?? '',
       );
@@ -436,8 +436,7 @@ class GRNLogic {
       }
     } catch (e) {
       // REMOVE LOADER FIRST
-      isConverting.value = false;
-
+      isReverting.value = false;
       if (!context.mounted) return;
 
       final errorMessage = e.toString().replaceFirst('Exception: ', '');
@@ -489,7 +488,7 @@ class GRNLogic {
         ),
       );
     } finally {
-      isConverting.value = false;
+      isReverting.value = false;
     }
   }
 

@@ -75,6 +75,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           // }
 
           File? selectedFile;
+          List<File>? selectedFiles;
 
           // =====================================================
           // CAMERA
@@ -90,20 +91,31 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             }
 
             selectedFile = File(picked.path);
+            
+            debugPrint("CAMERA IMAGE SELECTED: ${selectedFile.path}");
           }
           // =====================================================
-          // GALLERY
+          // GALLERY (MULTIPLE IMAGES)
           // =====================================================
           else if (selected == "gallery") {
             final picker = ImagePicker();
 
-            final picked = await picker.pickImage(source: ImageSource.gallery);
+            final pickedImages = await picker.pickMultiImage(
+              imageQuality: 80,
+            );
 
-            if (picked == null) {
+            if (pickedImages == null || pickedImages.isEmpty) {
               return;
             }
 
-            selectedFile = File(picked.path);
+            selectedFiles = pickedImages
+                .map((e) => File(e.path))
+                .toList();
+
+            debugPrint("MULTIPLE IMAGES PICKED: ${selectedFiles!.length}");
+            for (int i = 0; i < selectedFiles!.length; i++) {
+              debugPrint("  IMAGE ${i + 1}: ${selectedFiles![i].path}");
+            }
           }
           // =====================================================
           // PDF
@@ -120,13 +132,16 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             }
 
             selectedFile = File(result.files.single.path!);
+            
+            debugPrint("PDF SELECTED: ${selectedFile.path}");
           }
 
           // =====================================================
           // SAFETY CHECK
           // =====================================================
 
-          if (selectedFile == null) {
+          if (selectedFile == null && (selectedFiles == null || selectedFiles!.isEmpty)) {
+            debugPrint("NO FILE SELECTED - ABORTING");
             return;
           }
 
@@ -134,7 +149,19 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           // START AI FLOW
           // =====================================================
 
-          await scanAndOpenPOFlow(context: context, file: selectedFile);
+          if (selectedFiles != null && selectedFiles!.isNotEmpty) {
+            debugPrint("STARTING AI FLOW WITH ${selectedFiles!.length} IMAGES");
+            await scanAndOpenPOFlow(
+              context: context,
+              files: selectedFiles,
+            );
+          } else if (selectedFile != null) {
+            debugPrint("STARTING AI FLOW WITH SINGLE FILE: ${selectedFile.path}");
+            await scanAndOpenPOFlow(
+              context: context,
+              file: selectedFile,
+            );
+          }
         },
         icon: const Column(
           mainAxisAlignment: MainAxisAlignment.center,

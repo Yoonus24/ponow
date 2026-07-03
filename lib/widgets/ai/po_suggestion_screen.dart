@@ -27,6 +27,22 @@ class _POSuggestionDialogState extends State<POSuggestionDialog> {
     selectedPoId = widget.response.autoSuggestedPO?.poId;
   }
 
+  String _formatDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) {
+      return "-";
+    }
+
+    try {
+      final date = DateTime.parse(dateString);
+
+      return "${date.day.toString().padLeft(2, '0')}-"
+          "${date.month.toString().padLeft(2, '0')}-"
+          "${date.year}";
+    } catch (e) {
+      return dateString;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Sort suggestions by score (highest first)
@@ -291,138 +307,271 @@ class _POSuggestionDialogState extends State<POSuggestionDialog> {
                                         ),
                                         const SizedBox(width: 14),
                                         Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
+                                          child: FutureBuilder(
+                                            future: widget.poProvider
+                                                .fetchPOById(po.poId),
+                                            builder: (context, snapshot) {
+                                              final poDetails = snapshot.data;
+
+                                              return Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
                                                 children: [
-                                                  Flexible(
-                                                    child: Text(
-                                                      po.poNumber,
-                                                      style: TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.w600,
-                                                        color: isRecommended
-                                                            ? const Color(
-                                                                0xFF065F46,
-                                                              )
-                                                            : const Color(
-                                                                0xFF1E293B,
-                                                              ),
-                                                      ),
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 10),
-                                                  // Score Badge
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 10,
-                                                          vertical: 4,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: scoreColor
-                                                          .withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            20,
-                                                          ),
-                                                      border: Border.all(
-                                                        color: scoreColor
-                                                            .withOpacity(0.3),
-                                                        width: 1,
-                                                      ),
-                                                    ),
-                                                    child: Row(
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.trending_up,
-                                                          size: 12,
-                                                          color: scoreColor,
-                                                        ),
-                                                        const SizedBox(
-                                                          width: 4,
-                                                        ),
-                                                        Text(
-                                                          "$score%",
+                                                  Row(
+                                                    children: [
+                                                      Flexible(
+                                                        child: Text(
+                                                          po.poNumber,
                                                           style: TextStyle(
-                                                            fontSize: 13,
+                                                            fontSize: 16,
                                                             fontWeight:
-                                                                FontWeight.w700,
-                                                            color: scoreColor,
+                                                                FontWeight.w600,
+                                                            color: isRecommended
+                                                                ? const Color(
+                                                                    0xFF065F46,
+                                                                  )
+                                                                : const Color(
+                                                                    0xFF1E293B,
+                                                                  ),
+                                                          ),
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 10),
+
+                                                      // Score Badge
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 10,
+                                                              vertical: 4,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: scoreColor
+                                                              .withOpacity(0.1),
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                20,
+                                                              ),
+                                                          border: Border.all(
+                                                            color: scoreColor
+                                                                .withOpacity(
+                                                                  0.3,
+                                                                ),
+                                                            width: 1,
+                                                          ),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons.trending_up,
+                                                              size: 12,
+                                                              color: scoreColor,
+                                                            ),
+                                                            const SizedBox(
+                                                              width: 4,
+                                                            ),
+                                                            Text(
+                                                              "$score%",
+                                                              style: TextStyle(
+                                                                fontSize: 13,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700,
+                                                                color:
+                                                                    scoreColor,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+
+                                                  const SizedBox(height: 10),
+
+                                                  // STATUS + ORDER DATE
+                                                  if (poDetails != null)
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 8,
+                                                      children: [
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 10,
+                                                                vertical: 5,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFFF8FAFC,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  20,
+                                                                ),
+                                                            border: Border.all(
+                                                              color:
+                                                                  const Color(
+                                                                    0xFFE2E8F0,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            children: [
+                                                              const Icon(
+                                                                Icons
+                                                                    .flag_outlined,
+                                                                size: 14,
+                                                                color: Color(
+                                                                  0xFF64748B,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 4,
+                                                              ),
+                                                              Text(
+                                                                poDetails
+                                                                        .poStatus ??
+                                                                    "-",
+                                                                style: const TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 10,
+                                                                vertical: 5,
+                                                              ),
+                                                          decoration: BoxDecoration(
+                                                            color: const Color(
+                                                              0xFFEFF6FF,
+                                                            ),
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  20,
+                                                                ),
+                                                            border: Border.all(
+                                                              color:
+                                                                  const Color(
+                                                                    0xFFBFDBFE,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize:
+                                                                MainAxisSize
+                                                                    .min,
+                                                            children: [
+                                                              const Icon(
+                                                                Icons
+                                                                    .calendar_today_outlined,
+                                                                size: 14,
+                                                                color: Color(
+                                                                  0xFF2563EB,
+                                                                ),
+                                                              ),
+                                                              const SizedBox(
+                                                                width: 4,
+                                                              ),
+                                                              Text(
+                                                                _formatDate(
+                                                                  poDetails
+                                                                      .orderDate,
+                                                                ),
+                                                                style: const TextStyle(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w500,
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ),
                                                       ],
                                                     ),
-                                                  ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 8),
-                                              // Match Details
 
-                                              // View PO Button
-                                              Align(
-                                                alignment: Alignment.centerLeft,
-                                                child: TextButton.icon(
-                                                  icon: const Icon(
-                                                    Icons.visibility_outlined,
-                                                    size: 18,
-                                                  ),
-                                                  label: const Text(
-                                                    "View PO",
-                                                    style: TextStyle(
-                                                      fontSize: 13,
-                                                    ),
-                                                  ),
-                                                  style: TextButton.styleFrom(
-                                                    foregroundColor:
-                                                        const Color(0xFF3B82F6),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 12,
-                                                          vertical: 8,
+                                                  const SizedBox(height: 8),
+
+                                                  // VIEW PO BUTTON
+                                                  Align(
+                                                    alignment:
+                                                        Alignment.centerLeft,
+                                                    child: TextButton.icon(
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .visibility_outlined,
+                                                        size: 18,
+                                                      ),
+                                                      label: const Text(
+                                                        "View PO",
+                                                        style: TextStyle(
+                                                          fontSize: 13,
                                                         ),
-                                                  ),
-                                                  onPressed: () async {
-                                                    final poDetails =
-                                                        await widget.poProvider
-                                                            .fetchPOById(
-                                                              po.poId,
+                                                      ),
+                                                      style: TextButton.styleFrom(
+                                                        foregroundColor:
+                                                            const Color(
+                                                              0xFF3B82F6,
+                                                            ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 12,
+                                                              vertical: 8,
+                                                            ),
+                                                      ),
+                                                      onPressed: () async {
+                                                        final poDetails =
+                                                            await widget
+                                                                .poProvider
+                                                                .fetchPOById(
+                                                                  po.poId,
+                                                                );
+
+                                                        if (!mounted) return;
+
+                                                        if (poDetails == null) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text(
+                                                                "PO not found",
+                                                              ),
+                                                            ),
+                                                          );
+                                                          return;
+                                                        }
+
+                                                        showDialog(
+                                                          context: context,
+                                                          builder: (_) {
+                                                            return POPreviewDialog(
+                                                              po: poDetails,
                                                             );
-
-                                                    if (!mounted) return;
-
-                                                    if (poDetails == null) {
-                                                      ScaffoldMessenger.of(
-                                                        context,
-                                                      ).showSnackBar(
-                                                        const SnackBar(
-                                                          content: Text(
-                                                            "PO not found",
-                                                          ),
-                                                        ),
-                                                      );
-                                                      return;
-                                                    }
-
-                                                    showDialog(
-                                                      context: context,
-                                                      builder: (_) {
-                                                        return POPreviewDialog(
-                                                          po: poDetails,
+                                                          },
                                                         );
                                                       },
-                                                    );
-                                                  },
-                                                ),
-                                              ),
-                                            ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              );
+                                            },
                                           ),
                                         ),
                                       ],

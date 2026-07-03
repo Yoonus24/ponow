@@ -50,6 +50,7 @@ class ApprovedPOLogic {
     null,
   );
   final ValueNotifier<bool> isSaving = ValueNotifier(false);
+  final ValueNotifier<bool> isReverting = ValueNotifier(false);
   final ValueNotifier<double> roundOffAmount;
   late final GlobalKey<ScaffoldMessengerState> _dialogMessengerKey;
   final ScrollController _orderedHorizontalController = ScrollController();
@@ -60,6 +61,7 @@ class ApprovedPOLogic {
   final ScrollController _receivedRightVertical = ScrollController();
   final ValueNotifier<bool> isSummaryDiscountActive = ValueNotifier(false);
   final ValueNotifier<bool> isItemDiscountActive = ValueNotifier(false);
+
   static const double _rowHeight = 30.0;
   static const int _minVisibleRows = 7;
   bool isTablet = false;
@@ -1221,41 +1223,40 @@ class ApprovedPOLogic {
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
 
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) =>
-                      const Center(child: CircularProgressIndicator()),
-                );
+                isReverting.value = true;
 
                 try {
                   await poProvider.changePoStatusToPending(po.purchaseOrderId);
 
                   await poProvider.applyCurrentFilters();
 
-                  if (context.mounted) {
-                    Navigator.of(context).pop(); // loader
-                    Navigator.of(context).pop(); // dialog
+                  isReverting.value = false;
 
-                    onUpdated();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('PO reverted to Pending successfully'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
-                  }
+                  if (!context.mounted) return;
+
+                  Navigator.of(context).pop();
+
+                  onUpdated();
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('PO reverted to Pending successfully'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                      margin: EdgeInsets.all(16),
+                    ),
+                  );
                 } catch (e, stackTrace) {
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
+                  isReverting.value = false;
 
-                    final appError = AppErrorHandler.handle(
-                      e,
-                      stackTrace: stackTrace,
-                    );
+                  if (!context.mounted) return;
 
-                    AppSnackbar.showError(context, appError);
-                  }
+                  final appError = AppErrorHandler.handle(
+                    e,
+                    stackTrace: stackTrace,
+                  );
+
+                  AppSnackbar.showError(context, appError);
                 }
               },
               child: const Text('Confirm'),
@@ -1270,7 +1271,6 @@ class ApprovedPOLogic {
     debugPrint("convertPoToGRN() CALLED");
 
     final navigator = Navigator.of(context);
-    final rootNavigator = Navigator.of(context, rootNavigator: true);
 
     if (isSaving.value) {
       debugPrint("Already saving, skipping...");
@@ -1282,16 +1282,8 @@ class ApprovedPOLogic {
 
     try {
       isSaving.value = true;
-      debugPrint("=========== GRN CONVERSION START ===========");
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        useRootNavigator: true,
-        builder: (_) {
-          return const Center(child: CircularProgressIndicator());
-        },
-      );
+      debugPrint("=========== GRN CONVERSION START ===========");
 
       normalizeBeforeApi();
 
@@ -1309,7 +1301,6 @@ class ApprovedPOLogic {
       final rawDate = invoiceDateController.text.trim();
       DateTime pickedDate;
 
-      // ========== FIXED DATE PARSING - SUPPORTS ALL FORMATS ==========
       try {
         if (rawDate.isEmpty) {
           throw Exception("Invoice date is empty");
@@ -1317,19 +1308,17 @@ class ApprovedPOLogic {
 
         debugPrint("📅 Parsing date: '$rawDate'");
 
-        // Try multiple date formats in order
         DateTime? parsedDate;
 
-        // Method 1: Try all possible formats
         final dateFormats = [
-          DateFormat('dd-MM-yyyy'), // 20-05-2026
-          DateFormat('dd/MM/yyyy'), // 20/05/2026
-          DateFormat('yyyy-MM-dd'), // 2026-05-20
-          DateFormat('yyyy/MM/dd'), // 2026/05/20
-          DateFormat('MM-dd-yyyy'), // 05-20-2026
-          DateFormat('MM/dd/yyyy'), // 05/20/2026
-          DateFormat('dd.MM.yyyy'), // 20.05.2026
-          DateFormat('yyyy.MM.dd'), // 2026.05.20
+          DateFormat('dd-MM-yyyy'),
+          DateFormat('dd/MM/yyyy'),
+          DateFormat('yyyy-MM-dd'),
+          DateFormat('yyyy/MM/dd'),
+          DateFormat('MM-dd-yyyy'),
+          DateFormat('MM/dd/yyyy'),
+          DateFormat('dd.MM.yyyy'),
+          DateFormat('yyyy.MM.dd'),
         ];
 
         for (var format in dateFormats) {
@@ -1337,17 +1326,10 @@ class ApprovedPOLogic {
             parsedDate = format.parseStrict(rawDate);
             debugPrint("✅ Parsed with format: ${format.pattern}");
             break;
-          } catch (e) {
-            // Continue to next format
-            continue;
-          }
+          } catch (_) {}
         }
 
-        // Method 2: If still null, try manual parsing
         if (parsedDate == null) {
-          debugPrint("⚠️ Trying manual parsing...");
-
-          // Extract numbers from date string
           final numbers = RegExp(
             r'\d+',
           ).allMatches(rawDate).map((m) => int.parse(m.group(0)!)).toList();
@@ -1357,30 +1339,16 @@ class ApprovedPOLogic {
             int second = numbers[1];
             int year = numbers[2];
 
-            // Fix 2-digit year if needed
             if (year < 100) {
-              year = 2000 + year;
+              year += 2000;
             }
 
-            // Determine format based on values
             if (first > 12) {
-              // First is day (DD-MM-YYYY)
               parsedDate = DateTime(year, second, first);
-              debugPrint(
-                "✅ Manual parse: Day=$first, Month=$second, Year=$year",
-              );
             } else if (second > 12) {
-              // Second is day (MM-DD-YYYY)
               parsedDate = DateTime(year, first, second);
-              debugPrint(
-                "✅ Manual parse: Month=$first, Day=$second, Year=$year",
-              );
             } else {
-              // Ambiguous - default to DD-MM-YYYY for Indian format
               parsedDate = DateTime(year, second, first);
-              debugPrint(
-                "✅ Manual parse (default DD-MM): Day=$first, Month=$second, Year=$year",
-              );
             }
           }
         }
@@ -1389,21 +1357,21 @@ class ApprovedPOLogic {
           throw Exception("Could not parse date");
         }
 
-        // Validate date
         if (parsedDate.year < 2000 || parsedDate.year > 2100) {
-          throw Exception("Invalid year: ${parsedDate.year}");
+          throw Exception("Invalid year");
         }
 
         pickedDate = parsedDate;
+
         debugPrint(
           "✅ FINAL DATE: ${DateFormat('dd-MM-yyyy').format(pickedDate)}",
         );
       } catch (e) {
-        debugPrint("❌ Date parsing error: $e");
         throw const AppException("Invalid invoice date format. Use DD-MM-YYYY");
       }
 
       final now = ServerTimeService.now;
+
       final parsedInvoiceDate = DateTime(
         pickedDate.year,
         pickedDate.month,
@@ -1439,64 +1407,49 @@ class ApprovedPOLogic {
 
       debugPrint("✅ GRN CREATED: $grnNumber");
 
-      if (context.mounted && rootNavigator.canPop()) {
-        rootNavigator.pop();
-      }
+      await poProvider.fetchApprovedPOsOnly();
+      await grnProvider.fetchFilteredGRNs();
 
-      if (context.mounted) {
-        await poProvider.fetchApprovedPOsOnly();
-      }
+      if (!context.mounted) return;
 
-      if (context.mounted) {
-        await grnProvider.fetchFilteredGRNs();
-      }
-
-      if (context.mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Text(
-                "GRN Generated",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              content: Text(
-                "GRN has been generated successfully.\n\nGRN No: $grnNumber",
-                style: const TextStyle(fontSize: 15),
-              ),
-              actions: [
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    if (context.mounted) {
-                      navigator.pop();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text("OK"),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              "GRN Generated",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            content: Text(
+              "GRN has been generated successfully.\n\nGRN No: $grnNumber",
+              style: const TextStyle(fontSize: 15),
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  navigator.pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
                 ),
-              ],
-            );
-          },
-        );
-      }
+                child: const Text("OK"),
+              ),
+            ],
+          );
+        },
+      );
 
       debugPrint("=========== GRN CONVERSION END ===========");
     } catch (e, stack) {
       debugPrint("Convert PO to GRN failed: $e");
       debugPrintStack(stackTrace: stack);
-
-      if (context.mounted && rootNavigator.canPop()) {
-        rootNavigator.pop();
-      }
 
       final appError = AppErrorHandler.handle(e, stackTrace: stack);
 

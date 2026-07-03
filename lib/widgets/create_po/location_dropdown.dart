@@ -17,7 +17,7 @@ class _LocationDropdownState extends State<LocationDropdown> {
   final FocusNode _focusNode = FocusNode();
 
   final LayerLink _layerLink = LayerLink();
-
+  final GlobalKey _fieldKey = GlobalKey();
   final ValueNotifier<List<dynamic>> _filtered = ValueNotifier<List<dynamic>>(
     [],
   );
@@ -40,6 +40,15 @@ class _LocationDropdownState extends State<LocationDropdown> {
         _removeOverlay();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    _controller.dispose();
+    _focusNode.dispose();
+    _filtered.dispose();
+    super.dispose();
   }
 
   void _setDefaultIfNeeded(PurchaseOrderNotifier notifier) {
@@ -71,61 +80,98 @@ class _LocationDropdownState extends State<LocationDropdown> {
       }).toList();
     }
 
-    _showOverlay();
+    if (_focusNode.hasFocus) {
+      _showOverlay();
+    }
   }
 
   void _showOverlay() {
     _removeOverlay();
 
-    final overlay = Overlay.of(context);
     final list = _filtered.value;
 
     if (list.isEmpty) return;
 
+    final overlay = Overlay.of(context);
+    final renderBox =
+        _fieldKey.currentContext?.findRenderObject() as RenderBox?;
+
+    if (renderBox == null) return;
+
+    final size = renderBox.size;
+    final offset = renderBox.localToGlobal(Offset.zero);
+
     _overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        width: MediaQuery.of(context).size.width,
+        left: offset.dx,
+        top: offset.dy + size.height + 2,
+        width: size.width,
         child: CompositedTransformFollower(
           link: _layerLink,
-          offset: const Offset(0, 60), // field height
+          offset: Offset.zero,
           showWhenUnlinked: false,
           child: Material(
             elevation: 4,
             borderRadius: BorderRadius.circular(8),
             child: Container(
               constraints: const BoxConstraints(maxHeight: 200),
-              margin: const EdgeInsets.only(top: 4),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: list.length,
-                itemBuilder: (_, i) {
-                  final b = list[i];
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: list.length,
+                  itemBuilder: (_, i) {
+                    final b = list[i];
+                    final isLast = i == list.length - 1;
 
-                  return ListTile(
-                    title: Text("${b.branchName} (${b.location})"),
-                    onTap: () {
-                      _controller.text = "${b.branchName} (${b.location})";
+                    return Column(
+                      children: [
+                        ListTile(
+                          dense: true,
+                          visualDensity: const VisualDensity(
+                            horizontal: 0,
+                            vertical: -1,
+                          ),
+                          title: Text(
+                            "${b.branchName} (${b.location})",
+                            style: const TextStyle(fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            _controller.text =
+                                "${b.branchName} (${b.location})";
 
-                      final notifier = Provider.of<PurchaseOrderNotifier>(
-                        context,
-                        listen: false,
-                      );
+                            final notifier = Provider.of<PurchaseOrderNotifier>(
+                              context,
+                              listen: false,
+                            );
 
-                      notifier.setLocation(
-                        location: b.location,
-                        locationName: b.branchName,
-                      );
+                            notifier.setLocation(
+                              location: b.location,
+                              locationName: b.branchName,
+                            );
 
-                      _focusNode.unfocus();
-                      _removeOverlay();
-                    },
-                  );
-                },
+                            _focusNode.unfocus();
+                            _removeOverlay();
+                          },
+                        ),
+                        if (!isLast)
+                          Divider(
+                            height: 0,
+                            thickness: 0.5,
+                            color: Colors.grey.shade200,
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -157,6 +203,7 @@ class _LocationDropdownState extends State<LocationDropdown> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 60, maxHeight: 60),
         child: TextFormField(
+          key: _fieldKey,
           controller: _controller,
           focusNode: _focusNode,
 
@@ -170,7 +217,9 @@ class _LocationDropdownState extends State<LocationDropdown> {
                           _controller.clear();
                           notifier.clearLocation();
                           _filtered.value = _branches;
-                          _showOverlay();
+                          if (_focusNode.hasFocus) {
+                            _showOverlay();
+                          }
                         },
                       )
                     : const Icon(Icons.arrow_drop_down),

@@ -640,7 +640,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                               );
 
                                               if (confirm == true) {
-                                                isVerifying.value = true;
+                                                logic.isVerifying.value = true;
 
                                                 final success = await context
                                                     .read<APInvoiceProvider>()
@@ -650,7 +650,7 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
                                                           .invoiceId!,
                                                     );
 
-                                                isVerifying.value = false;
+                                                logic.isVerifying.value = false;
 
                                                 if (success &&
                                                     context.mounted) {
@@ -690,19 +690,48 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
             ),
             ValueListenableBuilder<bool>(
               valueListenable: logic.isReturning,
-              builder: (context, isReturning, _) {
+              builder: (context, returning, _) {
                 return ValueListenableBuilder<bool>(
-                  valueListenable: isVerifying,
-                  builder: (context, isVerifyingNow, _) {
-                    if (!isReturning && !isVerifyingNow) {
+                  valueListenable: logic.isVerifying,
+                  builder: (context, verifying, _) {
+                    if (!returning && !verifying) {
                       return const SizedBox.shrink();
                     }
 
-                    return Container(
-                      color: Colors.black.withOpacity(0.3),
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.blueAccent,
+                    return Positioned.fill(
+                      child: AbsorbPointer(
+                        absorbing: true,
+                        child: Container(
+                          color: Colors.black54,
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  returning
+                                      ? "Returning GRN..."
+                                      : "Verifying AP Invoice...",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  "Please wait...",
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     );
@@ -1050,11 +1079,52 @@ class _APInvoiceModalState extends State<APInvoiceModal> {
           ),
           ValueListenableBuilder<bool>(
             valueListenable: logic.isReturning,
-            builder: (context, isLoading, _) {
-              if (!isLoading) return const SizedBox.shrink();
-              return Container(
-                color: Colors.black.withOpacity(0.3),
-                child: const Center(child: CircularProgressIndicator()),
+            builder: (context, returning, _) {
+              return ValueListenableBuilder<bool>(
+                valueListenable: logic.isVerifying,
+                builder: (context, verifying, _) {
+                  if (!returning && !verifying) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Positioned.fill(
+                    child: AbsorbPointer(
+                      absorbing: true,
+                      child: Container(
+                        color: Colors.black54,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                returning
+                                    ? "Returning GRN..."
+                                    : "Verifying AP Invoice...",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                "Please wait...",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),

@@ -1222,14 +1222,33 @@ class _POModalState extends State<POModal> {
                                                     : () async {
                                                         if (!canApprove) {
                                                           ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text(
-                                                                "You do not have permission to approve this order",
+                                                              context,
+                                                            )
+                                                            ..hideCurrentSnackBar()
+                                                            ..showSnackBar(
+                                                              const SnackBar(
+                                                                content: Text(
+                                                                  "You do not have permission to approve this order",
+                                                                ),
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                                behavior:
+                                                                    SnackBarBehavior
+                                                                        .floating,
+                                                                margin:
+                                                                    EdgeInsets.only(
+                                                                      left: 16,
+                                                                      right: 16,
+                                                                      bottom:
+                                                                          100,
+                                                                    ),
+                                                                duration:
+                                                                    Duration(
+                                                                      seconds:
+                                                                          3,
+                                                                    ),
                                                               ),
-                                                            ),
-                                                          );
+                                                            );
                                                           return;
                                                         }
 
@@ -1243,14 +1262,33 @@ class _POModalState extends State<POModal> {
                                                         if (errorMessage !=
                                                             null) {
                                                           ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            SnackBar(
-                                                              content: Text(
-                                                                errorMessage,
+                                                              context,
+                                                            )
+                                                            ..hideCurrentSnackBar()
+                                                            ..showSnackBar(
+                                                              SnackBar(
+                                                                content: Text(
+                                                                  errorMessage,
+                                                                ),
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                                behavior:
+                                                                    SnackBarBehavior
+                                                                        .floating,
+                                                                margin:
+                                                                    const EdgeInsets.only(
+                                                                      left: 16,
+                                                                      right: 16,
+                                                                      bottom:
+                                                                          70,
+                                                                    ),
+                                                                duration:
+                                                                    const Duration(
+                                                                      seconds:
+                                                                          3,
+                                                                    ),
                                                               ),
-                                                            ),
-                                                          );
+                                                            );
                                                           return;
                                                         }
 
@@ -1350,14 +1388,33 @@ class _POModalState extends State<POModal> {
                                                     : () async {
                                                         if (!canReject) {
                                                           ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text(
-                                                                "You do not have permission to reject this order",
+                                                              context,
+                                                            )
+                                                            ..hideCurrentSnackBar()
+                                                            ..showSnackBar(
+                                                              const SnackBar(
+                                                                content: Text(
+                                                                  "You do not have permission to reject this order",
+                                                                ),
+                                                                backgroundColor:
+                                                                    Colors.red,
+                                                                behavior:
+                                                                    SnackBarBehavior
+                                                                        .floating,
+                                                                margin:
+                                                                    EdgeInsets.only(
+                                                                      left: 16,
+                                                                      right: 16,
+                                                                      bottom:
+                                                                          70,
+                                                                    ),
+                                                                duration:
+                                                                    Duration(
+                                                                      seconds:
+                                                                          3,
+                                                                    ),
                                                               ),
-                                                            ),
-                                                          );
+                                                            );
                                                           return;
                                                         }
 
@@ -1382,12 +1439,10 @@ class _POModalState extends State<POModal> {
                                                               'reject';
 
                                                           final poProvider =
-                                                              Provider.of<
-                                                                POProvider
-                                                              >(
-                                                                context,
-                                                                listen: false,
-                                                              );
+                                                              context
+                                                                  .read<
+                                                                    POProvider
+                                                                  >();
 
                                                           await poProvider.rejectPo(
                                                             widget

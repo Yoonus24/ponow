@@ -1,43 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+// ============================================================================
+// Main Bottom Sheet Widget
+// ============================================================================
 
 class ScanInvoiceSheet extends StatelessWidget {
   const ScanInvoiceSheet({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
+    return const _ResponsiveBottomSheet(child: _ScanInvoiceSheetContent());
+  }
+}
 
+// ============================================================================
+// Responsive Wrapper for Performance
+// ============================================================================
+
+class _ResponsiveBottomSheet extends StatelessWidget {
+  final Widget child;
+
+  const _ResponsiveBottomSheet({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: child,
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// Main Content (Optimized with RepaintBoundary)
+// ============================================================================
+
+class _ScanInvoiceSheetContent extends StatelessWidget {
+  const _ScanInvoiceSheetContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final viewInsets = MediaQuery.viewInsetsOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+
+    return RepaintBoundary(
       child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag Handle
             const _DragHandle(),
             const SizedBox(height: 16),
-
-            // Header Section
             const _HeaderSection(),
             const SizedBox(height: 8),
-
-            // Subtitle
             const _SubtitleSection(),
             const SizedBox(height: 20),
-
-            // Action Cards - 2x2 Grid
-            const _ActionCardsSection(),
-
-            // Bottom Spacing - Dynamic
+            _ActionCardsSection(screenWidth: screenWidth),
             SizedBox(
-              height: bottomPadding > 0
-                  ? bottomPadding + 16
-                  : MediaQuery.of(context).padding.bottom + 20,
+              height: viewInsets.bottom > 0
+                  ? viewInsets.bottom + 16
+                  : padding.bottom + 20,
             ),
           ],
         ),
@@ -46,16 +78,16 @@ class ScanInvoiceSheet extends StatelessWidget {
   }
 }
 
-// Drag handle widget
+// ============================================================================
+// Drag Handle Component
+// ============================================================================
+
 class _DragHandle extends StatelessWidget {
   const _DragHandle();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      child: const Center(child: _DragHandleBar()),
-    );
+    return const Center(child: _DragHandleBar());
   }
 }
 
@@ -65,51 +97,46 @@ class _DragHandleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      margin: const EdgeInsets.only(top: 12),
       width: 42,
       height: 5,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Colors.grey.shade300,
         borderRadius: BorderRadius.circular(3),
       ),
     );
   }
 }
 
-// Header section
+// ============================================================================
+// Header Section
+// ============================================================================
+
 class _HeaderSection extends StatelessWidget {
   const _HeaderSection();
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final iconSize = screenWidth < 380
-        ? 24.0
-        : screenWidth < 600
-        ? 28.0
-        : 32.0;
-    final fontSize = screenWidth < 380
-        ? 18.0
-        : screenWidth < 600
-        ? 22.0
-        : 24.0;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final theme = _HeaderTheme.fromWidth(screenWidth);
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: screenWidth < 380 ? 20 : 24),
+      padding: EdgeInsets.symmetric(horizontal: theme.horizontalPadding),
       child: Row(
         children: [
           Icon(
             Icons.auto_awesome,
-            color: const Color(0xFF6366F1),
-            size: iconSize,
+            color: AppColors.primary,
+            size: theme.iconSize,
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Text(
               "AI Invoice Assistant",
               style: TextStyle(
-                fontSize: fontSize,
+                fontSize: theme.fontSize,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF1F2937),
+                color: AppColors.textDark,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -121,28 +148,67 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-// Subtitle section
+@immutable
+class _HeaderTheme {
+  final double iconSize;
+  final double fontSize;
+  final double horizontalPadding;
+
+  const _HeaderTheme({
+    required this.iconSize,
+    required this.fontSize,
+    required this.horizontalPadding,
+  });
+
+  factory _HeaderTheme.fromWidth(double width) {
+    if (width < 380) {
+      return const _HeaderTheme(
+        iconSize: 24,
+        fontSize: 18,
+        horizontalPadding: 20,
+      );
+    } else if (width < 600) {
+      return const _HeaderTheme(
+        iconSize: 28,
+        fontSize: 22,
+        horizontalPadding: 24,
+      );
+    } else {
+      return const _HeaderTheme(
+        iconSize: 32,
+        fontSize: 24,
+        horizontalPadding: 24,
+      );
+    }
+  }
+}
+
+// ============================================================================
+// Subtitle Section
+// ============================================================================
+
 class _SubtitleSection extends StatelessWidget {
   const _SubtitleSection();
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    final screenWidth = MediaQuery.sizeOf(context).width;
     final fontSize = screenWidth < 380
         ? 12.0
         : screenWidth < 600
         ? 13.0
         : 14.0;
+    final horizontalPadding = screenWidth < 380 ? 20.0 : 24.0;
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: screenWidth < 380 ? 20 : 24),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
           "Let AI help you scan and process invoices",
           style: TextStyle(
             fontSize: fontSize,
-            color: const Color(0xFF6B7280),
+            color: AppColors.textLight,
             height: 1.4,
           ),
           maxLines: 2,
@@ -153,63 +219,56 @@ class _SubtitleSection extends StatelessWidget {
   }
 }
 
-// Action cards section - 2x2 Grid Layout
+// ============================================================================
+// Action Cards Section (3 Cards in a Row)
+// ============================================================================
+
 class _ActionCardsSection extends StatelessWidget {
-  const _ActionCardsSection();
+  final double screenWidth;
+
+  const _ActionCardsSection({required this.screenWidth});
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    final spacing = screenWidth < 380 ? 10.0 : 12.0;
     final horizontalPadding = screenWidth < 380 ? 20.0 : 24.0;
-    final spacing = screenWidth < 380 ? 12.0 : 16.0;
-
-    // Responsive aspect ratio
-    double aspectRatio;
-    if (screenWidth < 380) {
-      aspectRatio = 1.0;
-    } else if (screenWidth < 480) {
-      aspectRatio = 1.05;
-    } else {
-      aspectRatio = 1.1;
-    }
+    final cardConfig = _CardConfig.fromWidth(screenWidth);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      child: GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
-        crossAxisSpacing: spacing,
-        mainAxisSpacing: spacing,
-        childAspectRatio: aspectRatio,
-        children: const [
-          _QuickActionCard(
-            icon: Icons.camera_alt_rounded,
-            iconColor: Color(0xFF6366F1),
-            label: "AI Scan",
-            subtitle: "Smart Capture",
-            value: "camera",
+      child: Row(
+        children: [
+          Expanded(
+            child: _QuickActionCard(
+              config: cardConfig,
+              icon: Icons.camera_alt_rounded,
+              iconColor: AppColors.primary,
+              label: "AI Scan",
+              subtitle: "Smart Capture",
+              value: "camera",
+            ),
           ),
-          _QuickActionCard(
-            icon: Icons.image_rounded,
-            iconColor: Color(0xFF10B981),
-            label: "Gallery",
-            subtitle: "Upload Image",
-            value: "gallery",
+          SizedBox(width: spacing),
+          Expanded(
+            child: _QuickActionCard(
+              config: cardConfig,
+              icon: Icons.image_rounded,
+              iconColor: AppColors.success,
+              label: "Gallery",
+              subtitle: "Upload Image",
+              value: "gallery",
+            ),
           ),
-          _QuickActionCard(
-            icon: Icons.picture_as_pdf_rounded,
-            iconColor: Color(0xFFE53935),
-            label: "PDF",
-            subtitle: "Upload PDF",
-            value: "pdf",
-          ),
-          _QuickActionCard(
-            icon: Icons.inventory_2_rounded,
-            iconColor: Color(0xFFFF9800),
-            label: "Buckets",
-            subtitle: "Pending List",
-            value: "buckets",
+          SizedBox(width: spacing),
+          Expanded(
+            child: _QuickActionCard(
+              config: cardConfig,
+              icon: Icons.picture_as_pdf_rounded,
+              iconColor: AppColors.danger,
+              label: "PDF",
+              subtitle: "Upload PDF",
+              value: "pdf",
+            ),
           ),
         ],
       ),
@@ -217,8 +276,83 @@ class _ActionCardsSection extends StatelessWidget {
   }
 }
 
-// Optimized card widget - Fully Responsive
+// ============================================================================
+// Card Configuration (Theme)
+// ============================================================================
+
+@immutable
+class _CardConfig {
+  final double verticalPadding;
+  final double horizontalPadding;
+  final double iconSize;
+  final double iconContainerPadding;
+  final double labelFontSize;
+  final double subtitleFontSize;
+  final double gapSize;
+  final double borderRadius;
+
+  const _CardConfig({
+    required this.verticalPadding,
+    required this.horizontalPadding,
+    required this.iconSize,
+    required this.iconContainerPadding,
+    required this.labelFontSize,
+    required this.subtitleFontSize,
+    required this.gapSize,
+    this.borderRadius = 20,
+  });
+
+  factory _CardConfig.fromWidth(double width) {
+    if (width < 380) {
+      return const _CardConfig(
+        verticalPadding: 12,
+        horizontalPadding: 6,
+        iconSize: 20,
+        iconContainerPadding: 8,
+        labelFontSize: 11,
+        subtitleFontSize: 9,
+        gapSize: 6,
+      );
+    } else if (width < 480) {
+      return const _CardConfig(
+        verticalPadding: 14,
+        horizontalPadding: 8,
+        iconSize: 22,
+        iconContainerPadding: 10,
+        labelFontSize: 12,
+        subtitleFontSize: 10,
+        gapSize: 8,
+      );
+    } else if (width < 600) {
+      return const _CardConfig(
+        verticalPadding: 16,
+        horizontalPadding: 10,
+        iconSize: 24,
+        iconContainerPadding: 11,
+        labelFontSize: 13,
+        subtitleFontSize: 10,
+        gapSize: 10,
+      );
+    } else {
+      return const _CardConfig(
+        verticalPadding: 18,
+        horizontalPadding: 12,
+        iconSize: 28,
+        iconContainerPadding: 12,
+        labelFontSize: 14,
+        subtitleFontSize: 11,
+        gapSize: 12,
+      );
+    }
+  }
+}
+
+// ============================================================================
+// Optimized Quick Action Card (Performance Optimized)
+// ============================================================================
+
 class _QuickActionCard extends StatelessWidget {
+  final _CardConfig config;
   final IconData icon;
   final Color iconColor;
   final String label;
@@ -226,6 +360,7 @@ class _QuickActionCard extends StatelessWidget {
   final String value;
 
   const _QuickActionCard({
+    required this.config,
     required this.icon,
     required this.iconColor,
     required this.label,
@@ -235,95 +370,42 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    // Responsive sizing based on screen width
-    double verticalPadding;
-    double horizontalPadding;
-    double iconSize;
-    double iconContainerPadding;
-    double labelFontSize;
-    double subtitleFontSize;
-    double gapSize;
-
-    if (screenWidth < 380) {
-      // Very small phones
-      verticalPadding = 14.0;
-      horizontalPadding = 8.0;
-      iconSize = 22.0;
-      iconContainerPadding = 10.0;
-      labelFontSize = 12.0;
-      subtitleFontSize = 9.0;
-      gapSize = 6.0;
-    } else if (screenWidth < 480) {
-      // Small phones
-      verticalPadding = 16.0;
-      horizontalPadding = 10.0;
-      iconSize = 26.0;
-      iconContainerPadding = 12.0;
-      labelFontSize = 13.0;
-      subtitleFontSize = 10.0;
-      gapSize = 8.0;
-    } else if (screenWidth < 600) {
-      // Medium phones
-      verticalPadding = 18.0;
-      horizontalPadding = 12.0;
-      iconSize = 30.0;
-      iconContainerPadding = 13.0;
-      labelFontSize = 14.0;
-      subtitleFontSize = 11.0;
-      gapSize = 10.0;
-    } else {
-      // Tablets and large screens
-      verticalPadding = 22.0;
-      horizontalPadding = 16.0;
-      iconSize = 34.0;
-      iconContainerPadding = 15.0;
-      labelFontSize = 15.0;
-      subtitleFontSize = 12.0;
-      gapSize = 12.0;
-    }
-
     return RepaintBoundary(
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(config.borderRadius),
         child: InkWell(
-          onTap: () => Navigator.pop(context, value),
-          borderRadius: BorderRadius.circular(20),
+          onTap: () => _handleTap(context),
+          borderRadius: BorderRadius.circular(config.borderRadius),
           splashColor: iconColor.withOpacity(0.12),
           highlightColor: iconColor.withOpacity(0.06),
           child: Container(
             padding: EdgeInsets.symmetric(
-              vertical: verticalPadding,
-              horizontal: horizontalPadding,
+              vertical: config.verticalPadding,
+              horizontal: config.horizontalPadding,
             ),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.grey.shade200, width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.06),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(config.borderRadius),
+              border: Border.all(color: Colors.grey.shade200, width: 1),
+              // boxShadow: kElevationToShadow[1],
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _IconContainer(
+                _OptimizedIconContainer(
                   icon: icon,
                   color: iconColor,
-                  iconSize: iconSize,
-                  padding: iconContainerPadding,
+                  size: config.iconSize,
+                  padding: config.iconContainerPadding,
                 ),
-                SizedBox(height: gapSize),
-                _CardLabel(label: label, fontSize: labelFontSize),
+                SizedBox(height: config.gapSize),
+                _CardLabel(label: label, fontSize: config.labelFontSize),
                 const SizedBox(height: 4),
-                _CardSubtitle(subtitle: subtitle, fontSize: subtitleFontSize),
+                _CardSubtitle(
+                  subtitle: subtitle,
+                  fontSize: config.subtitleFontSize,
+                ),
               ],
             ),
           ),
@@ -331,20 +413,28 @@ class _QuickActionCard extends StatelessWidget {
       ),
     );
   }
+
+  void _handleTap(BuildContext context) {
+    HapticFeedback.lightImpact();
+    Navigator.pop(context, value);
+  }
 }
 
-// Icon Container
-class _IconContainer extends StatelessWidget {
+// ============================================================================
+// Optimized Icon Container (Cacheable)
+// ============================================================================
+
+class _OptimizedIconContainer extends StatelessWidget {
   final IconData icon;
   final Color color;
-  final double iconSize;
+  final double size;
   final double padding;
 
-  const _IconContainer({
+  const _OptimizedIconContainer({
     required this.icon,
     required this.color,
-    this.iconSize = 32,
-    this.padding = 14,
+    required this.size,
+    required this.padding,
   });
 
   @override
@@ -355,17 +445,20 @@ class _IconContainer extends StatelessWidget {
         color: color.withOpacity(0.08),
         shape: BoxShape.circle,
       ),
-      child: Icon(icon, color: color, size: iconSize),
+      child: Icon(icon, color: color, size: size),
     );
   }
 }
 
-// Card Label
+// ============================================================================
+// Card Label Component
+// ============================================================================
+
 class _CardLabel extends StatelessWidget {
   final String label;
   final double fontSize;
 
-  const _CardLabel({required this.label, this.fontSize = 14});
+  const _CardLabel({required this.label, required this.fontSize});
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +468,7 @@ class _CardLabel extends StatelessWidget {
       style: TextStyle(
         fontSize: fontSize,
         fontWeight: FontWeight.w600,
-        color: const Color(0xFF1F2937),
+        color: AppColors.textDark,
       ),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -383,30 +476,79 @@ class _CardLabel extends StatelessWidget {
   }
 }
 
-// Card Subtitle
+// ============================================================================
+// Card Subtitle Component
+// ============================================================================
+
 class _CardSubtitle extends StatelessWidget {
   final String subtitle;
   final double fontSize;
 
-  const _CardSubtitle({required this.subtitle, this.fontSize = 11.5});
+  const _CardSubtitle({required this.subtitle, required this.fontSize});
 
   @override
   Widget build(BuildContext context) {
     return Text(
       subtitle,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: fontSize, color: const Color(0xFF6B7280)),
+      style: TextStyle(fontSize: fontSize, color: AppColors.textLight),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }
 }
 
-// Theme extensions
-extension ThemeColors on Color {
+// ============================================================================
+// App Colors (Centralized Theme Management)
+// ============================================================================
+
+@immutable
+class AppColors {
+  const AppColors._();
+
   static const Color primary = Color(0xFF6366F1);
   static const Color success = Color(0xFF10B981);
   static const Color danger = Color(0xFFE53935);
   static const Color textDark = Color(0xFF1F2937);
   static const Color textLight = Color(0xFF6B7280);
+  static const Color background = Color(0xFFFFFFFF);
+  static const Color border = Color(0xFFE5E7EB);
+}
+
+// ============================================================================
+// Shadow Extension (Cached Shadows for Performance)
+// ============================================================================
+
+const List<BoxShadow> kElevationToShadow = [
+  BoxShadow(blurRadius: 0, offset: Offset(0, 0), spreadRadius: 0),
+  BoxShadow(
+    color: Color(0x0F000000),
+    blurRadius: 8,
+    offset: Offset(0, 1),
+    spreadRadius: 0,
+  ),
+  BoxShadow(
+    color: Color(0x0F000000),
+    blurRadius: 12,
+    offset: Offset(0, 2),
+    spreadRadius: 0,
+  ),
+];
+
+// ============================================================================
+// MediaQuery Extension (Cleaner API)
+// ============================================================================
+
+extension MediaQueryExtensions on MediaQuery {
+  static EdgeInsets paddingOf(BuildContext context) {
+    return MediaQuery.of(context).padding;
+  }
+
+  static EdgeInsets viewInsetsOf(BuildContext context) {
+    return MediaQuery.of(context).viewInsets;
+  }
+
+  static Size sizeOf(BuildContext context) {
+    return MediaQuery.of(context).size;
+  }
 }

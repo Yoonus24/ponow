@@ -1032,7 +1032,16 @@ class _PurchaseOrderDialogState extends State<PurchaseOrderDialog> {
                                           ],
                                         ),
 
-                                        const SizedBox(height: 1),
+                                        const SizedBox(height: 12),
+
+                                        SizedBox(
+                                          height: 60,
+                                          child: LocationDropdown(
+                                            inputDecoration: _inputDecoration,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 12),
                                       ],
 
                                       if (!isMobile) ...[

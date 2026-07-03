@@ -29,6 +29,8 @@ class AIInvoiceResponse {
 
   final String processedAt;
 
+  final double roundOff; // Added roundOff field
+
   AIInvoiceResponse({
     required this.success,
 
@@ -59,6 +61,8 @@ class AIInvoiceResponse {
     required this.analysisData,
 
     required this.processedAt,
+
+    required this.roundOff, // Added roundOff parameter
   });
 
   factory AIInvoiceResponse.fromJson(Map<String, dynamic> json) {
@@ -94,6 +98,8 @@ class AIInvoiceResponse {
       analysisData: json["analysis"]?["analysisData"] ?? {},
 
       processedAt: json["processedAt"] ?? "",
+
+      roundOff: (json["roundOff"] ?? 0).toDouble(), // Parse roundOff from JSON
     );
   }
 }
@@ -290,18 +296,19 @@ class POSuggestionResponse {
   final AutoSuggestedPO? autoSuggestedPO;
 
   final Map<String, dynamic> invoiceData;
-
+  final String? cacheKey;
   POSuggestionResponse({
     required this.success,
     required this.suggestedPOs,
     required this.autoSuggestedPO,
     required this.invoiceData,
+    this.cacheKey,
   });
 
   factory POSuggestionResponse.fromJson(Map<String, dynamic> json) {
     return POSuggestionResponse(
       success: json["success"] ?? false,
-
+      cacheKey: json["cacheKey"],
       invoiceData: Map<String, dynamic>.from(json["invoiceData"] ?? {}),
 
       suggestedPOs: (json["suggestedPOs"] as List? ?? [])

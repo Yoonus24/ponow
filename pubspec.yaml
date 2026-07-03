@@ -25,6 +25,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
   image_picker: 1.0.7
   mocktail: ^1.0.0
+  image_blur_detection: ^1.0.0
 
   uuid: any
 dev_dependencies:

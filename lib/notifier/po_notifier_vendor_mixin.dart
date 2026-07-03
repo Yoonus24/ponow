@@ -46,7 +46,9 @@ mixin PONotifierVendorMixin on PurchaseOrderNotifierState {
       // Replicating original behaviour logic flow mapping
       debugPrint("ERROR: ${e.toString()}");
       final errorMessage = e.toString().replaceFirst('Exception: ', '');
-      throw Exception(errorMessage.isNotEmpty ? errorMessage : 'Something went wrong');
+      throw Exception(
+        errorMessage.isNotEmpty ? errorMessage : 'Something went wrong',
+      );
     }
   }
 
@@ -84,26 +86,33 @@ mixin PONotifierVendorMixin on PurchaseOrderNotifierState {
     selectedVendor = vendorName ?? '';
 
     if (vendorName != null && vendorName.isNotEmpty) {
-      try {
-        final vendor = vendorAllList.firstWhere(
-          (v) => v.vendorName == vendorName,
+      final vendor = vendorAllList.cast<VendorAll?>().firstWhere(
+        (v) => v?.vendorName == vendorName,
+        orElse: () => null,
+      );
+
+      if (vendor == null) {
+        debugPrint(
+          'Vendor not found: $vendorName '
+          'Available Vendors: ${vendorAllList.length}',
         );
 
-        selectedVendorDetails = vendor;
-        selectedVendorId = vendor.vendorId;
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!disposed) {
-            vendorContactController.text = vendor.contactpersonPhone;
-            paymentTermsController.text = vendor.paymentTerms;
-            creditLimitController.text = vendor.creditLimit.toString();
-          }
-        });
-      } catch (e) {
-        debugPrint("ERROR: ${e.toString()}");
-        final errorMessage = e.toString().replaceFirst('Exception: ', '');
-        throw Exception(errorMessage.isNotEmpty ? errorMessage : 'Item not found: $vendorName');
+        selectedVendorDetails = null;
+        selectedVendorId = null;
+        safeNotify();
+        return;
       }
+
+      selectedVendorDetails = vendor;
+      selectedVendorId = vendor.vendorId;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!disposed) {
+          vendorContactController.text = vendor.contactpersonPhone;
+          paymentTermsController.text = vendor.paymentTerms;
+          creditLimitController.text = vendor.creditLimit.toString();
+        }
+      });
     } else {
       selectedVendorDetails = null;
       selectedVendorId = null;

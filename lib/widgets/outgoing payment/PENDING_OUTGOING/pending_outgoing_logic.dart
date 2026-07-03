@@ -184,6 +184,13 @@ class PendingOutgoingLogic {
           ? null
           : selectedInvoiceNotifier.value!.trim();
 
+      debugPrint("========== GET PENDING OUTGOING ==========");
+      debugPrint("Status       : Pending");
+      debugPrint("Filter By    : invoiceDate");
+      debugPrint("Vendor       : $vendorNameForApi");
+      debugPrint("Invoice No   : $invoiceNoForApi");
+      debugPrint("Limit        : 100");
+
       await provider.fetchFilteredOutgoings(
         status: 'Pending',
         filterBy: 'invoiceDate',
@@ -193,9 +200,22 @@ class PendingOutgoingLogic {
         isTableRefresh: true,
       );
 
+      debugPrint("Response Count : ${provider.payments.length}");
+
+      for (final payment in provider.payments) {
+        debugPrint(
+          "PO: ${payment.poRandomId}, "
+          "Invoice: ${payment.invoiceNo}, "
+          "Vendor: ${payment.vendorName}, "
+          "Remaining: ${payment.totalPayableAmount}",
+        );
+      }
+
+      debugPrint("=========================================");
+
       refreshDataNotifier.value = !refreshDataNotifier.value;
     } catch (e) {
-      debugPrint('❌ Error loading data: $e');
+      debugPrint("❌ Error loading data: $e");
     }
   }
 
