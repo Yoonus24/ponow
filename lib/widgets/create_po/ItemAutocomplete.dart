@@ -71,48 +71,62 @@ class _ItemAutocompleteState extends State<ItemAutocomplete> {
   Future<void> _filterItems(String query) async {
     final q = query.trim().toLowerCase();
 
-    // ✅ Empty na clear
+    // Empty search
     if (q.isEmpty) {
+      _isLoadingNotifier.value = false;
       _displayedItemsNotifier.value = [];
       return;
     }
 
-    final results = await widget.poProvider.searchPurchaseItems(
-      query: q,
-      skip: 0,
-      limit: 50,
-      append: false,
-    );
+    // Show loader
+    _isLoadingNotifier.value = true;
 
-    // ✅ Exact match first
-    results.sort((a, b) {
-      final aName = (a.itemName ?? '').toLowerCase();
-      final bName = (b.itemName ?? '').toLowerCase();
+    try {
+      final results = await widget.poProvider.searchPurchaseItems(
+        query: q,
+        skip: 0,
+        limit: 50,
+        append: false,
+      );
 
-      // 1. Exact match highest priority
-      if (aName == q && bName != q) return -1;
-      if (bName == q && aName != q) return 1;
+      // Exact match first
+      results.sort((a, b) {
+        final aName = (a.itemName ?? '').toLowerCase();
+        final bName = (b.itemName ?? '').toLowerCase();
 
-      // 2. Starts with query second priority
-      if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
-      if (bName.startsWith(q) && !aName.startsWith(q)) return 1;
+        // 1. Exact match highest priority
+        if (aName == q && bName != q) return -1;
+        if (bName == q && aName != q) return 1;
 
-      // 3. Contains query third priority
-      if (aName.contains(q) && !bName.contains(q)) return -1;
-      if (bName.contains(q) && !aName.contains(q)) return 1;
+        // 2. Starts with query second priority
+        if (aName.startsWith(q) && !bName.startsWith(q)) return -1;
+        if (bName.startsWith(q) && !aName.startsWith(q)) return 1;
 
-      // 4. Alphabetical fallback
-      return aName.compareTo(bName);
-    });
+        // 3. Contains query third priority
+        if (aName.contains(q) && !bName.contains(q)) return -1;
+        if (bName.contains(q) && !aName.contains(q)) return 1;
 
-    _allPurchaseItems = results;
-    _cacheItems(results);
+        // 4. Alphabetical fallback
+        return aName.compareTo(bName);
+      });
 
-    _displayedItemsNotifier.value = results
-        .map((e) => e.itemName ?? '')
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
+      _allPurchaseItems = results;
+      _cacheItems(results);
+
+      _displayedItemsNotifier.value = results
+          .map((e) => e.itemName ?? '')
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList();
+    } catch (e) {
+      debugPrint("Item search error: $e");
+      _displayedItemsNotifier.value = [];
+    } finally {
+      // Hide loader
+      if (!_isDisposed) {
+        _isLoadingNotifier.value = false;
+      }
+    }
   }
 
   void _cacheItems(List<PurchaseItem> items) {

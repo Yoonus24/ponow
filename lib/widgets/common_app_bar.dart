@@ -7,6 +7,13 @@ import 'package:purchaseorders2/services/session_service.dart';
 import 'package:purchaseorders2/services/ai/global_ai_scan_flow.dart';
 import 'package:purchaseorders2/widgets/ai/scan_invoice_sheet.dart';
 
+// =====================================================
+// FIXED: Constants with lowerCamelCase naming
+// =====================================================
+const int maxImageCount = 5;
+const int maxPdfSizeMb = 10;
+const int maxImageSizeMb = 5;
+
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool isLoading;
@@ -59,26 +66,11 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             return;
           }
 
-          // =====================================================
-          // OPEN BUCKET PAGE
-          // =====================================================
-
-          // if (selected == "buckets") {
-          //   if (context.mounted) {
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(builder: (_) => const PendingBucketsPage()),
-          //     );
-          //   }
-
-          //   return;
-          // }
-
           File? selectedFile;
           List<File>? selectedFiles;
 
           // =====================================================
-          // CAMERA
+          // CAMERA - WITH SIZE VALIDATION
           // =====================================================
 
           if (selected == "camera") {
@@ -90,35 +82,109 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               return;
             }
 
-            selectedFile = File(picked.path);
-            
+            // =====================================================
+            // ADDED: Image Size Validation
+            // =====================================================
+            final file = File(picked.path);
+            final fileSize = await file.length();
+            final maxSizeBytes = maxImageSizeMb * 1024 * 1024;
+
+            if (fileSize > maxSizeBytes) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(
+                      "Image too large. Max size: $maxImageSizeMb MB. Your file: ${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB",
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+              return;
+            }
+
+            selectedFile = file;
+
             debugPrint("CAMERA IMAGE SELECTED: ${selectedFile.path}");
           }
           // =====================================================
-          // GALLERY (MULTIPLE IMAGES)
+          // GALLERY (MULTIPLE IMAGES) - WITH VALIDATION
           // =====================================================
           else if (selected == "gallery") {
             final picker = ImagePicker();
 
-            final pickedImages = await picker.pickMultiImage(
-              imageQuality: 80,
-            );
+            final pickedImages = await picker.pickMultiImage(imageQuality: 80);
 
-            if (pickedImages == null || pickedImages.isEmpty) {
+            if (pickedImages.isEmpty) {
               return;
             }
 
-            selectedFiles = pickedImages
-                .map((e) => File(e.path))
-                .toList();
+            // =====================================================
+            // VALIDATION 1: MAX 5 IMAGES
+            // =====================================================
+            if (pickedImages.length > maxImageCount) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(
+                      "Maximum $maxImageCount images allowed. You selected ${pickedImages.length} images.",
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+              return;
+            }
 
-            debugPrint("MULTIPLE IMAGES PICKED: ${selectedFiles!.length}");
-            for (int i = 0; i < selectedFiles!.length; i++) {
-              debugPrint("  IMAGE ${i + 1}: ${selectedFiles![i].path}");
+            // =====================================================
+            // VALIDATION 2: Each Image Size
+            // =====================================================
+            final maxSizeBytes = maxImageSizeMb * 1024 * 1024;
+            bool sizeExceeded = false;
+            String oversizedFile = "";
+
+            for (var picked in pickedImages) {
+              final file = File(picked.path);
+              final fileSize = await file.length();
+              if (fileSize > maxSizeBytes) {
+                sizeExceeded = true;
+                oversizedFile = picked.name;
+                break;
+              }
+            }
+
+            if (sizeExceeded) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(
+                      "Image '$oversizedFile' is too large. Max size: $maxImageSizeMb MB per image.",
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+              return;
+            }
+
+            selectedFiles = pickedImages.map((e) => File(e.path)).toList();
+
+            debugPrint("MULTIPLE IMAGES PICKED: ${selectedFiles.length}");
+            for (int i = 0; i < selectedFiles.length; i++) {
+              debugPrint("  IMAGE ${i + 1}: ${selectedFiles[i].path}");
+            }
+
+            // If only one image is selected, treat it as a single image.
+            if (selectedFiles.length == 1) {
+              selectedFile = selectedFiles.first;
+              selectedFiles = null;
             }
           }
           // =====================================================
-          // PDF
+          // PDF - WITH SIZE VALIDATION
           // =====================================================
           else if (selected == "pdf") {
             final result = await FilePicker.platform.pickFiles(
@@ -131,8 +197,29 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               return;
             }
 
+            // =====================================================
+            // ADDED: PDF Size Validation
+            // =====================================================
+            final fileSize = result.files.single.size; // in bytes
+            final maxSizeBytes = maxPdfSizeMb * 1024 * 1024;
+
+            if (fileSize > maxSizeBytes) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(
+                      "PDF too large. Max size: $maxPdfSizeMb MB. Your file: ${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB",
+                    ),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+              return;
+            }
+
             selectedFile = File(result.files.single.path!);
-            
+
             debugPrint("PDF SELECTED: ${selectedFile.path}");
           }
 
@@ -140,27 +227,82 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
           // SAFETY CHECK
           // =====================================================
 
-          if (selectedFile == null && (selectedFiles == null || selectedFiles!.isEmpty)) {
+          if (selectedFile == null &&
+              (selectedFiles == null || selectedFiles!.isEmpty)) {
             debugPrint("NO FILE SELECTED - ABORTING");
             return;
           }
 
           // =====================================================
-          // START AI FLOW
+          // START AI FLOW - WITH ERROR HANDLING
           // =====================================================
 
           if (selectedFiles != null && selectedFiles!.isNotEmpty) {
             debugPrint("STARTING AI FLOW WITH ${selectedFiles!.length} IMAGES");
-            await scanAndOpenPOFlow(
-              context: context,
-              files: selectedFiles,
-            );
+            try {
+              await scanAndOpenPOFlow(context: context, files: selectedFiles);
+            } catch (e) {
+              // =====================================================
+              // SHOW ERROR MESSAGE TO USER (Including Blur Detection)
+              // =====================================================
+              if (context.mounted) {
+                String errorMessage = e.toString();
+                
+                // Check for blur error from backend
+                if (errorMessage.contains("blurry") || 
+                    errorMessage.contains("Image quality") ||
+                    errorMessage.contains("clearer image") ||
+                    errorMessage.contains("blur")) {
+                  errorMessage = "📸 Image is blurry. Please take a clearer photo.";
+                }
+                // Check for other image quality issues
+                else if (errorMessage.contains("Unable to read image")) {
+                  errorMessage = "❌ Unable to read the image. Please try again.";
+                }
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(errorMessage),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            }
           } else if (selectedFile != null) {
-            debugPrint("STARTING AI FLOW WITH SINGLE FILE: ${selectedFile.path}");
-            await scanAndOpenPOFlow(
-              context: context,
-              file: selectedFile,
+            debugPrint(
+              "STARTING AI FLOW WITH SINGLE FILE: ${selectedFile.path}",
             );
+            try {
+              await scanAndOpenPOFlow(context: context, file: selectedFile);
+            } catch (e) {
+              // =====================================================
+              // SHOW ERROR MESSAGE TO USER (Including Blur Detection)
+              // =====================================================
+              if (context.mounted) {
+                String errorMessage = e.toString();
+                
+                // Check for blur error from backend
+                if (errorMessage.contains("blurry") || 
+                    errorMessage.contains("Image quality") ||
+                    errorMessage.contains("clearer image") ||
+                    errorMessage.contains("blur")) {
+                  errorMessage = "📸 Image is blurry. Please take a clearer photo.";
+                }
+                // Check for other image quality issues
+                else if (errorMessage.contains("Unable to read image")) {
+                  errorMessage = "❌ Unable to read the image. Please try again.";
+                }
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: Colors.red,
+                    content: Text(errorMessage),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              }
+            }
           }
         },
         icon: const Column(

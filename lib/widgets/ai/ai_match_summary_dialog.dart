@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:purchaseorders2/providers/po/po_provider.dart';
 import 'package:purchaseorders2/services/ai/ai_invoice_model.dart';
 import 'package:purchaseorders2/widgets/approved_po/approved_po_dialog.dart';
+// import 'package:purchaseorders2/widgets/ai/manual_item_assignment_dialog.dart';
 
-class AIMatchSummaryDialog extends StatelessWidget {
+// =========================================================
+// CHANGED: Stateless → StatefulWidget
+// =========================================================
+class AIMatchSummaryDialog extends StatefulWidget {
   final AIInvoiceResponse aiResponse;
   final POProvider poProvider;
 
@@ -12,6 +16,22 @@ class AIMatchSummaryDialog extends StatelessWidget {
     required this.aiResponse,
     required this.poProvider,
   });
+
+  @override
+  State<AIMatchSummaryDialog> createState() => _AIMatchSummaryDialogState();
+}
+
+// =========================================================
+// NEW: State class
+// =========================================================
+class _AIMatchSummaryDialogState extends State<AIMatchSummaryDialog> {
+  late AIInvoiceResponse response;
+
+  @override
+  void initState() {
+    super.initState();
+    response = widget.aiResponse;
+  }
 
   Color _getConfidenceColor(double confidence) {
     if (confidence >= 90) {
@@ -25,7 +45,6 @@ class AIMatchSummaryDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // final double confidence = aiResponse.confidence;
     return Dialog(
       insetPadding: EdgeInsets.zero,
       backgroundColor: Colors.transparent,
@@ -35,7 +54,9 @@ class AIMatchSummaryDialog extends StatelessWidget {
         color: Colors.white,
         child: Column(
           children: [
-            // Compact App Bar with Blue Accent
+            // =============================================
+            // APP BAR (Fixed)
+            // =============================================
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
@@ -71,79 +92,93 @@ class AIMatchSummaryDialog extends StatelessWidget {
               ),
             ),
 
-            // Main Content - Compact
+            // =============================================
+            // SCROLLABLE CONTENT (Expanded)
+            // =============================================
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: FutureBuilder(
-                  future: poProvider.fetchPOById(aiResponse.poId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 12),
-                            Text("Loading..."),
-                          ],
-                        ),
-                      );
-                    }
-
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 48,
-                              color: Colors.red,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Failed to load PO\n${snapshot.error}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    if (!snapshot.hasData) {
-                      return const Center(
-                        child: Text(
-                          "PO not found",
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      );
-                    }
-
-                    final po = snapshot.data!;
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Compact Matched PO Card
-                        _buildCompactMatchedPOCard(po),
-                        const SizedBox(height: 12),
-
-                        // Compact Items Section
-                        _buildCompactItemsSection(),
-                        const SizedBox(height: 12),
-
-                        // Compact AI Analysis
-                        _buildCompactAIAnalysisCard(),
-                        const SizedBox(height: 20),
-
-                        // Action Buttons
-                        _buildCompactActionButtons(context, po),
-                      ],
+              child: FutureBuilder(
+                // CHANGED: widget.poProvider and response.poId
+                future: widget.poProvider.fetchPOById(response.poId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 12),
+                          Text("Loading..."),
+                        ],
+                      ),
                     );
-                  },
-                ),
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Failed to load PO\n${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData) {
+                    return const Center(
+                      child: Text(
+                        "PO not found",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    );
+                  }
+
+                  final po = snapshot.data!;
+
+                  return Column(
+                    children: [
+                      // =============================================
+                      // SCROLLABLE CONTENT
+                      // =============================================
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Matched PO Card
+                              _buildCompactMatchedPOCard(po),
+                              const SizedBox(height: 12),
+
+                              // Items Section
+                              _buildCompactItemsSection(),
+                              const SizedBox(height: 12),
+
+                              // AI Analysis
+                              _buildCompactAIAnalysisCard(),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      // =============================================
+                      // FIXED BUTTONS AT BOTTOM (Static)
+                      // =============================================
+                      _buildActionButtons(context, po),
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -152,6 +187,9 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // MATCHED PO CARD
+  // =========================================================
   Widget _buildCompactMatchedPOCard(dynamic po) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -195,14 +233,14 @@ class AIMatchSummaryDialog extends StatelessWidget {
               Expanded(
                 child: _buildCompactInfoCard(
                   "Vendor Match",
-                  "${aiResponse.vendorMatchConfidence.toStringAsFixed(0)}%",
+                  "${response.vendorMatchConfidence.toStringAsFixed(0)}%",
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _buildCompactInfoCard(
                   "Item Match",
-                  "${aiResponse.itemMatchConfidence.toStringAsFixed(0)}%",
+                  "${response.itemMatchConfidence.toStringAsFixed(0)}%",
                 ),
               ),
             ],
@@ -215,30 +253,21 @@ class AIMatchSummaryDialog extends StatelessWidget {
   Widget _buildCompactInfoCard(String title, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
-
         borderRadius: BorderRadius.circular(8),
-
         border: Border.all(color: Colors.grey.shade200),
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-
         children: [
           Text(
             title,
-
             style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
           ),
-
           const SizedBox(height: 4),
-
           Text(
             value,
-
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -250,40 +279,11 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildAnalysisChip(String title, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-
-        borderRadius: BorderRadius.circular(20),
-      ),
-
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-
-        children: [
-          Text(
-            value,
-
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-              fontSize: 11,
-            ),
-          ),
-
-          const SizedBox(width: 4),
-
-          Text(title, style: TextStyle(color: color, fontSize: 11)),
-        ],
-      ),
-    );
-  }
-
+  // =========================================================
+  // ITEMS SECTION
+  // =========================================================
   Widget _buildCompactItemsSection() {
-    final subtotal = aiResponse.matchedItems.fold<double>(
+    final subtotal = response.matchedItems.fold<double>(
       0,
       (sum, item) =>
           sum +
@@ -292,15 +292,21 @@ class AIMatchSummaryDialog extends StatelessWidget {
               : (item.receivedQuantity * item.newPrice)),
     );
 
-    final gstTotal = aiResponse.matchedItems.fold<double>(
-      0,
-      (sum, item) => sum + item.taxAmount,
-    );
+    // =========================================================
+    // UPDATED: Use printedTotalTax from backend if available
+    // =========================================================
+    final gstTotal = response.printedTotalTax > 0
+        ? response.printedTotalTax
+        : response.matchedItems.fold<double>(
+            0,
+            (sum, item) => sum + item.taxAmount,
+          );
 
-    final grandTotal = (aiResponse.analysisData["totalInvoiceValue"] ?? 0)
-        .toDouble();
+    final grandTotal = response.printedGrandTotal > 0
+        ? response.printedGrandTotal
+        : (response.analysisData["totalInvoiceValue"] ?? 0).toDouble();
 
-    final roundOff = aiResponse.roundOff;
+    final roundOff = response.roundOff;
 
     return Container(
       decoration: BoxDecoration(
@@ -310,9 +316,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // =================================================
           // HEADER
-          // =================================================
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
@@ -332,16 +336,14 @@ class AIMatchSummaryDialog extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  "${aiResponse.matchedItems.length} items",
+                  "${response.matchedItems.length} items",
                   style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
                 ),
               ],
             ),
           ),
 
-          // =================================================
           // TABLE
-          // =================================================
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
@@ -426,7 +428,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     ),
                   ),
                 ],
-                rows: aiResponse.matchedItems.asMap().entries.map((entry) {
+                rows: response.matchedItems.asMap().entries.map((entry) {
                   final index = entry.key;
                   final item = entry.value;
 
@@ -443,6 +445,11 @@ class AIMatchSummaryDialog extends StatelessWidget {
                       : item.newPrice;
 
                   final isHighConfidence = item.confidence >= 80;
+                  final gstPercent = item.taxPercent > 0
+                      ? item.taxPercent
+                      : (item.cgstPercent +
+                            item.sgstPercent +
+                            item.igstPercent);
 
                   return DataRow(
                     cells: [
@@ -482,7 +489,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
                                 fontSize: 12,
                               ),
                             ),
-                            if (item.taxPercent > 0)
+                            if (gstPercent > 0)
                               Text(
                                 "Incl GST ₹${finalUnitPrice.toStringAsFixed(2)}",
                                 style: TextStyle(
@@ -499,7 +506,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "${item.taxPercent.toStringAsFixed(0)}%",
+                              "${gstPercent.toStringAsFixed(0)}%",
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 11,
@@ -605,9 +612,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
             ),
           ),
 
-          // =================================================
           // FOOTER SUMMARY
-          // =================================================
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -630,9 +635,7 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 6),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -646,7 +649,6 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     ),
                   ],
                 ),
-
                 if (roundOff != 0) ...[
                   const SizedBox(height: 6),
                   Row(
@@ -663,13 +665,28 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     ],
                   ),
                 ],
-
+                // =========================================================
+                // UPDATED: Show freight amount if available
+                // =========================================================
+                if (response.freightAmount > 0) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Freight", style: TextStyle(fontSize: 12)),
+                      Text(
+                        "₹${response.freightAmount.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 10),
-
                 Divider(color: Colors.grey.shade300),
-
                 const SizedBox(height: 10),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -698,12 +715,13 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // AI ANALYSIS CARD
+  // =========================================================
   Widget _buildCompactAIAnalysisCard() {
-    final String summary = (aiResponse.aiSummary).trim();
-
+    final String summary = (response.aiSummary).trim();
     final bool hasSummary = summary.isNotEmpty;
-
-    final risk = aiResponse.summaryConfidence.toLowerCase();
+    final risk = response.summaryConfidence.toLowerCase();
 
     final Color primaryColor = risk == "high"
         ? Colors.red.shade700
@@ -725,78 +743,55 @@ class AIMatchSummaryDialog extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(14),
-
       decoration: BoxDecoration(
         color: Colors.white,
-
         borderRadius: BorderRadius.circular(12),
-
         border: Border.all(color: primaryColor.withOpacity(0.25), width: 1.5),
-
         boxShadow: [
           BoxShadow(
             color: primaryColor.withOpacity(0.08),
-
             blurRadius: 10,
-
             offset: const Offset(0, 2),
           ),
         ],
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-
         children: [
-          // =================================================
           // HEADER
-          // =================================================
           Row(
             children: [
               Container(
                 width: 4,
                 height: 22,
-
                 decoration: BoxDecoration(
                   color: primaryColor,
-
                   borderRadius: BorderRadius.circular(3),
                 ),
               ),
-
               const SizedBox(width: 10),
-
               Icon(Icons.auto_awesome, size: 17, color: primaryColor),
-
               const SizedBox(width: 8),
-
               const Text(
                 "AI Audit Analysis",
-
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
-
               const Spacer(),
-
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 6,
                 ),
-
                 decoration: BoxDecoration(
                   color: chipColor,
-
                   borderRadius: BorderRadius.circular(20),
                 ),
-
                 child: Text(
                   risk.toUpperCase(),
-
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -806,29 +801,20 @@ class AIMatchSummaryDialog extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
 
-          // =================================================
           // SUMMARY
-          // =================================================
           if (hasSummary)
             Container(
               width: double.infinity,
-
               padding: const EdgeInsets.all(14),
-
               decoration: BoxDecoration(
                 color: backgroundColor,
-
                 borderRadius: BorderRadius.circular(12),
-
                 border: Border.all(color: primaryColor.withOpacity(0.18)),
               ),
-
               child: SelectableText(
                 summary,
-
                 style: const TextStyle(
                   fontSize: 13,
                   height: 1.75,
@@ -840,13 +826,10 @@ class AIMatchSummaryDialog extends StatelessWidget {
           else
             Container(
               padding: const EdgeInsets.all(12),
-
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
-
                 borderRadius: BorderRadius.circular(10),
               ),
-
               child: Row(
                 children: [
                   Icon(
@@ -854,13 +837,10 @@ class AIMatchSummaryDialog extends StatelessWidget {
                     size: 18,
                     color: Colors.orange.shade700,
                   ),
-
                   const SizedBox(width: 8),
-
                   const Expanded(
                     child: Text(
                       "AI summary not available.",
-
                       style: TextStyle(fontSize: 13, color: Colors.black87),
                     ),
                   ),
@@ -868,68 +848,46 @@ class AIMatchSummaryDialog extends StatelessWidget {
               ),
             ),
 
-          // =================================================
           // ANALYSIS CHIPS
-          // =================================================
           const SizedBox(height: 14),
-
           Wrap(
             spacing: 8,
             runSpacing: 8,
-
             children: [
               _buildAnalysisChip(
                 "Qty Mismatch",
-
-                aiResponse.analysisData["quantityMismatchCount"].toString(),
-
+                response.analysisData["quantityMismatchCount"].toString(),
                 Colors.orange,
               ),
-
               _buildAnalysisChip(
                 "Extra Items",
-
-                aiResponse.analysisData["extraItemCount"].toString(),
-
+                response.analysisData["extraItemCount"].toString(),
                 Colors.red,
               ),
-
               _buildAnalysisChip(
                 "Missing Items",
-
-                aiResponse.analysisData["missingItemCount"].toString(),
-
+                response.analysisData["missingItemCount"].toString(),
                 Colors.blue,
               ),
             ],
           ),
-
           const SizedBox(height: 16),
 
-          // =================================================
           // FOOTER INFO
-          // =================================================
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
-
               borderRadius: BorderRadius.circular(10),
-
               border: Border.all(color: Colors.grey.shade200),
             ),
-
             child: Row(
               children: [
-                Icon(Icons.verified_outlined, size: 16, color: primaryColor),
-
+                Icon(Icons.error, size: 16, color: primaryColor),
                 const SizedBox(width: 8),
-
                 Expanded(
                   child: Text(
-                    "Summary generated using AI-powered invoice and PO audit analysis.",
-
+                    "AI can make mistakes.Check important info",
                     style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey.shade700,
@@ -945,110 +903,150 @@ class AIMatchSummaryDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildAnalysisItem(
-    IconData icon,
-    Color color,
-    String title,
-    String subtitle,
-  ) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
+  Widget _buildAnalysisChip(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontSize: 11,
+            ),
           ),
-          child: Icon(icon, size: 14, color: color),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-        ),
-      ],
+          const SizedBox(width: 4),
+          Text(title, style: TextStyle(color: color, fontSize: 11)),
+        ],
+      ),
     );
   }
 
-  Widget _buildCompactActionButtons(BuildContext context, dynamic po) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        OutlinedButton(
-          onPressed: () => Navigator.pop(context),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            side: BorderSide(color: Colors.blue.shade300),
-            foregroundColor: Colors.blue.shade700,
-            textStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-            minimumSize: Size.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+  // =========================================================
+  // FIXED ACTION BUTTONS AT BOTTOM (Static - No Scroll)
+  // =========================================================
+  Widget _buildActionButtons(BuildContext context, dynamic po) {
+    final hasExtraItems = (response.analysisData["extraItemCount"] ?? 0) > 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade100,
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Button 1: Cancel
+          OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: _buttonStyle(isOutlined: true, color: Colors.blue.shade700),
+            child: const Text("Cancel"),
+          ),
+          const SizedBox(width: 10),
+
+          // Button 2: Resolve (if extra items exist)
+          // if (hasExtraItems) ...[
+          //   ElevatedButton(
+          //     // CHANGED: Now async with response update
+          //     onPressed: () async {
+          //       final updatedResponse = await showDialog<AIInvoiceResponse>(
+          //         context: context,
+          //         builder: (_) =>
+          //             ManualItemAssignmentDialog(aiResponse: response),
+          //       );
+
+          //       if (updatedResponse != null) {
+          //         setState(() {
+          //           response = updatedResponse;
+          //         });
+          //       }
+          //     },
+          //     style: _buttonStyle(
+          //       isOutlined: false,
+          //       color: Colors.orange.shade600,
+          //     ),
+          //     child: const Row(
+          //       mainAxisSize: MainAxisSize.min,
+          //       children: [
+          //         Text("Resolve"),
+          //         SizedBox(width: 4),
+          //         Icon(Icons.link, size: 16),
+          //       ],
+          //     ),
+          //   ),
+          //   const SizedBox(width: 10),
+          // ],
+
+          // Button 3: Continue
+          ElevatedButton(
+            // CHANGED: Now uses widget.poProvider and response
+            onPressed: () async {
+              Navigator.pop(context);
+              await showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => ApprovedPODialog(
+                  po: po,
+                  poProvider: widget.poProvider,
+                  aiResponse: response,
+                  onUpdated: () async {
+                    await widget.poProvider.fetchApprovedPOsOnly();
+                  },
+                ),
+              );
+            },
+            style: _buttonStyle(isOutlined: false, color: Colors.blue.shade700),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text("Continue"),
+                SizedBox(width: 4),
+                Icon(Icons.arrow_forward, size: 16),
+              ],
             ),
           ),
-          child: const Text("Cancel"),
-        ),
-        const SizedBox(width: 12),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            backgroundColor: Colors.blue.shade700,
-            foregroundColor: Colors.white,
-            minimumSize: Size.zero,
-            textStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            elevation: 0,
-          ),
-          onPressed: () async {
-            Navigator.pop(context);
-            await showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => ApprovedPODialog(
-                po: po,
-                poProvider: poProvider,
-                aiResponse: aiResponse,
-                onUpdated: () async {
-                  await poProvider.fetchApprovedPOsOnly();
-                },
-              ),
-            );
-          },
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text("Continue"),
-              SizedBox(width: 6),
-              Icon(Icons.arrow_forward, size: 14),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
+  }
+
+  // =========================================================
+  // BUTTON STYLE HELPER
+  // =========================================================
+  ButtonStyle _buttonStyle({required bool isOutlined, required Color color}) {
+    if (isOutlined) {
+      return OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        side: BorderSide(color: color),
+        foregroundColor: color,
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        minimumSize: const Size(80, 38),
+      );
+    } else {
+      return ElevatedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+        minimumSize: const Size(80, 38),
+      );
+    }
   }
 }

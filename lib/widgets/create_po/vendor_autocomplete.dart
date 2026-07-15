@@ -183,7 +183,8 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
             widget.notifier.setSelectedVendor(name);
             widget.onVendorSelected(name);
 
-            Form.of(context).validate();
+            // Clear validation immediately
+            Form.of(context)?.validate();
 
             FocusManager.instance.primaryFocus?.unfocus();
           },
@@ -384,10 +385,20 @@ class _VendorAutocompleteState extends State<VendorAutocomplete> {
                 onChanged: (value) {
                   widget.controller.text = value;
 
-                  if (value.isEmpty) {
+                  // Revalidate the field immediately to clear the red border
+                  Form.of(context)?.validate();
+
+                  if (value.trim().isEmpty) {
+                    widget.notifier.clearSelectedVendor();
+                    widget.notifier.selectedVendor = '';
+                    widget.notifier.selectedVendorDetails = null;
+
                     _currentQuery = '';
+
                     _displayedVendors.value = _allVendors
                         .map((e) => e.vendorName)
+                        .where((e) => e.isNotEmpty)
+                        .toSet()
                         .toList();
                   } else {
                     _search(value);

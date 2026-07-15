@@ -1268,26 +1268,48 @@ class ApprovedPOLogic {
   }
 
   Future<void> convertPoToGRN(BuildContext context) async {
-    debugPrint("convertPoToGRN() CALLED");
+    debugPrint("═══════════════════════════════════════════════════════════");
+    debugPrint("🔵 convertPoToGRN() CALLED at ${DateTime.now()}");
+    debugPrint("═══════════════════════════════════════════════════════════");
 
     final navigator = Navigator.of(context);
 
+    debugPrint("📍 Checking save state...");
     if (isSaving.value) {
-      debugPrint("Already saving, skipping...");
+      debugPrint("⚠️ Already saving, skipping execution...");
       return;
     }
+    debugPrint("✅ Save state is clear");
 
+    debugPrint("📍 Getting providers...");
     final poProvider = Provider.of<POProvider>(context, listen: false);
     final grnProvider = Provider.of<GRNProvider>(context, listen: false);
+    debugPrint(
+      "✅ Providers obtained - POProvider: ${poProvider.runtimeType}, GRNProvider: ${grnProvider.runtimeType}",
+    );
 
     try {
       isSaving.value = true;
+      debugPrint("🔒 Saving state set to TRUE");
 
-      debugPrint("=========== GRN CONVERSION START ===========");
+      debugPrint("═══════════════════════════════════════════════════════════");
+      debugPrint("🔄 GRN CONVERSION STARTED");
+      debugPrint("📦 PO ID: ${po.purchaseOrderId}");
+      debugPrint("📋 Total Items: ${po.items?.length ?? 0}");
+      debugPrint("═══════════════════════════════════════════════════════════");
 
+      debugPrint("📍 Normalizing data before API call...");
       normalizeBeforeApi();
+      debugPrint("✅ Data normalized");
 
+      debugPrint("📍 Processing received items...");
       final List<Item> receivedItems = activeReceivedItems.map((item) {
+        debugPrint("  📦 Item: ${item.itemName ?? 'Unnamed'}");
+        debugPrint("    - ID: ${item.itemId ?? 'N/A'}");
+        debugPrint("    - Received Qty: ${item.receivedQuantity ?? 0}");
+        debugPrint("    - Before Tax Discount: ${item.befTaxDiscount ?? 0}");
+        debugPrint("    - After Tax Discount: ${item.afTaxDiscount ?? 0}");
+        debugPrint("    - Expiry Date: ${item.expiryDate ?? 'N/A'}");
         return item.copyWith(
           receivedQuantity: item.receivedQuantity ?? 0,
           befTaxDiscount: item.befTaxDiscount ?? 0,
@@ -1297,17 +1319,20 @@ class ApprovedPOLogic {
           expiryDate: item.expiryDate,
         );
       }).toList();
+      debugPrint("✅ Processed ${receivedItems.length} items");
 
+      debugPrint("📍 Processing invoice date...");
       final rawDate = invoiceDateController.text.trim();
+      debugPrint("📅 Raw invoice date: '$rawDate'");
       DateTime pickedDate;
 
       try {
         if (rawDate.isEmpty) {
+          debugPrint("❌ Invoice date is empty!");
           throw Exception("Invoice date is empty");
         }
 
-        debugPrint("📅 Parsing date: '$rawDate'");
-
+        debugPrint("📅 Attempting to parse date: '$rawDate'");
         DateTime? parsedDate;
 
         final dateFormats = [
@@ -1320,57 +1345,81 @@ class ApprovedPOLogic {
           DateFormat('dd.MM.yyyy'),
           DateFormat('yyyy.MM.dd'),
         ];
+        debugPrint("🔍 Trying ${dateFormats.length} date formats...");
 
         for (var format in dateFormats) {
           try {
             parsedDate = format.parseStrict(rawDate);
-            debugPrint("✅ Parsed with format: ${format.pattern}");
+            debugPrint("✅ Successfully parsed with format: ${format.pattern}");
             break;
-          } catch (_) {}
+          } catch (_) {
+            debugPrint("  ❌ Failed with format: ${format.pattern}");
+          }
         }
 
         if (parsedDate == null) {
+          debugPrint(
+            "⚠️ No standard format matched, attempting number extraction...",
+          );
           final numbers = RegExp(
             r'\d+',
           ).allMatches(rawDate).map((m) => int.parse(m.group(0)!)).toList();
+          debugPrint("🔢 Extracted numbers: $numbers");
 
           if (numbers.length >= 3) {
             int first = numbers[0];
             int second = numbers[1];
             int year = numbers[2];
+            debugPrint("  📊 First: $first, Second: $second, Year: $year");
 
             if (year < 100) {
               year += 2000;
+              debugPrint("  📅 Year adjusted to: $year");
             }
 
             if (first > 12) {
               parsedDate = DateTime(year, second, first);
+              debugPrint(
+                "  📅 Parsed as day-first (day: $first, month: $second)",
+              );
             } else if (second > 12) {
               parsedDate = DateTime(year, first, second);
+              debugPrint(
+                "  📅 Parsed as month-first (month: $first, day: $second)",
+              );
             } else {
               parsedDate = DateTime(year, second, first);
+              debugPrint(
+                "  📅 Parsed as day-first (day: $first, month: $second)",
+              );
             }
+          } else {
+            debugPrint("❌ Not enough numbers extracted: ${numbers.length}");
           }
         }
 
         if (parsedDate == null) {
+          debugPrint("❌ All parsing attempts failed!");
           throw Exception("Could not parse date");
         }
 
         if (parsedDate.year < 2000 || parsedDate.year > 2100) {
+          debugPrint("❌ Invalid year: ${parsedDate.year}");
           throw Exception("Invalid year");
         }
 
         pickedDate = parsedDate;
-
         debugPrint(
-          "✅ FINAL DATE: ${DateFormat('dd-MM-yyyy').format(pickedDate)}",
+          "✅ FINAL PARSED DATE: ${DateFormat('dd-MM-yyyy').format(pickedDate)}",
         );
       } catch (e) {
+        debugPrint("❌ Date parsing error: $e");
         throw const AppException("Invalid invoice date format. Use DD-MM-YYYY");
       }
 
+      debugPrint("📍 Getting server time...");
       final now = ServerTimeService.now;
+      debugPrint("🕐 Server time: $now");
 
       final parsedInvoiceDate = DateTime(
         pickedDate.year,
@@ -1380,9 +1429,15 @@ class ApprovedPOLogic {
         now.minute,
         now.second,
       );
+      debugPrint("📅 FINAL INVOICE DATE with time: $parsedInvoiceDate");
 
-      debugPrint("📅 FINAL INVOICE DATE: $parsedInvoiceDate");
+      debugPrint("📍 Preparing API request...");
+      debugPrint("  - Invoice Number: ${invoiceNumberController.text.trim()}");
+      debugPrint("  - Invoice Date: $parsedInvoiceDate");
+      debugPrint("  - Round Off Amount: ${roundOffAmount.value}");
+      debugPrint("  - Received Items Count: ${receivedItems.length}");
 
+      debugPrint("📤 Sending updatePoDetails request...");
       final response = await poProvider.updatePoDetails(
         po.purchaseOrderId,
         receivedItems,
@@ -1391,10 +1446,13 @@ class ApprovedPOLogic {
         0,
         roundOffAdjustment: roundOffAmount.value,
       );
+      debugPrint("📥 Response received: $response");
 
       if (response["grnCreated"] != true) {
+        debugPrint("❌ GRN creation failed - grnCreated not true");
         throw Exception("GRN creation failed");
       }
+      debugPrint("✅ GRN creation successful!");
 
       final String grnNumber =
           response["grnRandomId"] ??
@@ -1404,18 +1462,26 @@ class ApprovedPOLogic {
           response["grn_code"] ??
           response["grnId"] ??
           "N/A";
+      debugPrint("📋 GRN Number: $grnNumber");
 
-      debugPrint("✅ GRN CREATED: $grnNumber");
-
+      debugPrint("📍 Refreshing PO and GRN lists...");
       await poProvider.fetchApprovedPOsOnly();
+      debugPrint("✅ POs refreshed");
       await grnProvider.fetchFilteredGRNs();
+      debugPrint("✅ GRNs refreshed");
 
-      if (!context.mounted) return;
+      if (!context.mounted) {
+        debugPrint("⚠️ Context not mounted, skipping dialog");
+        return;
+      }
+      debugPrint("✅ Context is mounted");
 
+      debugPrint("💬 Showing success dialog...");
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) {
+          debugPrint("  🏗️ Building success dialog");
           return AlertDialog(
             backgroundColor: Colors.white,
             shape: RoundedRectangleBorder(
@@ -1432,8 +1498,10 @@ class ApprovedPOLogic {
             actions: [
               ElevatedButton(
                 onPressed: () {
+                  debugPrint("  ✅ User tapped OK on success dialog");
                   Navigator.of(ctx).pop();
                   navigator.pop();
+                  debugPrint("  🚪 Navigator popped");
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
@@ -1445,17 +1513,29 @@ class ApprovedPOLogic {
           );
         },
       );
+      debugPrint("✅ Dialog displayed");
 
-      debugPrint("=========== GRN CONVERSION END ===========");
+      debugPrint("═══════════════════════════════════════════════════════════");
+      debugPrint("✅ GRN CONVERSION COMPLETED SUCCESSFULLY");
+      debugPrint("═══════════════════════════════════════════════════════════");
     } catch (e, stack) {
-      debugPrint("Convert PO to GRN failed: $e");
+      debugPrint("═══════════════════════════════════════════════════════════");
+      debugPrint("❌ GRN CONVERSION FAILED");
+      debugPrint("❌ Error: $e");
+      debugPrint("❌ Stack trace:");
       debugPrintStack(stackTrace: stack);
+      debugPrint("═══════════════════════════════════════════════════════════");
 
       final appError = AppErrorHandler.handle(e, stackTrace: stack);
+      debugPrint("📢 Error handler result: ${appError.message}");
 
       showTopError(appError.message);
+      debugPrint("📢 Error notification shown to user");
     } finally {
       isSaving.value = false;
+      debugPrint("🔓 Saving state reset to FALSE");
+      debugPrint("🏁 convertPoToGRN() FINISHED at ${DateTime.now()}");
+      debugPrint("═══════════════════════════════════════════════════════════");
     }
   }
 

@@ -116,7 +116,7 @@ Future<void> scanAndOpenPOFlow({
       debugPrint("CALLING SUGGEST PO WITH ${files!.length} IMAGES");
       suggestionResponse = await service
           .suggestPO(imageFiles: files)
-          .timeout(const Duration(seconds: 120));
+          .timeout(const Duration(minutes: 5));
     } else if (isPDF) {
       debugPrint("CALLING SUGGEST PO WITH PDF");
       suggestionResponse = await service
